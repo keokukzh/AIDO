@@ -1,12 +1,19 @@
-# Projektstatus
+# Projektstatus — AIDO (Artificial Intelligence Development Operator)
 
 **Stand: 9. November 2026.** Dieser Status trennt Repository-Artefakte von verifizierten Messungen am Referenz-PC.
 
 ## Repository
 
-- `keokukzh/AIDO` ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
+- `keokukzh/AIDO` (**Artificial Intelligence Development Operator**) ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
+- Der vollständige Produkt-Masterplan v1.0 ist unter [MASTERPLAN.md](MASTERPLAN.md) hinterlegt.
 - Die lokale Modell- und Runtime-Validierung (Text, Vision, Speculative Decoding, Schlafmodus/Idle-Unload, Embeddings und deutsche Spracherkennung) ist vollständig abgeschlossen und mit SHA-256-Prüfsummen im [Modellinventar](MODEL_RUNTIME_INVENTORY.md) dokumentiert.
-- Auf dieser verifizierten Grundlage entsteht der erste ausführbare AIDO-Kern-Prototyp (Tauri 2 + Rust + TypeScript + SQLite/FTS5 Memory + Permission Gateway + Windows Bridge).
+- Der **AIDO-Kern-Prototyp (Phase 1 & Phase 2)** ist implementiert und mit **16 automatisierten Rust-Tests** (`cargo test` + `cargo clippy -- -D warnings`) sowie einem 5-stufigen End-to-End-Durchstich (`aido-cli demo`) verifiziert:
+  - `permission_gateway.rs`: Zugriffskontrolle (`ReadOnly`, `StandardAccess`, `FullAccess`), `PrivateOffline` Loopback-Schutz (`127.0.0.1`) und kryptografische Einmal-Freigabetokens (`ApprovalToken`).
+  - `windows_bridge.rs`: Live-Hardware-Sensorik (`nvidia-smi` RTX 5090 VRAM, RAM, Top-Prozesse) und kontrolliertes *Fast Cleanup* nach Nutzerfreigabe.
+  - `app_intelligence.rs`: **App Discovery & Capability Registry** mit SQLite-Persistenz (`app_registry`), Installer-Checkbox-Steuerung und Risiko-/Freigabeklassifizierung pro Fähigkeit (*Docker Desktop*, *Cursor / VS Code*, *LM Studio*, *Google Chrome*).
+  - `project_intelligence.rs`: **Project Intelligence & Kanonischer Projektkatalog** mit Stack-Erkennung, Git-Branch/Status-Prüfung, FTS5-Volltextsuche (`project_catalog_fts`) und kontrolliertem Projekt-Start-Workflow (`LaunchProject`).
+  - `memory.rs`: Lokales SQLite/FTS5-Langzeitgedächtnis und lückenloses `audit_log`.
+  - `index.html` & `src/main.ts`: Animierter Desktop-Charakter mit Chat, Freigabe-Karten, App-Intelligence- & Projekt-Ansicht, Push-to-Talk, Screenshot-Vorschau und Privacy/Memory Center.
 
 ## Verifizierte Messungen am Referenz-PC (RTX 5090, 32607 MiB VRAM)
 

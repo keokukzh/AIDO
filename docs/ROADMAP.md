@@ -5,9 +5,9 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Abgeschlossene Nachweise s
 | Phase | Ziel | Status / Nachweis |
 | --- | --- | --- |
 | 0 | Referenz-PC, vorhandene Modelllaufzeiten und Modelle gezielt inventarisieren; historischen Docker-Plan einordnen. | **Abgeschlossen.** Runtimes, SHA-256-Prüfsummen, Vision, DFlash2, Idle-Sleep und CUDA-Whisper verifiziert. |
-| 1 | Windows Bridge, Permission Gateway, lokales SQLite/FTS5-Memory und erster Desktop-Prototyp (System-Gesundheitscheck & Fast Cleanup). | **In Umsetzung (MVP-Durchstich).** Erlaubte, abgelehnte und bestätigungspflichtige Aktionen reproduzierbar getrennt. |
-| 2 | App Discovery und Capability Registry. | Geplant: Apps erkennen; konkrete Fähigkeiten mit Rechten und Teststatus anzeigen. |
-| 3 | Smart Installer und Datenmodi. | Geplant: Unterbrechung, Wiederaufnahme und Modi auf Windows-11-Testsystemen prüfen. |
+| 1 | Windows Bridge, Permission Gateway, lokales SQLite/FTS5-Memory und erster Desktop-Prototyp (System-Gesundheitscheck & Fast Cleanup). | **Abgeschlossen.** Erlaubte, abgelehnte und bestätigungspflichtige Aktionen reproduzierbar getrennt und getestet. |
+| 2 | App Discovery, Capability Registry und Project Intelligence (Kanonischer Projektkatalog). | **Abgeschlossen.** Apps und Projekte werden erkannt, in SQLite/FTS5 gespeichert und mit Rechten, Risiko und Freigabestatus verwaltet (16/16 Tests grün). |
+| 3 | Smart Installer und Datenmodi. | **Nächster Meilenstein:** Geführter Installer-Flow (Hardwareprüfung, Modellwahl, App-Auswahl-Wizard, dynamische ETA-Berechnung). |
 | 4 | Vollständige Integration von Hauptmodell, Vision, Whisper-ASR und Embeddings in die Live-Oberfläche. | **Runtime-Kette verifiziert;** UI-/Backend-Anbindung Teil des Prototyps. |
 | 5 | Ausbau 3D-Charakter, verständliches Onboarding und Privacy/Memory Center. | Basis-Charakter & Privacy/Memory-Ansicht im MVP-Prototyp enthalten. |
 | 6 | Proaktive Vorschläge und geplante Hintergrundaufgaben. | Geplant nach Abschluss des MVP-Durchstichs. |
