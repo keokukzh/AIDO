@@ -45,6 +45,8 @@ pub enum ActionKind {
     RunInstallerStep,
     /// State-modifying rollback of completed installer steps
     RollbackInstaller,
+    /// Read-only inspection and health probing of local AI runtimes
+    ProbeLocalRuntimes,
 }
 
 impl ActionKind {
@@ -337,6 +339,7 @@ mod tests {
         assert!(!ActionKind::VerifyAppCapability.is_mutating());
         assert!(!ActionKind::ScanProjects.is_mutating());
         assert!(!ActionKind::InspectHardwareAndModels.is_mutating());
+        assert!(!ActionKind::ProbeLocalRuntimes.is_mutating());
 
         assert!(ActionKind::FastCleanupExecute.is_mutating());
         assert!(ActionKind::UnloadIdleModelSlot.is_mutating());

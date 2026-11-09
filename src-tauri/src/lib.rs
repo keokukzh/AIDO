@@ -3,6 +3,7 @@ pub mod app_intelligence;
 pub mod memory;
 pub mod permission_gateway;
 pub mod project_intelligence;
+pub mod runtime_supervisor;
 pub mod smart_installer;
 pub mod windows_bridge;
 
