@@ -24,6 +24,12 @@ Das Permission Gateway prüft jede Werkzeugaktion unabhängig vom Modell. Die Wi
 
 Ein lokales Hauptmodell ist die bevorzugte erste Konfiguration auf geeigneter Hardware. Qwen3.8-27B wurde im Planungschat als Kandidat für den Referenz-PC genannt; Hardwarepassung, Lizenz, Laufzeit und Qualität sind noch zu testen. Kleinere oder quantisierte Modelle sowie eine freiwillige Cloud-Option sollen andere Geräte abdecken. Das grosse Modell soll bei Leerlauf entladen werden können. Hermes und bestehende LM-Studio-/Ollama-Laufzeiten sind Prüfkandidaten, keine bestätigten Produktbestandteile.
 
+## Modellrollen und Laufzeitwahl
+
+Für den ersten Modell-Spike werden Hauptmodell, Text-Embedding-Modell für Memory-Suche und Spracherkennung getrennt betrachtet. Ein Embedding-Modell bildet Text für Ähnlichkeitssuche ab; gesprochenes Audio wird damit nicht transkribiert. Sprachausgabe benötigt bei Bedarf zusätzlich eine lokale TTS-Komponente. Das offizielle Qwen3.8-27B ist laut Modellkarte bildfähig; die konkrete lokale Ableitung und die gewählte Runtime müssen mit einem Bildtest geprüft werden. Bei GGUF können zusätzliche multimodale Dateien nötig sein. [Qwen-Modellkarte](https://huggingface.co/Qwen/Qwen3.8-27B), [llama.cpp-Server](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
+
+Der Installer inventarisiert vorhandene Ollama-, LM-Studio- und llama.cpp-Laufzeiten, Modellformate, Versionen, API-Fähigkeiten und belegte Ressourcen. Er wählt einen primären Inferenzpfad nach Kompatibilitäts- und Leistungstests; zusätzliche Engines werden nur für klar abgegrenzte Funktionen genutzt. Für lokale Text-Embeddings ist Qwen3-Embedding-0.6B ein zu prüfender Kandidat, für Spracherkennung whisper.cpp mit passendem Sprachmodell. Dies sind keine festgelegten Produktabhängigkeiten. [Embedding-Modellkarte](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B), [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
+
 ## Memory
 
 Für einen ersten Prototyp ist SQLite mit FTS5, strukturierten Projekt- und Systemdaten sowie lokalen Embeddings vorgesehen. Geplante Ebenen sind Grundregeln, Nutzer-, System-, Projekt-, Ereignis-, semantisches und Ablaufwissen. Ein Eintrag enthält nach Möglichkeit Quelle, Zeitpunkt und Gültigkeit. Abruf lädt nur relevanten Kontext; Konsolidierung entfernt Duplikate, ohne Originale stillschweigend zu löschen. Mem0 und ein Wissensgraph bleiben Evaluationskandidaten. Externe Defaults von Drittkomponenten müssen für Private Offline ausgeschlossen werden.
