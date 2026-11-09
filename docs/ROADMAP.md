@@ -16,9 +16,11 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Es gibt keine belastbaren 
 
 ## Unmittelbare nächste Schritte
 
+**Ausführung auf Nutzerwunsch angehalten.** Die folgenden Punkte beschreiben die Reihenfolge bei Wiederaufnahme, nicht abgeschlossene Tests.
+
 1. Den offengelegten LM-Studio-Testschlüssel widerrufen. Der erfolgreiche Embedding-Funktionstest ist im [Modellinventar](MODEL_RUNTIME_INVENTORY.md) dokumentiert; Wiederholbarkeit, Qualität und Offline-Datenfluss sind noch zu prüfen.
 2. Die konkrete Qwen-Q4-Datei samt vorhandenem Projektor mit einem künstlichen Testbild prüfen. Ohne erfolgreichen Bildtest bleibt ihre Vision-Fähigkeit offen.
-3. Vorhandene lokale ASR-Runtime und Sprachmodelle vervollständigt inventarisieren; Spracheingabe mit deutschem Testaudio separat prüfen. Sprachausgabe erst für die Voice-Oberfläche auswählen.
+3. Das inzwischen heruntergeladene und per SHA-1 geprüfte mehrsprachige Whisper-`small` mit dem lokal erzeugten deutschen WAV transkribieren, sobald die Ausführung wieder aufgenommen wird. Die vorhandene `whisper-server.exe` lud das Modell, fand jedoch keine GPU; Audioverarbeitung ist noch ungetestet. Deutsche Windows-Stimmen erst für die Voice-Oberfläche bewerten.
 4. Eine kleine, messbare Nutzeraufgabe für den ersten Prototyp wählen und Aktionsschema, Freigabegrenzen sowie lokale Protokollierung spezifizieren.
 5. Hauptmodell- und Runtime-Kandidaten mit denselben Aufgaben auf Qualität, Startzeit, VRAM, Leerlauf-Entladung und Offline-Verhalten vergleichen. Ollama erst wieder einbeziehen, wenn sein fehlender Modell-Blob geklärt ist.
 6. Den punktuellen Ist-Check in [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) um Ubuntu-Benutzer, Docker-Integration und GPU-Passthrough ergänzen, soweit Docker für die Entwicklung gebraucht wird.
