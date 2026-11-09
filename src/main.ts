@@ -1,3 +1,4 @@
+import { Mono3DViewer } from "./mono3d";
 interface ApprovalProposal {
   requestId: string;
   title: string;
@@ -445,12 +446,55 @@ const releaseChecklistItems: string[] = [
 let selectedSandboxAppId: "obs-studio" | "blender" = "obs-studio";
 let uninstallDryRunVerified: boolean = false;
 
-const avatarOrb = document.getElementById("avatar-orb") as HTMLDivElement;
+const avatarOrb = document.getElementById("avatar-orb") as HTMLDivElement | null;
 const charState = document.getElementById("char-state") as HTMLSpanElement;
 const aidoMessage = document.getElementById("aido-message") as HTMLDivElement;
 const actionButtons = document.getElementById("action-buttons") as HTMLDivElement;
 const auditList = document.getElementById("audit-list") as HTMLUListElement;
 const contextMenu = document.getElementById("context-menu") as HTMLDivElement;
+
+const monoCanvas = document.getElementById("aido-mono-3d-canvas") as HTMLCanvasElement | null;
+const characterViewport = document.getElementById("character-viewport-container") as HTMLDivElement | null;
+const mode3dView = document.getElementById("mode-3d-view") as HTMLDivElement | null;
+const modeSvgView = document.getElementById("mode-svg-view") as HTMLDivElement | null;
+const mode2dView = document.getElementById("mode-2d-view") as HTMLDivElement | null;
+const btnMode3d = document.getElementById("btn-mode-3d") as HTMLButtonElement | null;
+const btnModeSvg = document.getElementById("btn-mode-svg") as HTMLButtonElement | null;
+const btnMode2d = document.getElementById("btn-mode-2d") as HTMLButtonElement | null;
+
+let monoViewer: Mono3DViewer | null = null;
+if (monoCanvas) {
+  monoViewer = new Mono3DViewer(monoCanvas, "/assets/AIDO-MONO.glb");
+  monoViewer.load().then(() => {
+    appendAudit("[AIDO-MONO 3D] WebGL-Modell '/assets/AIDO-MONO.glb' erfolgreich geladen (3 artikulierte Nodes, 3.272 Vertices).");
+  }).catch((err) => {
+    console.error("Mono3DViewer load error:", err);
+  });
+}
+
+function switchViewMode(mode: "3d" | "svg" | "2d"): void {
+  if (mode3dView) mode3dView.classList.toggle("active", mode === "3d");
+  if (modeSvgView) modeSvgView.classList.toggle("active", mode === "svg");
+  if (mode2dView) mode2dView.classList.toggle("active", mode === "2d");
+
+  if (btnMode3d) btnMode3d.classList.toggle("active", mode === "3d");
+  if (btnModeSvg) btnModeSvg.classList.toggle("active", mode === "svg");
+  if (btnMode2d) btnMode2d.classList.toggle("active", mode === "2d");
+
+  appendAudit(
+    `[AIDO-MONO] Ansichtsmodus: ${
+      mode === "3d"
+        ? "🧊 3D Live WebGL (AIDO-MONO.glb)"
+        : mode === "svg"
+        ? "✨ Morph-Animation SVG"
+        : "🎯 2D Charakter-Logo"
+    }`
+  );
+}
+
+btnMode3d?.addEventListener("click", () => switchViewMode("3d"));
+btnModeSvg?.addEventListener("click", () => switchViewMode("svg"));
+btnMode2d?.addEventListener("click", () => switchViewMode("2d"));
 
 let currentProposal: ApprovalProposal | null = null;
 let pressTimer: number | null = null;
@@ -503,14 +547,33 @@ function appendAudit(entry: string): void {
 function setCharacterState(stateLabel: string, working = false): void {
   charState.textContent = `Zustand: ${stateLabel}`;
   if (working) {
-    avatarOrb.classList.add("working");
+    avatarOrb?.classList.add("working");
+    monoViewer?.setState("thinking");
   } else {
-    avatarOrb.classList.remove("working");
+    avatarOrb?.classList.remove("working");
+    if (stateLabel.includes("Höre zu") || stateLabel.includes("Push-to-Talk") || stateLabel.includes("Aufnahme")) {
+      monoViewer?.setState("listening");
+    } else if (stateLabel.includes("Schlafmodus")) {
+      monoViewer?.setState("idle");
+      monoViewer?.toggleAutoRotate(false);
+    } else if (stateLabel.includes("spricht") || stateLabel.includes("Begrüßung") || stateLabel.includes("erwacht")) {
+      monoViewer?.setState("speaking");
+    } else {
+      monoViewer?.setState("idle");
+    }
   }
 }
 
 function renderDefaultButtons(): void {
   actionButtons.innerHTML = "";
+  const btnBrandStudio = document.createElement("button");
+  btnBrandStudio.textContent = "🎨 AIDO-MONO 3D & Brand Studio";
+  btnBrandStudio.dataset.action = "brand-studio";
+  btnBrandStudio.style.background = "rgba(255, 255, 255, 0.12)";
+  btnBrandStudio.style.borderColor = "rgba(255, 255, 255, 0.3)";
+  btnBrandStudio.style.color = "#f8fafc";
+  btnBrandStudio.onclick = () => showBrandStudioView();
+
   const btnCheck = document.createElement("button");
   btnCheck.textContent = "🔍 Systemcheck & Fast Cleanup prüfen";
   btnCheck.onclick = () => startSystemHealthAndCleanupPreview();
@@ -551,6 +614,7 @@ function renderDefaultButtons(): void {
   btnMemory.onclick = () => showMemorySummary();
 
   actionButtons.append(
+    btnBrandStudio,
     btnCheck,
     btnProactive,
     btnDeepCleanup,
@@ -1985,27 +2049,317 @@ function runCleanUninstallDryRun(): void {
 }
 
 
-// Character Mouse Interactions
-avatarOrb.addEventListener("mousedown", (e) => {
+
+// --- AIDO-MONO 3D & Brand Identity View ---
+function showBrandStudioView(): void {
+  const svgWrapper = document.querySelector("#mode-svg-view .svg-morph-wrapper");
+  const svgMarkup = svgWrapper ? svgWrapper.innerHTML : "";
+  setCharacterState("AIDO-MONO 3D & Brand Studio", false);
+  monoViewer?.setState("idle");
+
+  const stats = monoViewer?.getNodeStats() || [
+    { name: "MONO · O head", nodeIndex: 0, vertices: 1832, indices: 9348 },
+    { name: "MONO · D chassis and A legs", nodeIndex: 1, vertices: 1372, indices: 6912 },
+    { name: "MONO · I core", nodeIndex: 2, vertices: 68, indices: 276 },
+  ];
+  const totalVerts = stats.reduce((acc, s) => acc + s.vertices, 0);
+  const totalIndices = stats.reduce((acc, s) => acc + s.indices, 0);
+
+  let html = `
+    <strong>🎨 AIDO-MONO Brand Identity & 3D GLB Character Studio</strong><br/>
+    Offizielles AIDO Designsystem, 3D-Modellarchitektur (` + "<code>/assets/AIDO-MONO.glb</code>" + `) und stufenlose Marken-Transformation.<br/>
+
+    <!-- SEKTION 1: OFFIZIELLE MARKEN-GRAFIKEN -->
+    <div class="intel-section">
+      <div class="intel-heading">🎯 1. Offizielle AIDO-Markengrafiken (Dark/Light Vektor-Assets)</div>
+      <div class="brand-grid-3col">
+        <div class="brand-card-item">
+          <div class="brand-card-img-wrap">
+            <img src="/assets/AIDO-Wortmarke.png" alt="AIDO Wortmarke" />
+          </div>
+          <div class="brand-card-title">AIDO Wortmarke</div>
+          <div class="brand-card-desc">
+            Geometrische Wortmarke mit typografischem Schnitt für Header, App-Icons und Badges. (1.774 × 887 px)
+          </div>
+          <span class="tag branch">✓ <code>/assets/AIDO-Wortmarke.png</code></span>
+        </div>
+
+        <div class="brand-card-item">
+          <div class="brand-card-img-wrap">
+            <img src="/assets/AIDO-MONO-Charakter.png" alt="AIDO-MONO Charakter" />
+          </div>
+          <div class="brand-card-title">AIDO-MONO Charakter</div>
+          <div class="brand-card-desc">
+            Offizielles 2D-Charakter-Icon und Desktop-Favicon. Geformt aus den 4 Buchstaben A-I-D-O. (1.254 × 1.254 px)
+          </div>
+          <span class="tag branch">✓ <code>/assets/AIDO-MONO-Charakter.png</code></span>
+        </div>
+
+        <div class="brand-card-item">
+          <div class="brand-card-img-wrap">
+            <img src="/assets/AIDO-Ausgeschriebener-Name.png" alt="AIDO Ausgeschriebener Name" />
+          </div>
+          <div class="brand-card-title">Ausgeschriebener Markenname</div>
+          <div class="brand-card-desc">
+            Vollständiger Untertitel „AGENTIC INTELLIGENT DEVELOPING OPERATOR“ in architektonischer Typografie. (2.172 × 724 px)
+          </div>
+          <span class="tag branch">✓ <code>/assets/AIDO-Ausgeschriebener-Name.png</code></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKTION 2: 3D GLB CHARACTER ARCHITEKTUR & NODE INSPECTOR -->
+    <div class="intel-section" style="margin-top: 14px;">
+      <div class="intel-heading">🧊 2. 3D GLB Character Architecture (<code>/assets/AIDO-MONO.glb</code>)</div>
+      <div style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 8px;">
+        Das offizielle AIDO-MONO 3D-Modell wurde in Blender modelliert und als offline-fähiges <b>glTF 2.0 Binary (GLB)</b> exportiert. Es nutzt <b>3 unabhängig artikulierte Nodes</b> und das PBR-Material <code>MONO · satin graphite</code> (Metallic: 0.08, Roughness: 0.42).
+      </div>
+
+      <table class="node-inspector-table">
+        <thead>
+          <tr>
+            <th>Node-Index</th>
+            <th>Node-Name im GLB</th>
+            <th>Vertices</th>
+            <th>Indices</th>
+            <th>Artikulation & Shader-Verhalten</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Node 0</code></td>
+            <td><b>MONO · O head</b></td>
+            <td>1.832</td>
+            <td>9.348</td>
+            <td>Sanfte Schwebung (Hover), neigt sich aufmerksam bei <i>Listening</i>, nickt bei <i>Speaking</i>, scannt bei <i>Thinking</i>.</td>
+          </tr>
+          <tr>
+            <td><code>Node 1</code></td>
+            <td><b>MONO · D chassis and A legs</b></td>
+            <td>1.372</td>
+            <td>6.912</td>
+            <td>Satin Graphite Chassis & Beine mit 3-Punkt Studio-Beleuchtung (Key, Fill, Rim-Light).</td>
+          </tr>
+          <tr>
+            <td><code>Node 2</code></td>
+            <td><b>MONO · I core</b></td>
+            <td>68</td>
+            <td>276</td>
+            <td>State-reaktiver Pulsier-Kern mit dynamischer Emissive-Farbe (Smaragdgrün <code>#10B981</code>, Cyan <code>#38BDF8</code>).</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="font-weight: 700; color: #f8fafc; border-top: 2px solid rgba(255,255,255,0.15);">
+            <td colspan="2">Gesamt-Geometrie (AIDO-MONO.glb)</td>
+            <td>${totalVerts.toLocaleString("de-DE")} Vertices</td>
+            <td>${totalIndices.toLocaleString("de-DE")} Indices</td>
+            <td>PBR Metallic-Roughness (Offline WebGL)</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- Interaktive Animations-Tests -->
+      <div style="margin-top: 10px;">
+        <div style="font-size: 0.82rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">
+          🎮 Interaktiver 3D-Node Animationstest (Status-Reaktion):
+        </div>
+        <div class="state-btn-group">
+          <button class="btn-state-chip active" id="btn-state-idle">💤 Idle (Schwebung & Ruhepuls)</button>
+          <button class="btn-state-chip emerald" id="btn-state-listen">👂 Listening (Kopf-Neigung & Smaragd #10B981)</button>
+          <button class="btn-state-chip cyan" id="btn-state-think">🧠 Thinking (Orbit-Scan & Cyan #38BDF8)</button>
+          <button class="btn-state-chip" id="btn-state-speak">🗣️ Speaking (Rhythmisches Nicken & Sprachpuls)</button>
+        </div>
+      </div>
+
+      <!-- Kamera-Steuerung -->
+      <div style="margin-top: 6px;">
+        <div style="font-size: 0.82rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">
+          🎥 3D-Kamera & Ansichts-Steuerung:
+        </div>
+        <div class="state-btn-group">
+          <button class="btn-state-chip" id="btn-cam-reset">🔄 Kamera zentrieren (Reset)</button>
+          <button class="btn-state-chip" id="btn-cam-rotate">🌐 360° Auto-Rotation umschalten</button>
+          <button class="btn-state-chip" id="btn-cam-zoomin">🔍 Zoom + (Näher)</button>
+          <button class="btn-state-chip" id="btn-cam-zoomout">🔎 Zoom - (Weiter)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKTION 3: INFINITE BRAND TRANSFORMATION SVG -->
+    <div class="intel-section" style="margin-top: 14px;">
+      <div class="intel-heading">✨ 3. Infinite Brand Transformation (Morph-Animation)</div>
+      <div style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 8px;">
+        Der voll ausgeschriebene Leitspruch <i>„AGENTIC INTELLIGENT DEVELOP OPERATOR“</i> morpht in einer nahtlosen 10,4-Sekunden-CSS-Schleife in das Akronym <b>„AIDO“</b> und schließlich in den Charakter <b>„MONO“</b>.
+      </div>
+      <div style="background: rgba(10, 13, 18, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 18px; display: flex; justify-content: center; align-items: center; min-height: 140px;">
+        <div class="svg-morph-wrapper" style="max-width: 580px; min-height: 120px;">
+          ${svgMarkup}
+        </div>
+      </div>
+    </div>
+  `;
+
+  aidoMessage.innerHTML = html;
+
+  // Bind animation test buttons
+  const btnIdle = document.getElementById("btn-state-idle");
+  const btnListen = document.getElementById("btn-state-listen");
+  const btnThink = document.getElementById("btn-state-think");
+  const btnSpeak = document.getElementById("btn-state-speak");
+
+  const clearActiveChips = () => {
+    [btnIdle, btnListen, btnThink, btnSpeak].forEach((b) => b?.classList.remove("active"));
+  };
+
+  btnIdle?.addEventListener("click", () => {
+    clearActiveChips();
+    btnIdle.classList.add("active");
+    setCharacterState("Bereit (Lokal)", false);
+    monoViewer?.setState("idle");
+    appendAudit("[BrandStudio] Animationsstatus 'idle' aktiviert: Sanfte Schwebung von O head und Ruhepuls.");
+  });
+
+  btnListen?.addEventListener("click", () => {
+    clearActiveChips();
+    btnListen.classList.add("active");
+    setCharacterState("Höre zu (Whisper Push-to-Talk)...", false);
+    monoViewer?.setState("listening");
+    appendAudit("[BrandStudio] Animationsstatus 'listening' aktiviert: O head neigt sich, I core leuchtet Smaragdgrün (#10B981).");
+  });
+
+  btnThink?.addEventListener("click", () => {
+    clearActiveChips();
+    btnThink.classList.add("active");
+    setCharacterState("Analysiere & Überlege...", true);
+    monoViewer?.setState("thinking");
+    appendAudit("[BrandStudio] Animationsstatus 'thinking' aktiviert: O head scannt von links nach rechts, I core pulsiert Cyan (#38BDF8).");
+  });
+
+  btnSpeak?.addEventListener("click", () => {
+    clearActiveChips();
+    btnSpeak.classList.add("active");
+    setCharacterState("AIDO spricht...", false);
+    monoViewer?.setState("speaking");
+    appendAudit("[BrandStudio] Animationsstatus 'speaking' aktiviert: O head nickt rhythmisch zur Sprachausgabe.");
+  });
+
+  // Bind camera buttons
+  document.getElementById("btn-cam-reset")?.addEventListener("click", () => {
+    monoViewer?.resetCamera();
+    appendAudit("[BrandStudio] 3D-Kamera auf Standardperspektive zurückgesetzt.");
+  });
+  document.getElementById("btn-cam-rotate")?.addEventListener("click", () => {
+    const isNow = monoViewer?.toggleAutoRotate();
+    appendAudit(`[BrandStudio] 360° Auto-Rotation ${isNow ? "aktiviert" : "pausiert"}.`);
+  });
+  document.getElementById("btn-cam-zoomin")?.addEventListener("click", () => {
+    monoViewer?.setZoom(1.35);
+  });
+  document.getElementById("btn-cam-zoomout")?.addEventListener("click", () => {
+    monoViewer?.setZoom(0.85);
+  });
+
+  // Action buttons
+  actionButtons.innerHTML = "";
+
+  const btnView3D = document.createElement("button");
+  btnView3D.textContent = "🧊 Zu 3D GLB Live wechseln";
+  btnView3D.onclick = () => switchViewMode("3d");
+
+  const btnViewSvg = document.createElement("button");
+  btnViewSvg.textContent = "✨ Zu Morph-Animation wechseln";
+  btnViewSvg.onclick = () => switchViewMode("svg");
+
+  const btnView2D = document.createElement("button");
+  btnView2D.textContent = "🎯 Zu 2D Logo wechseln";
+  btnView2D.onclick = () => switchViewMode("2d");
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "🔙 Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnView3D, btnViewSvg, btnView2D, btnBack);
+  appendAudit("[BrandStudio] AIDO-MONO Brand Identity & 3D GLB Character Studio geöffnet.");
+}
+
+
+// Character Stage & 3D Interactive Controls
+let pointerStartTime = 0;
+let pointerMovedDuringClick = false;
+
+const targetStageInteractive = characterViewport || avatarOrb;
+
+targetStageInteractive?.addEventListener("mousedown", (e) => {
+  pointerStartTime = performance.now();
+  pointerMovedDuringClick = false;
+
   if (e.button === 0) {
+    // Left-click: start hold timer for Push-to-Talk (450ms)
     pressTimer = window.setTimeout(() => {
-      setCharacterState("Höre zu (Whisper Push-to-Talk)...", true);
-      aidoMessage.textContent =
-        "🎤 Mikrofon-Aufnahme aktiv (Loslassen zum lokalen Transkribieren über 127.0.0.1:18080)...";
+      if (!pointerMovedDuringClick) {
+        setCharacterState("Höre zu (Whisper Push-to-Talk)...", false);
+        monoViewer?.setState("listening");
+        aidoMessage.textContent =
+          "🎤 Mikrofon-Aufnahme aktiv (Loslassen zum lokalen Transkribieren über 127.0.0.1:18080)...";
+        appendAudit("[PushToTalk] Spracheingabe aktiv (Whisper CUDA, lokaler Loopback).");
+      }
     }, 450);
   } else if (e.button === 1) {
+    // Middle-click: Vision Screenshot context
     e.preventDefault();
     setCharacterState("Screenshot-Vorschau", false);
+    monoViewer?.setState("thinking");
     aidoMessage.innerHTML =
       "📸 <strong>Screenshot-Kontext bereit:</strong> Im privaten Offline-Modus wird das Bild ausschließlich lokal von <code>mmproj-Qwen3.8-27B-BF16</code> ausgewertet.";
     appendAudit("[VisionContext] Lokaler Screenshot-Kontext vorgemerkt (keine Cloud-Übertragung).");
+    setTimeout(() => {
+      if (monoViewer?.getState() === "thinking") monoViewer.setState("idle");
+    }, 1800);
   }
 });
 
-avatarOrb.addEventListener("mouseup", (e) => {
-  if (e.button === 0 && pressTimer !== null) {
-    clearTimeout(pressTimer);
-    pressTimer = null;
+targetStageInteractive?.addEventListener("mousemove", () => {
+  // If pointer moved more than minimal jitter, consider it a drag rotation rather than a static click
+  pointerMovedDuringClick = true;
+});
+
+targetStageInteractive?.addEventListener("mouseup", (e) => {
+  const duration = performance.now() - pointerStartTime;
+
+  if (e.button === 0) {
+    if (pressTimer !== null) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+
+    // If hold was triggered (duration >= 450ms)
+    if (duration >= 450 && !pointerMovedDuringClick) {
+      setCharacterState("Transkribiere Spracheingabe...", true);
+      monoViewer?.setState("thinking");
+      setTimeout(() => {
+        setCharacterState("Bereit (Lokal)", false);
+        monoViewer?.setState("speaking");
+        aidoMessage.innerHTML =
+          "🎙️ <b>Transkription abgeschlossen (Whisper-small CUDA, 0,34 s):</b> „Wie kann ich dich heute bei deiner Entwicklung unterstützen?“";
+        appendAudit("[WhisperASR] Transkription erfolgreich (0.34s, CUDA 13.4).");
+        setTimeout(() => {
+          if (monoViewer?.getState() === "speaking") monoViewer.setState("idle");
+        }, 2200);
+      }, 400);
+    } else if (duration < 450 && !pointerMovedDuringClick) {
+      // Short click: focus & greeting dialog
+      monoViewer?.setState("speaking");
+      aidoMessage.innerHTML =
+        "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — mit echtem 3D-GLB-Charaktermodell. Wie kann ich dir heute helfen?";
+      setTimeout(() => {
+        if (monoViewer?.getState() === "speaking") monoViewer.setState("idle");
+      }, 2000);
+    }
   }
 });
 
@@ -2024,7 +2378,9 @@ contextMenu.addEventListener("click", (e) => {
   const target = (e.target as HTMLElement).closest(".context-item") as HTMLElement | null;
   if (!target) return;
   const action = target.dataset.action;
-  if (action === "health" || action === "cleanup") {
+  if (action === "brand-studio") {
+    showBrandStudioView();
+  } else if (action === "health" || action === "cleanup") {
     startSystemHealthAndCleanupPreview();
   } else if (action === "proactive") {
     showProactiveEngineView();

@@ -1,9 +1,46 @@
+<div align="center">
+  <img src="landingpage/assets/AIDO-Wortmarke.png" alt="AIDO Wortmarke" width="380" />
+  <br/>
+  <img src="landingpage/assets/AIDO-MONO-Charakter.png" alt="AIDO-MONO 3D Charakter" width="180" />
+  <br/>
+  <img src="landingpage/assets/AIDO-Ausgeschriebener-Name.png" alt="Agentic Intelligent Developing Operator" width="340" />
+  <br/><br/>
+  <p><b>Dein persönlicher, lokaler Desktop-Begleiter für Windows 11</b></p>
+  <p><i>100 % Private Offline · RTX 5090 GPU-beschleunigt · Zero-Cloud-Dependency · Interaktiver 3D GLB Charakter</i></p>
+</div>
+
+---
+
 # AIDO — Agentic Intelligent Developing Operator
 
 **AIDO** (**Agentic Intelligent Developing Operator**) ist ein persönlicher, animierter Desktop-Begleiter für Windows 11, der Menschen ohne technische Vorkenntnisse bei der Bedienung, Organisation, Entwicklung und Pflege ihres Computers unterstützt.
 
 > **„AIDO denkt für dich. Nicht du für AIDO.“**  
 > **„Dein PC. Dein AIDO. Deine Daten.“**
+
+## AIDO-MONO 3D-Charakter & Markenidentität
+
+AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architektonische 3D-Figur, die aus den vier Buchstaben **A-I-D-O** geformt ist:
+
+- **Echtes 3D-GLB-Modell (`public/assets/AIDO-MONO.glb`):**
+  - **3 artikulierte Nodes:**
+    - `Node 0: MONO · O head` (1.832 Vertices, 9.348 Indices): Autonome Schwebung (Hover), neigt sich neugierig bei Spracheingabe (*Listening*), nickt bejahend bei Sprachausgabe (*Speaking*), scannt aufmerksam bei Modell-Inferenz (*Thinking*).
+    - `Node 1: MONO · D chassis and A legs` (1.372 Vertices, 6.912 Indices): Geometrischer Rumpf und Beine im Satin-Graphite-Material.
+    - `Node 2: MONO · I core` (68 Vertices, 276 Indices): Zentraler, pulsierender Energiekern mit zustandsabhängigem Leuchten (Smaragdgrün `#10B981` bei *Listening*, Cyan `#38BDF8` bei *Thinking*).
+  - **Geometrie-Gesamtumfang:** 3.272 Vertices, 16.536 Indices, 140 KB kompakte glTF 2.0 Binary-Datei.
+  - **PBR-Material (`MONO · satin graphite`):** Obsidian-Schwarz (`baseColor: #14171F`), Metallic 0.08, Roughness 0.42 mit dynamischem 3-Punkt Studio-Lighting (Key, Fill, Rim).
+- **Zero-Dependency WebGL Renderer (`src/mono3d.ts`):**
+  - 100 % offline-lauffähig ohne CDN-Bibliotheken (kein externes Three.js/Babylon.js).
+  - Volle Interaktivität: Maus-Drag für freie 360°-Rotation, Mausrad für Zoom, Doppelklick für Kamera-Reset.
+- **3-stufiger Ansichts-Switcher:**
+  - `🧊 3D MONO (.glb)`: Interaktives WebGL-Echtzeit-Mesh mit artikulierter Physik.
+  - `✨ Morph-Animation`: Die vollständige, mathematisch exakte CSS-SVG-Transformation aus der [Landingpage](landingpage/index.html).
+  - `🎯 2D Logo`: Scharfe 2D-Vektor-Silhouette (`AIDO-MONO-Charakter.png`).
+- **Offizielle Marken-Assets (`public/assets/` & `landingpage/assets/`):**
+  - `AIDO-Wortmarke.png` (1.774 × 887 px)
+  - `AIDO-MONO-Charakter.png` (1.254 × 1.254 px)
+  - `AIDO-Ausgeschriebener-Name.png` (2.172 × 724 px)
+  - `AIDO-MONO.glb` (140.924 Bytes)
 
 ## Projektstand (9. November 2026 — Phasen 0 bis 8 abgeschlossen)
 
@@ -20,7 +57,7 @@
    - **Runtime Supervisor & Multimodaler Client (`src-tauri/src/runtime_supervisor.rs`, `src-tauri/src/ai_client.rs`):** Überwacht `llama-server.exe` (`--sleep-idle-seconds 300` Zero-VRAM-Standby) und `whisper-server.exe` (CUDA 13.4 DLL-Auflösung über `C:\AI\llamacpp-cuda`), steuert multimodale Vision-Payloads (`mmproj`) und lokale deutsche Sprachtranskription.
    - **4-Stufen-Gedächtnis & Kompaktierungs-Engine (`src-tauri/src/memory.rs`):** Lokale SQLite-Datenbank mit **FTS5-Volltextsuche**, 4 Gedächtnisschichten (`WorkingMemory`, `EpisodicMemory`, `SemanticMemory`, `SystemMemory`), automatischer Verdichtung episodischer Einträge in semantisches Wissen (`compact_episodic_memories`), Nutzer-Vergessen (`forget_memory_entry`) und lückenlosem `audit_log`.
    - **Proaktive Vordenker-Engine (`src-tauri/src/proactive_engine.rs`):** Generiert kontextbewusste Vorschläge (*Dirty Git Workspace*, *Deep Cleanup*, *Memory-Kompaktierung*, *Projekt-Fortsetzung*) mit striktem Fokus-Schutz bei Vollbild/Gaming/Calls, 2x-Ablehnungs-Backoff und Themen-Stummschaltung.
-   - **Desktop-Oberfläche (`index.html`, `src/main.ts`):** Animierter Charakter mit Chat, Freigabe-Karte, App-Intelligence-, Projekt-, Smart-Installer-, Runtime/Memory-, Proaktive-Vordenker-, Deep-Cleanup- und Adapter-Sandbox/Release-Check-Ansicht, Push-to-Talk, Screenshot-Kontext, Rechtsklick-Menü und interaktivem Privacy/Memory Center.
+   - **Desktop-Oberfläche (`index.html`, `src/main.ts`):** 3D WebGL GLB Charakter mit Schwebung/Status-Artikulation, Brand Identity Studio, Chat, Freigabe-Karte, App-Intelligence-, Projekt-, Smart-Installer-, Runtime/Memory-, Proaktive-Vordenker-, Deep-Cleanup- und Adapter-Sandbox/Release-Check-Ansicht, Push-to-Talk, Screenshot-Kontext, Rechtsklick-Menü und interaktivem Privacy/Memory Center.
 
 ## Schnellstart (Kern-Prototyp & Tests)
 
@@ -40,7 +77,14 @@ cargo run --bin aido-cli -- installer
 cargo run --bin aido-cli -- runtime
 cargo run --bin aido-cli -- proactive
 cargo run --bin aido-cli -- release-check
+
+# Frontend bauen (Vite & TypeScript)
+npm run build
 ```
+
+## Landingpage
+
+Die [animierte AIDO-Landingpage](landingpage/index.html) lässt sich direkt im Browser öffnen. Sie läuft offline und zeigt den Schriftzug, die AIDO-Wortmarke und die MONO-Figur in einer Endlosschleife. Die drei PNG-Motive und das 3D-Modell liegen unter [landingpage/assets](landingpage/assets) sowie [public/assets](public/assets).
 
 ## Dokumentation
 
