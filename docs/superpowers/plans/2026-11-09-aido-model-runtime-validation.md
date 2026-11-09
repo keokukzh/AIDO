@@ -20,11 +20,13 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 
 ## Aufgabe 1: Ollama-Zustand auflösen
 
-- [ ] Ollama-App, Serverprozess und dessen Modellverzeichnis anhand der aktiven Prozesskonfiguration zuordnen.
-- [ ] Prüfen, warum eine Abfrage zwei Modelle und ein später gestarteter Server keine Modelle zeigte. Die Standardbibliothek `~/.ollama/models` war beim zweiten Check leer.
-- [ ] Entscheiden, welche vorhandenen Ollama-Modelle tatsächlich verfügbar sind; nichts kopieren oder löschen.
+- [x] Ollama-App, Serverprozess und dessen Modellverzeichnis anhand der aktiven Prozesskonfiguration zuordnen.
+- [x] Prüfen, warum eine Abfrage zwei Modelle und ein später gestarteter Server keine Modelle zeigte. Die PowerShell-Sitzung hatte den Benutzerwert von `OLLAMA_MODELS` nicht geerbt; der Benutzerpfad liegt auf `D:\AI_Models\ollama`. Die frühere Zwei-Modell-Liste bleibt einem anderen Serverzustand zugeordnet.
+- [x] Entscheiden, welche vorhandenen Ollama-Modelle tatsächlich verfügbar sind; nichts kopieren oder löschen. `qwen3.8:latest` ist wegen fehlendem Blob nicht nutzbar; Ollama bleibt vorläufig außerhalb des Vergleichs.
 
 **Abnahme:** Ein wiederholter Modell-Listentest zeigt beim selben Serverzustand dieselben Modelle. Der verwendete Modellpfad ist dokumentiert. Falls der frühere Serverzustand nicht rekonstruierbar ist, bleibt Ollama vorläufig außerhalb der Vergleichsmessung.
+
+**Ausführungsstand:** Aufgabe 1 abgeschlossen mit Einschränkung. Embedding-API-Test durch Tokenpflicht und blockierten separaten Testserver offen. Bild- und Audiotests offen. Einzelheiten: [Modellinventar](../../MODEL_RUNTIME_INVENTORY.md).
 
 ## Aufgabe 2: Embedding lokal prüfen
 
