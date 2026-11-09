@@ -1,6 +1,6 @@
 # Vision
 
-AIDO soll ein persönlicher, freundlicher und animierter Assistent auf dem Windows-11-Desktop werden. Der Nutzer spricht mit einem sichtbaren Charakter statt mit einer Sammlung technischer Werkzeuge. AIDO soll Anwendungen verstehen, Arbeitsabläufe begleiten, passende Hilfe anbieten und freigegebene Aufgaben ausführen.
+**AIDO** (**Artificial Intelligence Development Operator**) soll ein persönlicher, freundlicher und animierter Assistent auf dem Windows-11-Desktop werden. Der Nutzer spricht mit einem sichtbaren Charakter statt mit einer Sammlung technischer Werkzeuge. AIDO soll Anwendungen verstehen, Arbeitsabläufe begleiten, passende Hilfe anbieten und freigegebene Aufgaben ausführen.
 
 ## Für wen?
 
@@ -18,4 +18,4 @@ Der Installer erkennt Hardware und Anwendungen, erklärt verfügbare Funktionen 
 
 ## Umfang
 
-Die Vision umfasst Desktop-Steuerung, App-Integration, Sprach- und Bildverständnis, lokales Langzeitgedächtnis, Projektorganisation und proaktive Assistenz. Der erste Prototyp wird diese Bereiche schrittweise aufbauen und anhand konkreter Aufgaben prüfen.
+Die Vision umfasst Desktop-Steuerung, App-Integration, Sprach- und Bildverständnis, lokales Langzeitgedächtnis, Projektorganisation und proaktive Assistenz. Der erste Prototyp wird diese Bereiche schrittweise aufbauen und anhand konkreter Aufgaben prüfen. Der vollständige Entwurf ist im [Produkt-Masterplan](MASTERPLAN.md) festgehalten.

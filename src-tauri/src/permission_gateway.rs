@@ -29,13 +29,26 @@ pub enum ActionKind {
     FastCleanupExecute,
     /// Unload idle local AI model slot on 127.0.0.1
     UnloadIdleModelSlot,
+    /// Read-only discovery of installed apps and capabilities
+    DiscoverApps,
+    /// Read-only harmless capability verification
+    VerifyAppCapability,
+    /// State-modifying app action execution (requires explicit user ApprovalToken)
+    ExecuteAppAction,
+    /// Read-only scanning of project directories and workspaces
+    ScanProjects,
+    /// State-modifying project launch (requires explicit user ApprovalToken)
+    LaunchProject,
 }
 
 impl ActionKind {
     pub fn is_mutating(&self) -> bool {
         matches!(
             self,
-            ActionKind::FastCleanupExecute | ActionKind::UnloadIdleModelSlot
+            ActionKind::FastCleanupExecute
+                | ActionKind::UnloadIdleModelSlot
+                | ActionKind::ExecuteAppAction
+                | ActionKind::LaunchProject
         )
     }
 }
@@ -306,5 +319,19 @@ mod tests {
             gw.consume_approval_token(&token, &ActionKind::FastCleanupExecute),
             Err(GatewayError::ApprovalRequired(_))
         ));
+    }
+
+    #[test]
+    fn action_kind_mutating_classification() {
+        assert!(!ActionKind::SystemHealthCheck.is_mutating());
+        assert!(!ActionKind::FastCleanupPreview.is_mutating());
+        assert!(!ActionKind::DiscoverApps.is_mutating());
+        assert!(!ActionKind::VerifyAppCapability.is_mutating());
+        assert!(!ActionKind::ScanProjects.is_mutating());
+
+        assert!(ActionKind::FastCleanupExecute.is_mutating());
+        assert!(ActionKind::UnloadIdleModelSlot.is_mutating());
+        assert!(ActionKind::ExecuteAppAction.is_mutating());
+        assert!(ActionKind::LaunchProject.is_mutating());
     }
 }

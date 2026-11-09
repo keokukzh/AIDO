@@ -1,6 +1,6 @@
-# AIDO
+# AIDO — Artificial Intelligence Development Operator
 
-AIDO ist ein persönlicher, animierter Desktop-Begleiter für Windows 11, der Menschen ohne technische Vorkenntnisse bei der Bedienung, Organisation und Pflege ihres Computers unterstützt.
+**AIDO** (**Artificial Intelligence Development Operator**) ist ein persönlicher, animierter Desktop-Begleiter für Windows 11, der Menschen ohne technische Vorkenntnisse bei der Bedienung, Organisation, Entwicklung und Pflege ihres Computers unterstützt.
 
 > **„AIDO denkt für dich. Nicht du für AIDO.“**  
 > **„Dein PC. Dein AIDO. Deine Daten.“**
@@ -32,6 +32,7 @@ cargo run --bin aido-cli -- demo
 
 | Dokument | Inhalt |
 | --- | --- |
+| [Masterplan](docs/MASTERPLAN.md) | Vollständiger Produkt-Masterplan v1.0 |
 | [Vision](docs/VISION.md) | Produktidee, Zielgruppe und Grenzen |
 | [Ziele](docs/GOALS.md) | Ziele und messbare Erfolgskriterien |
 | [Anforderungen](docs/REQUIREMENTS.md) | Geplante Funktionen und Schutzanforderungen |
