@@ -34,6 +34,129 @@ interface ProjectItem {
   humanSummary: string;
 }
 
+interface InstallerStep {
+  stepIndex: number;
+  stepKey: string;
+  titleDe: string;
+  status: "Pending" | "Completed" | "Paused" | "Failed" | "RolledBack";
+  rollbackAction: string;
+  details: string;
+}
+
+interface ModelReuseInfo {
+  role: string;
+  modelName: string;
+  expectedPath: string;
+  existsLocally: boolean;
+  sizeBytes: number;
+}
+
+const installerStepsData: InstallerStep[] = [
+  {
+    stepIndex: 1,
+    stepKey: "welcome_privacy",
+    titleDe: "Willkommen & Datenschutz",
+    status: "Pending",
+    rollbackAction: "Datenschutzbestätigung zurücksetzen",
+    details: ""
+  },
+  {
+    stepIndex: 2,
+    stepKey: "hardware_check",
+    titleDe: "Hardware automatisch erkennen",
+    status: "Pending",
+    rollbackAction: "Hardware-Erkennungsprofil verwerfen",
+    details: ""
+  },
+  {
+    stepIndex: 3,
+    stepKey: "access_profile",
+    titleDe: "Berechtigungsmodus wählen",
+    status: "Pending",
+    rollbackAction: "Gewähltes Zugriffsprofil auf Standard zurücksetzen",
+    details: ""
+  },
+  {
+    stepIndex: 4,
+    stepKey: "ai_setup",
+    titleDe: "KI automatisch einrichten",
+    status: "Pending",
+    rollbackAction: "KI-Modell-Pfade und LLM-Slot-Registrierungen deregistrieren (Dateien bleiben auf Festplatte)",
+    details: ""
+  },
+  {
+    stepIndex: 5,
+    stepKey: "app_discovery",
+    titleDe: "Apps entdecken",
+    status: "Pending",
+    rollbackAction: "Erkannte App-Liste zurücksetzen",
+    details: ""
+  },
+  {
+    stepIndex: 6,
+    stepKey: "app_integration",
+    titleDe: "Apps intelligent integrieren",
+    status: "Pending",
+    rollbackAction: "Generierte Adapter und Tool-Registrierungen deregistrieren",
+    details: ""
+  },
+  {
+    stepIndex: 7,
+    stepKey: "knowledge_index",
+    titleDe: "Persönliches Wissen aufbauen",
+    status: "Pending",
+    rollbackAction: "Temporäre Index-Caches leeren",
+    details: ""
+  },
+  {
+    stepIndex: 8,
+    stepKey: "system_validation",
+    titleDe: "System validieren",
+    status: "Pending",
+    rollbackAction: "Validierungsergebnisse und Prüfberichte verwerfen",
+    details: ""
+  },
+  {
+    stepIndex: 9,
+    stepKey: "aido_awakens",
+    titleDe: "AIDO erwacht",
+    status: "Pending",
+    rollbackAction: "Autostart-Dienst stoppen und Bereitschaftsstatus zurücknehmen",
+    details: ""
+  }
+];
+
+const modelsReuseData: ModelReuseInfo[] = [
+  {
+    role: "Hauptmodell",
+    modelName: "Qwen3.8-27B-UD-Q4_K_M.gguf",
+    expectedPath: "D:\\AI_Models\\llm\\Qwen3.8-27B-UD-Q4_K_M.gguf",
+    existsLocally: true,
+    sizeBytes: 16464440224
+  },
+  {
+    role: "Vision-Projektor",
+    modelName: "mmproj-Qwen3.8-27B-BF16.gguf",
+    expectedPath: "D:\\AI_Models\\llm\\assets\\mmproj-Qwen3.8-27B-BF16.gguf",
+    existsLocally: true,
+    sizeBytes: 931146432
+  },
+  {
+    role: "Speculative-Draft",
+    modelName: "Qwen3.8-27B-DFlash2-Q4_K_M.gguf",
+    expectedPath: "D:\\AI_Models\\llm\\assets\\Qwen3.8-27B-DFlash2-Q4_K_M.gguf",
+    existsLocally: true,
+    sizeBytes: 1143006816
+  },
+  {
+    role: "Spracherkennung (ASR)",
+    modelName: "ggml-small.bin",
+    expectedPath: "D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin",
+    existsLocally: true,
+    sizeBytes: 487601967
+  }
+];
+
 const appsData: AppItem[] = [
   {
     appId: "docker-desktop",
@@ -134,6 +257,10 @@ function renderDefaultButtons(): void {
   btnApps.textContent = "🧩 App Intelligence & Projekte";
   btnApps.onclick = () => showAppIntelligenceAndProjects();
 
+  const btnInstaller = document.createElement("button");
+  btnInstaller.textContent = "🚀 Smart Installer (9-Phasen-Setup)";
+  btnInstaller.onclick = () => showSmartInstallerWizard();
+
   const btnPrivacy = document.createElement("button");
   btnPrivacy.textContent = "🔒 Privacy Center anzeigen";
   btnPrivacy.onclick = () => showPrivacyCenter();
@@ -142,7 +269,7 @@ function renderDefaultButtons(): void {
   btnMemory.textContent = "🧠 Memory & Audit-Log";
   btnMemory.onclick = () => showMemorySummary();
 
-  actionButtons.append(btnCheck, btnApps, btnPrivacy, btnMemory);
+  actionButtons.append(btnCheck, btnApps, btnInstaller, btnPrivacy, btnMemory);
 }
 
 function startSystemHealthAndCleanupPreview(): void {
@@ -448,6 +575,203 @@ function showMemorySummary(): void {
   renderDefaultButtons();
 }
 
+function getStatusBadge(status: InstallerStep["status"]): { label: string; className: string } {
+  switch (status) {
+    case "Completed":
+      return { label: "✓ Abgeschlossen", className: "completed" };
+    case "Paused":
+      return { label: "⏸️ Pausiert", className: "paused" };
+    case "RolledBack":
+      return { label: "⏪ Zurückgesetzt", className: "rolledback" };
+    default:
+      return { label: "⏳ Ausstehend", className: "pending" };
+  }
+}
+
+function showSmartInstallerWizard(): void {
+  setCharacterState("Smart Installer aktiv", false);
+
+  const nextResumable = installerStepsData.find(
+    (s) => s.status === "Paused" || s.status === "Pending"
+  );
+  const completedCount = installerStepsData.filter((s) => s.status === "Completed").length;
+
+  let html = `
+    <strong>🚀 AIDO (Agentic Intelligent Developing Operator) — Smart Installer (9-Phasen-Setup)</strong><br/>
+    Transaktionales, fehlertolerantes Setup mit automatischer Hardware-Klassenerkennung und lokaler Modell-Wiederverwendung.<br/>
+
+    <div class="installer-section">
+      <!-- 3 getrennte ETA-Boxen -->
+      <div class="eta-forecast-grid">
+        <div class="eta-forecast-box highlight">
+          <div class="eta-title">⚡ AIDO einsatzbereit in</div>
+          <div class="eta-main-val">45 Sek.</div>
+          <div class="eta-desc">0 MB Download nötig · Vorhandene lokale Modelle werden direkt eingebunden</div>
+        </div>
+        <div class="eta-forecast-box">
+          <div class="eta-title">👤 Persönliche Einrichtung in</div>
+          <div class="eta-main-val">~2,5 Min.</div>
+          <div class="eta-desc">App-Erkennung, Berechtigungsprofil & lokaler Wissens-Index</div>
+        </div>
+        <div class="eta-forecast-box warning">
+          <div class="eta-title">🧩 Erweiterte Integration</div>
+          <div class="eta-main-val">Isoliert</div>
+          <div class="eta-desc">Isolierte Adapterprüfung ohne künstliches Zeitlimit (1 individuelle App)</div>
+        </div>
+      </div>
+
+      <!-- Hardware-Klasse & Modell-Wiederverwendung -->
+      <div class="models-reuse-box">
+        <div class="models-reuse-header">
+          <span>🖥️ Hardware: HighEndGpu (RTX 5090 · 32 GB VRAM · 64 GB RAM)</span>
+          <span class="tag branch">4/4 Modelle lokal erkannt — 0 GB erneuter Download</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+  `;
+
+  for (const m of modelsReuseData) {
+    const sizeMb = Math.round(m.sizeBytes / (1024 * 1024));
+    html += `
+          <div class="model-item">
+            <div>
+              <span style="color: #6ee7b7; font-weight: 600;">✓ Gefunden:</span>
+              <span style="color: #f3f4f6; margin-left: 6px; font-weight: 600;">${m.modelName}</span>
+              <span style="color: #94a3b8; font-size: 0.74rem; margin-left: 6px;">(${m.role} · ${sizeMb} MB)</span>
+            </div>
+            <div class="model-path">${m.expectedPath}</div>
+          </div>
+    `;
+  }
+
+  html += `
+        </div>
+      </div>
+
+      <!-- 9 Phasen-Liste -->
+      <div class="intel-heading">📋 9 Transaktionale Installationsphasen (${completedCount}/9 abgeschlossen)</div>
+      <div class="phases-list">
+  `;
+
+  for (const step of installerStepsData) {
+    const badge = getStatusBadge(step.status);
+    const isActive = nextResumable && nextResumable.stepIndex === step.stepIndex;
+    const activeClass = isActive ? "active" : step.status.toLowerCase();
+
+    html += `
+        <div class="phase-row ${activeClass}">
+          <div class="phase-info">
+            <div class="phase-title">
+              <span>Phase ${step.stepIndex}/9: ${step.titleDe}</span>
+              ${isActive ? '<span class="tag action" style="font-size: 0.68rem;">Nächster Schritt</span>' : ""}
+            </div>
+            <div class="phase-rollback">
+              <span>🛡️ Rollback-Sicherheit: ${step.rollbackAction}</span>
+              ${step.details ? ` · <span style="color: #a5b4fc;">${step.details}</span>` : ""}
+            </div>
+          </div>
+          <div>
+            <span class="phase-badge ${badge.className}">${badge.label}</span>
+          </div>
+        </div>
+    `;
+  }
+
+  html += `
+      </div>
+    </div>
+  `;
+
+  aidoMessage.innerHTML = html;
+
+  // Build interactive action buttons
+  actionButtons.innerHTML = "";
+
+  const btnNext = document.createElement("button");
+  btnNext.className = "approve";
+  if (nextResumable) {
+    btnNext.textContent = `▶️ Nächste Phase abschließen (Phase ${nextResumable.stepIndex})`;
+    btnNext.onclick = () => completeNextInstallerPhase();
+  } else {
+    btnNext.textContent = "✅ Alle 9 Phasen abgeschlossen!";
+    btnNext.disabled = true;
+  }
+
+  const btnPause = document.createElement("button");
+  btnPause.textContent = "⏸️ Installation pausieren (Wiederaufnahme-Test)";
+  btnPause.onclick = () => pauseInstaller();
+
+  const btnRollback = document.createElement("button");
+  btnRollback.className = "reject";
+  btnRollback.textContent = "⏪ Transaktionales Rollback";
+  btnRollback.onclick = () => rollbackInstaller();
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "🔙 Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnNext, btnPause, btnRollback, btnBack);
+
+  appendAudit(
+    `[SmartInstaller] Wizard geöffnet: HighEndGpu erkannt, 4/4 Modelle lokal wiederverwendet, ${completedCount}/9 Phasen abgeschlossen.`
+  );
+}
+
+function completeNextInstallerPhase(): void {
+  const next = installerStepsData.find((s) => s.status === "Paused" || s.status === "Pending");
+  if (!next) return;
+
+  setCharacterState(`Schließe Phase ${next.stepIndex} ab...`, true);
+
+  setTimeout(() => {
+    next.status = "Completed";
+    const now = new Date().toLocaleTimeString("de-DE");
+    next.details = `Erfolgreich abgeschlossen um ${now}`;
+
+    appendAudit(
+      `[SmartInstaller] Phase ${next.stepIndex}/9 ('${next.titleDe}') erfolgreich abgeschlossen.`
+    );
+
+    showSmartInstallerWizard();
+  }, 250);
+}
+
+function pauseInstaller(): void {
+  const target = installerStepsData.find((s) => s.status === "Pending" || s.status === "Paused");
+  if (!target) return;
+
+  target.status = "Paused";
+  const now = new Date().toLocaleTimeString("de-DE");
+  target.details = `Pausiert durch Nutzer um ${now} (Zustand in SQLite gesichert)`;
+
+  appendAudit(
+    `[SmartInstaller] Installation bei Phase ${target.stepIndex}/9 ('${target.titleDe}') pausiert. Wiederaufnahme jederzeit möglich.`
+  );
+
+  showSmartInstallerWizard();
+}
+
+function rollbackInstaller(): void {
+  let rolledBackCount = 0;
+  for (const step of installerStepsData) {
+    if (step.status === "Completed" || step.status === "Paused") {
+      step.status = "RolledBack";
+      step.details = `Rollback ausgeführt: ${step.rollbackAction} (Modell-Dateien auf Festplatte unberührt)`;
+      rolledBackCount++;
+    }
+  }
+
+  appendAudit(
+    `[SmartInstaller] Transaktionales Rollback für ${rolledBackCount} Phase(n) ausgeführt. Modell-Dateien blieben unangetastet.`
+  );
+
+  showSmartInstallerWizard();
+}
+
 // Character Mouse Interactions
 avatarOrb.addEventListener("mousedown", (e) => {
   if (e.button === 0) {
@@ -491,6 +815,8 @@ contextMenu.addEventListener("click", (e) => {
     startSystemHealthAndCleanupPreview();
   } else if (action === "apps") {
     showAppIntelligenceAndProjects();
+  } else if (action === "installer") {
+    showSmartInstallerWizard();
   } else if (action === "privacy") {
     showPrivacyCenter();
   } else if (action === "memory") {

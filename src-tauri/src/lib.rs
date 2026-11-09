@@ -31,6 +31,16 @@ pub struct AidoCore {
     pub ai: LocalAiClient,
     pub apps: AppIntelligenceEngine,
     pub projects: ProjectIntelligenceEngine,
+    pub installer: smart_installer::SmartInstallerEngine,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartInstallerPlanReport {
+    pub hardware_tier: smart_installer::HardwareTier,
+    pub models: Vec<smart_installer::ModelReuseStatus>,
+    pub eta: smart_installer::InstallerEtaForecast,
+    pub steps: Vec<smart_installer::InstallerStepRecord>,
+    pub next_resumable: Option<smart_installer::InstallerStepRecord>,
 }
 
 impl AidoCore {
@@ -46,6 +56,7 @@ impl AidoCore {
         let ai = LocalAiClient::new(gateway.clone());
         let apps = AppIntelligenceEngine::new(db_path.as_ref())?;
         let projects = ProjectIntelligenceEngine::new(db_path.as_ref())?;
+        let installer = smart_installer::SmartInstallerEngine::new(db_path.as_ref())?;
         Ok(Self {
             gateway,
             memory,
@@ -53,6 +64,7 @@ impl AidoCore {
             ai,
             apps,
             projects,
+            installer,
         })
     }
 
@@ -165,6 +177,60 @@ impl AidoCore {
 
         Ok((discovered_apps, discovered_projects))
     }
+
+    /// Evaluates the smart installer plan: classifies hardware tier based on GPU/RAM health check,
+    /// inspects existing local AI models for reuse, calculates 3-stage ETA forecast,
+    /// retrieves current installation phase status, and logs to audit and memory.
+    pub fn evaluate_smart_installer_plan(
+        &self,
+        selected_apps_count: usize,
+        unknown_adapters_count: usize,
+    ) -> Result<SmartInstallerPlanReport, Box<dyn std::error::Error>> {
+        let health = self.bridge.run_system_health_check()?;
+        let tier = smart_installer::SmartInstallerEngine::classify_hardware(
+            health.gpu.vram_total_mib,
+            health.system_ram_total_mb,
+        );
+        let models = self.installer.inspect_existing_models(&self.gateway, None)?;
+        let eta = smart_installer::SmartInstallerEngine::calculate_eta(
+            &tier,
+            &models,
+            selected_apps_count,
+            unknown_adapters_count,
+            250,
+        );
+        let steps = self.installer.list_steps()?;
+        let next_resumable = self.installer.next_resumable_step()?;
+
+        let audit_summary = format!(
+            "Smart Installer Plan: Hardware-Klasse {:?}, {}/{} Modelle lokal wiederverwendet ({} Bytes Download nötig), AIDO einsatzbereit in {}s.",
+            tier, eta.reused_models_count, models.len(), eta.remaining_download_bytes, eta.ready_to_wake_seconds
+        );
+
+        self.memory.record_audit(
+            "SmartInstallerPlan",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &audit_summary,
+        )?;
+
+        self.memory.store_memory(
+            "SystemMemory",
+            "SmartInstaller",
+            &audit_summary,
+            &eta.human_summary,
+            "AidoCore::evaluate_smart_installer_plan",
+        )?;
+
+        Ok(SmartInstallerPlanReport {
+            hardware_tier: tier,
+            models,
+            eta,
+            steps,
+            next_resumable,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -249,5 +315,84 @@ mod tests {
         let _ = std::fs::remove_file(&db_path);
         let _ = std::fs::remove_dir_all(&safe_temp_dir);
         let _ = std::fs::remove_dir_all(&workspace_root);
+    }
+
+    #[test]
+    fn aido_core_smart_installer_plan_reuses_models_and_supports_resume() {
+        let temp_dir = std::env::temp_dir();
+        let unique = Uuid::new_v4().to_string();
+        let db_path = temp_dir.join(format!("aido_installer_integration_{}.db", unique));
+        let safe_temp_dir = temp_dir.join(format!("aido_installer_staging_{}", unique));
+
+        let core = AidoCore::new(
+            AccessMode::StandardAccess,
+            PrivacyMode::PrivateOffline,
+            &db_path,
+            &safe_temp_dir,
+        )
+        .expect("AidoCore::new failed");
+
+        // 1. Initial plan evaluation
+        let plan = core
+            .evaluate_smart_installer_plan(4, 1)
+            .expect("evaluate_smart_installer_plan failed");
+
+        assert_eq!(plan.steps.len(), 9, "Installer should have 9 distinct phases");
+        assert!(plan.next_resumable.is_some(), "Next resumable step should exist initially");
+        assert_eq!(plan.next_resumable.as_ref().unwrap().step_index, 1);
+        assert_eq!(plan.models.len(), 4, "Should inspect 4 default models");
+
+        // 2. Complete Step 1 and pause at Step 2 to test resume
+        let step1 = core
+            .installer
+            .complete_step(1, "Datenschutz & Offline-Bestätigung erfolgreich abgeschlossen")
+            .expect("complete_step 1 failed");
+        assert_eq!(step1.status, smart_installer::InstallerStepStatus::Completed);
+
+        let step2 = core
+            .installer
+            .pause_at_step(2, "Nutzer pausierte für GPU-Treiber-Aktualisierung")
+            .expect("pause_at_step 2 failed");
+        assert_eq!(step2.status, smart_installer::InstallerStepStatus::Paused);
+
+        // 3. Re-evaluate plan and verify resume capability
+        let plan_resumed = core
+            .evaluate_smart_installer_plan(4, 1)
+            .expect("evaluate_smart_installer_plan resumed failed");
+
+        let next = plan_resumed
+            .next_resumable
+            .expect("Expected a resumable step");
+        assert_eq!(
+            next.step_index, 2,
+            "Next resumable step must be the paused Step 2"
+        );
+        assert_eq!(next.status, smart_installer::InstallerStepStatus::Paused);
+
+        // 4. Verify audit log entry
+        let audits = core
+            .memory
+            .list_audit_log(5)
+            .expect("list_audit_log failed");
+        assert!(
+            audits.iter().any(|a| a.action == "SmartInstallerPlan"),
+            "Expected 'SmartInstallerPlan' in audit log"
+        );
+
+        // 5. Verify memory entry
+        let memories = core
+            .memory
+            .search_memory("SmartInstaller", 5)
+            .expect("search_memory failed");
+        assert!(
+            !memories.is_empty(),
+            "Expected 'SmartInstaller' entry in memory"
+        );
+        assert_eq!(memories[0].layer, "SystemMemory");
+        assert_eq!(memories[0].category, "SmartInstaller");
+
+        // Cleanup
+        let _ = std::fs::remove_file(&db_path);
+        let _ = std::fs::remove_dir_all(&safe_temp_dir);
     }
 }

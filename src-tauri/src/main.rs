@@ -35,6 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let projects = core.projects.index_roots(&core.gateway, &[aido_path], 3)?;
             println!("{}", serde_json::to_string_pretty(&projects)?);
         }
+        "installer" => {
+            let plan = core.evaluate_smart_installer_plan(4, 1)?;
+            println!("{}", serde_json::to_string_pretty(&plan)?);
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -46,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/5] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/6] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -54,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/5] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/6] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -71,14 +75,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/5] Ausführung nach Freigabe:");
+            println!("\n[3/6] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/5] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/6] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -87,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/5] App Intelligence & Projektkatalog:");
+            println!("\n[5/6] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -136,9 +140,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "    Status: Bereit zur Ausführung von '{}' im Verzeichnis '{}'",
                 launch_proj.recommended_action, launch_proj.canonical_path
             );
+
+            // Step 6: Smart Installer & Modell-Wiederverwendung
+            println!("\n[6/6] Smart Installer & Modell-Wiederverwendung:");
+            let plan = core.evaluate_smart_installer_plan(4, 1)?;
+            let total_models = plan.models.len();
+            let reused_models = plan.eta.reused_models_count;
+            let download_mb = plan.eta.remaining_download_bytes / (1024 * 1024);
+
+            println!("  Erkannte Hardware-Klasse: {:?}", plan.hardware_tier);
+            println!(
+                "  Wiederverwendete lokale Modelle: {}/{} vorhanden ({} MB Download nötig!)",
+                reused_models, total_models, download_mb
+            );
+            for m in &plan.models {
+                let status_icon = if m.exists_locally { "✓ Gefunden" } else { "✗ Fehlt" };
+                println!(
+                    "    • [{}] {} ({} MB) -> {}",
+                    status_icon,
+                    m.model_name,
+                    m.size_bytes / (1024 * 1024),
+                    m.expected_path
+                );
+            }
+            println!("  3-stufige ETA-Prognose:");
+            println!("    • AIDO einsatzbereit in: {} Sek.", plan.eta.ready_to_wake_seconds);
+            println!(
+                "    • Persönliche Einrichtung abgeschlossen in: ~{:.1} Min.",
+                plan.eta.personal_setup_seconds as f64 / 60.0
+            );
+            println!("    • Erweiterte Integration: {}", plan.eta.extended_integration_note);
+
+            if let Some(next) = &plan.next_resumable {
+                println!(
+                    "  Nächster wiederaufnehmbarer Schritt: [Phase {}/9: {}] (Status: {:?})",
+                    next.step_index, next.title_de, next.status
+                );
+            }
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer]");
         }
     }
 
