@@ -1,26 +1,28 @@
 # Projektstatus
 
-**Stand: 9. November 2026.** Dieser Status trennt Repository-Artefakte von punktuellen Beobachtungen am Referenz-PC.
+**Stand: 9. November 2026.** Dieser Status trennt Repository-Artefakte von verifizierten Messungen am Referenz-PC.
 
 ## Repository
 
-- `keokukzh/AIDO` ist laut GitHub-Metadaten privat; der verbundene Zugang hat Schreib- und Administratorberechtigung.
-- Das Repository enthält Produktgrundlagen, Entwicklungsplanung und Prüfprotokolle. Eine AIDO-App oder ausführbarer Produktcode ist hier bislang nicht nachgewiesen.
-- Der historische Docker-Anhang ist als frühere Setup-Idee eingeordnet, nicht als ausgeführte Installation. Windows-native Komponenten sind für die spätere Nutzer-App vorgesehen; Docker/WSL2 sind optionale Entwicklungswerkzeuge.
+- `keokukzh/AIDO` ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
+- Die lokale Modell- und Runtime-Validierung (Text, Vision, Speculative Decoding, Schlafmodus/Idle-Unload, Embeddings und deutsche Spracherkennung) ist vollständig abgeschlossen und mit SHA-256-Prüfsummen im [Modellinventar](MODEL_RUNTIME_INVENTORY.md) dokumentiert.
+- Auf dieser verifizierten Grundlage entsteht der erste ausführbare AIDO-Kern-Prototyp (Tauri 2 + Rust + TypeScript + SQLite/FTS5 Memory + Permission Gateway + Windows Bridge).
 
-## Beobachtungen am Referenz-PC
+## Verifizierte Messungen am Referenz-PC (RTX 5090, 32607 MiB VRAM)
 
-- LM Studio 0.4.28 ist installiert. Sein lokaler Server lief zum Prüfzeitpunkt auf `127.0.0.1:1234` mit erforderlicher API-Authentifizierung. Eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Dateien, ein separater Bildprojektor und Nomic Embed Text v1.5 sind vorhanden.
-- Ein einzelner lokaler Qwen-Textprompt wurde beantwortet. Die dabei gemessene Tokenrate ist kein Vergleichsbenchmark.
-- Ein erster Embedding-Aufruf ohne Token wurde abgewiesen. Ein späterer autorisierter Test lieferte drei Vektoren mit je 768 Dimensionen; ein einfacher Vergleich deutscher Sätze ergab 0,8036 für verwandte und 0,5959 für themenfremde Texte. Das belegt eine Funktionsprobe, keine Suchqualität auf realen AIDO-Daten. Der im Chat offengelegte Zugang muss in LM Studio widerrufen werden; er steht nicht in Repository-Dateien.
-- Ollamas Benutzer-Modellpfad wurde als `D:\AI_Models\ollama` identifiziert. Ein temporärer Server zeigte wiederholt dieselbe Modellliste, aber `qwen3.8:latest` ließ sich wegen eines fehlenden Blobs nicht öffnen. Ollama ist daher vorläufig kein belastbarer Vergleichskandidat.
-- Die vorhandene `whisper-server.exe` lud das neu heruntergeladene mehrsprachige Whisper-`small` aus `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin`; Größe 487.601.967 Byte und SHA-1 wurden gegen die Modellkarte geprüft. Die Runtime fand keine GPU und nutzte CPU. Ein lokal erzeugtes deutsches WAV wurde noch nicht transkribiert. Der nur an `127.0.0.1:18080` gebundene Testserver wurde auf Nutzerwunsch beendet; der Port ist geschlossen. Deutsche Windows-Stimmen sind als möglicher TTS-Ausgangspunkt vorhanden, aber nicht bewertet.
-- Docker Desktop 29.9.2 und eine RTX 5090 wurden punktuell festgestellt. Docker war in Ubuntu mangels WSL-Integration nicht nutzbar; GPU-Passthrough und der im Altplan genannte Sandbox-Ordner sind nicht nachgewiesen. Details: [Entwicklungsumgebung](DEVELOPMENT_SETUP.md).
+- **Hauptmodell + Vision + Speculative Decoding (`llama-server.exe` v0.9.0-dev Build 12176):**
+  - `D:\AI_Models\llm\Qwen3.8-27B-UD-Q4_K_M.gguf` + `D:\AI_Models\llm\assets\mmproj-Qwen3.8-27B-BF16.gguf` + `D:\AI_Models\llm\assets\Qwen3.8-27B-DFlash2-Q4_K_M.gguf` laufen im lokalen Router-Modus auf `127.0.0.1:18434`.
+  - **Schlafmodus & Autoload:** Im Ruhezustand belegt der Router `0 MiB` zusätzlichen VRAM (`2.307 MiB` System-VRAM). Bei der ersten Anfrage lädt er Modell, Projektor und Draft-Modell in `9,41 s` (`25.544 MiB` VRAM bei 32k Kontext) und gibt nach Ablauf von `--sleep-idle-seconds` automatisch **`22.714 MiB` VRAM** wieder frei (Rückgang auf `2.830 MiB`; Wiederaufwachen in `8,26 s`).
+  - **Geschwindigkeit & Vision:** Warme Textgenerierung mit `draft-dflash` erreichte **`151,54 Token/s`**; ein künstliches zweifarbiges Testbild wurde mit **`102,70 Token/s`** korrekt als links rot und rechts blau erkannt (inklusive Gegenprobe ohne Bild).
+- **Deutsche Spracherkennung (`whisper-server.exe` v1.9.5-unsloth.18):**
+  - Mit den lokalen CUDA-13-Bibliotheken aus `C:\AI\llamacpp-cuda` im Prozess-`PATH` erkennt `whisper-server.exe` die RTX 5090 (`CUDA0`, `+1.150 MiB` VRAM) und transkribiert ein 6,9 Sekunden langes deutsches Test-WAV (`ggml-small.bin`) lokal auf `127.0.0.1:18080` in **`0,341 s`**.
+- **Text-Embeddings:**
+  - `text-embedding-nomic-embed-text-v1.5` (768 Dimensionen) lieferte im deutschen Ähnlichkeitstest `0,8036` für verwandte Projekttexte gegenüber `0,5959` für themenfremden Text.
 
-## Noch nicht nachgewiesen
+## Aktueller Entwicklungsfokus (Phase 2)
 
-Die installierten Qwen-Dateien wurden von LM Studio mit `vision: false` gelistet. Ein anschließender Ladeversuch der Q4-Datei zeigte keine Projektorzuordnung; die Chat-Anhangfunktion bot an dieser Stelle nur dokumentbasiertes RAG. Es wurden keine Bilddaten an das Modell gesendet. Der vorhandene Projektor und das offizielle bildfähige Qwen-Modell belegen daher noch keinen funktionierenden Bild-Eingang dieser konkreten Ableitung. Die zunächst erfolglose ASR-Modellsuche wurde durch den geprüften Download des Whisper-small-Modells abgelöst; eine Audioanfrage fand noch nicht statt. Es fehlen ein Bildtest mit passender Projektorzuordnung, ein deutscher ASR-Test, Offline- und Ressourcenmessungen, Reproduzierbarkeit der Embeddings sowie die AIDO-Integration. Ein Installer, Memory-Dienst, Sicherheits-Gateway, App-Adapter und Produkttests sind nicht implementiert oder nachgewiesen.
-
-## Nächster Schritt
-
-Die Ausführung ist auf Nutzerwunsch angehalten. Bei Fortsetzung zuerst den offengelegten LM-Studio-Testschlüssel widerrufen, dann den Bild-Eingang über einen von der Runtime erkannten Vision-Pfad prüfen und das bereitgestellte Whisper-small-Modell mit deutschem Audio testen. Erst danach Hauptmodellvarianten unter gleichen Bedingungen vergleichen. Der genaue Ablauf und offene Abnahmekriterien stehen im [Ausführungsplan](superpowers/plans/2026-11-09-aido-model-runtime-validation.md); Rohbefunde im [Modellinventar](MODEL_RUNTIME_INVENTORY.md).
+Implementierung und Verifikation des ersten End-to-End-AIDO-Prototyps für das Szenario **„System-Gesundheitscheck & Fast Cleanup nach Nutzerfreigabe“**:
+1. **Permission Gateway & Privacy Guard (`src-tauri`):** Strikte Trennung zwischen KI-Vorschlag und Systemausführung; Erzwingung von `PrivateOffline` (nur `127.0.0.1`) und expliziten Freigabe-Tokens (`ApprovalToken`).
+2. **Windows Bridge (`src-tauri`):** Lesende Systemanalyse (VRAM, RAM, Prozesse, freigegebener AIDO-Temp-Cache) und kontrolliertes *Fast Cleanup* nach Nutzerbestätigung mit Vorher/Nachher-Prüfung.
+3. **AIDO Memory (`src-tauri`):** SQLite-Datenbank mit FTS5-Volltextsuche und lückenlosem Audit-Log.
+4. **Desktop-Charakter & Freigabe-UI (`src`):** Animierter Charakter mit Chat, Push-to-Talk, Screenshot-Kontext, Rechtsklick-Menü und klickbarer Freigabe-Karte.

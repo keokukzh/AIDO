@@ -73,3 +73,47 @@ Für Spracheingabe wurde die vorhandene `whisper-server.exe` erneut bestätigt. 
 Auf ausdrücklichen Wunsch nach Fortsetzung wurde das mehrsprachige Whisper-`small`-Modell von der [whisper.cpp-Modellsammlung](https://huggingface.co/ggerganov/whisper.cpp) als `D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin` lokal gespeichert. Die Datei hat 487.601.967 Byte; ihr SHA-1-Wert `55356645c2b361a969dfd0ef2c5a50d530afd8d5` stimmt mit dem Wert der Modellkarte überein. Quelle war die dort referenzierte, auf Revision `90a64d80ea254cf67575b41a5971f972c79f7b45` fixierte Datei. Die vorhandene `whisper-server.exe` konnte das Modell laden und meldete `small` mit 99 Sprachen; sie fand dabei **keine GPU** und nutzte CPU. Der Server lauschte kurz ausschließlich auf `127.0.0.1:18080`, wurde auf Nutzerwunsch vor einer Audioanfrage beendet und der Port war danach nicht mehr offen.
 
 Ein deutsches WAV-Testaudio wurde mit der bereits installierten Windows-Stimme „Microsoft Hedda Desktop“ lokal im Arbeitsverzeichnis erzeugt. Es wurde **nicht** an Whisper gesendet. Daher gibt es noch kein Transkriptions-, Qualitäts-, Latenz- oder Offline-Ergebnis. Weitere installierte deutsche Windows-Stimmen wurden gefunden; deren Eignung als AIDO-Sprachausgabe ist nicht getestet. Der Nutzer hat die Ausführung hier gestoppt. Das Modell bleibt als Datei für eine spätere autorisierte Prüfung vorhanden; es wurden keine Modellbestände gelöscht.
+
+
+## Abschluss der Modell- & Runtime-Validierung am 9. November 2026
+
+Nach Wiederaufnahme der Prüfung wurden die beiden offenen Blocker (Vision-Projektorzuordnung und GPU-Erkennung für Whisper) technisch gelöst und alle Modellrollen auf dem Referenz-PC (RTX 5090, 32607 MiB VRAM) lokal an `127.0.0.1` verifiziert:
+
+### 1. Lösung des Whisper-CUDA-Blockers & deutscher ASR-Test (`whisper-server.exe` v1.9.5)
+
+- **Ursache für fehlende GPU-Erkennung:** `D:\AI_Models\unsloth\whisper.cpp\build\bin\Release\whisper-server.exe` ist als `slim`-Build kompiliert und enthält `ggml-cuda.dll`, benötigt zur Laufzeit jedoch die CUDA-13-Bibliotheken (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll`), die bereits in `C:\AI\llamacpp-cuda` vorhanden sind.
+- **Ergebnis mit eingebundenem CUDA-DLL-Pfad:**
+  - `ggml_cuda_init` erkannte sofort `Device 0: NVIDIA GeForce RTX 5090, compute capability 12.0, VMM: yes, VRAM: 32579 MiB` (`use gpu = 1`, `flash attn = 1`, `BLACKWELL_NATIVE_FP4 = 1`).
+  - Ein mit `Microsoft Hedda Desktop` lokal erzeugtes deutsches WAV-Testaudio (6,9 s, 304.436 Byte; gesprochener Satz: *„Hallo AIDO, bitte führe einen schnellen Systemcheck durch und zeige mir den Speicherverbrauch.“*) wurde an `http://127.0.0.1:18080/inference` gesendet.
+  - **Latenz:** `0,341 s` (Antwort inkl. HTTP-Roundtrip auf `127.0.0.1`).
+  - **VRAM-Belegung:** `+1.150 MiB` (von `2.300 MiB` auf `3.450 MiB`, Modellgröße im VRAM `487,01 MB`).
+  - **Transkript:** `„Hallo IDO, bitte führe einen schnellen Systemcheck durch und zeige mir den Speicherverbrauch.“` (phonetische Abweichung beim Eigennamen „AIDO“ → „IDO“, sämtliche deutschen Fachbegriffe und Umlaute korrekt erkannt).
+
+### 2. Lösung des Vision-Blockers, DFlash2 Speculative Decoding & Schlafmodus (`llama-server.exe`)
+
+Statt über die LM-Studio-Oberfläche wurde das vorhandene Qwen3.8-Setup direkt über die lokalen `llama-server.exe`-Binaries (`C:\AI\llamacpp-cuda\llama-server.exe` Build 11671 sowie `D:\AI_Models\unsloth\llama.cpp\build\bin\Release\llama-server.exe` Build 12176 / v0.9.0-dev) im Router-Modus (`--models-preset`, `--models-autoload`, `--sleep-idle-seconds`) ausschließlich auf `127.0.0.1:18434` mit flüchtigem Sitzungs-Token geprüft:
+
+- **Konfiguration (Standard-Hauptmodell für AIDO auf dem Referenz-PC):**
+  - Hauptmodell: `D:\AI_Models\llm\Qwen3.8-27B-UD-Q4_K_M.gguf` (`16.464.440.224` Byte, SHA-256: `322E194FF79741C7BAA497C240F677F54B201B0EFAB44CA8E50F122B39123482`)
+  - Vision-Projektor: `D:\AI_Models\llm\assets\mmproj-Qwen3.8-27B-BF16.gguf` (`931.146.432` Byte, SHA-256: `83EE4F4F205FA514161778C41DF1EA14144FAA0F713510893B63C2395F5C2D53`)
+  - Speculative Draft (`draft-dflash`): `D:\AI_Models\llm\assets\Qwen3.8-27B-DFlash2-Q4_K_M.gguf` (`1.143.006.816` Byte, SHA-256: `1A25C56858E1EBE93F2718AC1D49D1151F9323325C1BBFD6209370F4DB131EBD`)
+  - Kontext & KV-Cache: `ctx-size = 32768`, `cache-type-k = q8_0`, `cache-type-v = q8_0`, `flash-attn = on`
+- **Messwerte auf Build 12176 (`v0.9.0-dev`):**
+  - **Router-Ruhezustand vor erstem Request:** `2.307 MiB` System-VRAM (`0 MiB` zusätzliche Modellbelegung).
+  - **Kaltstart (Autoload von SSD in VRAM) + Vision-Inferenz:** `9,41 s` gesamt (`prompt_eval = 747,42 ms` für 103 Tokens inkl. Bild-Encoding = `137,81 Token/s`; `eval = 642,63 ms` für 67 Tokens = **`102,70 Token/s`**).
+  - **VRAM-Belegung geladen (Hauptmodell + mmproj + DFlash2 + 32k KV-Cache):** `25.544 MiB` (**`+23.237 MiB`**).
+  - **Bild-Ergebnis (mit künstlichem 256×128 Rot/Blau-Testbild):** *„Die linke Hälfte des Bildes ist rot und die rechte Hälfte ist blau.“*
+  - **Gegenprobe (gleiche Frage ohne Bild):** *„Es wurde kein Bild in dieser Unterhaltung hochgeladen, daher kann ich die Farben nicht bestimmen.“* (Wichtiger technischer Hinweis: Bei OpenAI-kompatiblen Multimodalanfragen an `llama-server` muss das Text-Objekt `{"type": "text", "text": "..."}` heißen, nicht `content`).
+  - **Warme Textgenerierung mit DFlash2:** **`151,54 Token/s`** (`48` von `126` Draft-Tokens akzeptiert; auf Build 11671 zuvor `130,39 Token/s` bei 200 Tokens).
+  - **Automatischer Schlafmodus (`--sleep-idle-seconds 10`):** Nach 10 Sekunden ohne Anfrage entlud der Server das Modell automatisch; der genutzte System-VRAM fiel von `25.544 MiB` auf **`2.830 MiB`** zurück (**`22.714 MiB` VRAM automatisch freigegeben**).
+  - **Aufwachen aus dem Schlafmodus (Wake-up Request):** `8,26 s` bis zur vollständigen Antwort (*„AIDO ist wieder wach.“*).
+
+### 3. Verifiziertes lokales Modell-Manifest (Referenz-PC)
+
+| Rolle | Datei | Größe (Bytes) | SHA-256 | Geprüfte Runtime |
+| --- | --- | --- | --- | --- |
+| Hauptmodell (Text & Planung) | `D:\AI_Models\llm\Qwen3.8-27B-UD-Q4_K_M.gguf` | `16.464.440.224` | `322E194FF79741C7BAA497C240F677F54B201B0EFAB44CA8E50F122B39123482` | `llama-server.exe` (`v0.9.0-dev` b12176, CUDA 13.4) |
+| Vision-Projektor (`mmproj`) | `D:\AI_Models\llm\assets\mmproj-Qwen3.8-27B-BF16.gguf` | `931.146.432` | `83EE4F4F205FA514161778C41DF1EA14144FAA0F713510893B63C2395F5C2D53` | `llama-server.exe` (`--mmproj`) |
+| Speculative Draft (`draft-dflash`) | `D:\AI_Models\llm\assets\Qwen3.8-27B-DFlash2-Q4_K_M.gguf` | `1.143.006.816` | `1A25C56858E1EBE93F2718AC1D49D1151F9323325C1BBFD6209370F4DB131EBD` | `llama-server.exe` (`--spec-type draft-dflash`) |
+| Spracherkennung (ASR) | `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` | `487.601.967` | `1BE3A9B2063867B937E64E2EC7483364A79917E157FA98C5D94B5C1FFFEA987B` | `whisper-server.exe` (`v1.9.5-unsloth.18`, CUDA 13.4) |
+| Text-Embedding | `text-embedding-nomic-embed-text-v1.5` (LM Studio Katalog) | `84,11 MB` | Katalog-Artefakt (768 Dim.) | LM Studio / `llama.cpp` |
