@@ -50,6 +50,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        "release-check" => {
+            let report = core.evaluate_adapter_sandbox_and_release_readiness(
+                "obs-studio",
+                "OBS Studio",
+                "OBS Project",
+                r"C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+            )?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -61,7 +70,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/8] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/9] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -69,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/8] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/9] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -86,14 +95,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/8] Ausführung nach Freigabe:");
+            println!("\n[3/9] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/8] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/9] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -102,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/8] App Intelligence & Projektkatalog:");
+            println!("\n[5/9] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -153,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 6: Smart Installer & Modell-Wiederverwendung
-            println!("\n[6/8] Smart Installer & Modell-Wiederverwendung:");
+            println!("\n[6/9] Smart Installer & Modell-Wiederverwendung:");
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             let total_models = plan.models.len();
             let reused_models = plan.eta.reused_models_count;
@@ -190,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 7: Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung
-            println!("\n[7/8] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
+            println!("\n[7/9] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
             // Store a second episodic memory so compaction threshold (min_entries = 2) is met
             core.memory.store_memory(
                 "EpisodicMemory",
@@ -252,7 +261,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 8: Proaktive Vordenker-Engine & Deep Cleanup
-            println!("\n[8/8] Proaktive Vordenker-Engine & Deep Cleanup:");
+            println!("\n[8/9] Proaktive Vordenker-Engine & Deep Cleanup:");
             let seeded_deep = core.bridge.seed_demo_deep_cleanup_files()?;
             println!(
                 "  Test-Staging für Tiefenbereinigung vorbereitet: {} KB in '{}'",
@@ -314,9 +323,75 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             println!("  Ausführung nach Deep-Cleanup-Freigabe:");
             println!("    {}", dc_result.human_report);
+
+            // Step 9: Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8)
+            println!("\n[9/9] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
+            let p78_report = core.evaluate_adapter_sandbox_and_release_readiness(
+                "obs-studio",
+                "OBS Studio",
+                "OBS Project",
+                r"C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+            )?;
+
+            println!("  Phase 7: Synthetisierter Adapter für unbekannte App:");
+            println!(
+                "    • App: {} ({}, Version: {})",
+                p78_report.synthesized_app.display_name,
+                p78_report.synthesized_app.publisher,
+                p78_report.synthesized_app.version
+            );
+            println!(
+                "    • Steuerungsmethode: {:?} (Sandbox isoliert: {}, Harmloser Probe-Check: {})",
+                p78_report.sandbox_report.synthesized_control,
+                p78_report.sandbox_report.sandbox_isolated,
+                p78_report.sandbox_report.harmless_probe_passed
+            );
+            println!(
+                "    • Geprüfte Fähigkeiten ({} verifiziert / harmlos, {} freigabepflichtig):",
+                p78_report.sandbox_report.verified_capabilities,
+                p78_report.sandbox_report.restricted_capabilities
+            );
+            for cap in &p78_report.synthesized_app.capabilities {
+                let status_tag = format!("{:?}", cap.status);
+                let approval_tag = if cap.requires_approval { "Erfordert Freigabe" } else { "Ohne Freigabe" };
+                println!(
+                    "        - [{}] {} ({:?}, {})",
+                    status_tag, cap.title_de, cap.risk, approval_tag
+                );
+            }
+
+            println!("  Phase 8: Saubere Deinstallation & Zero-Destruction Garantie:");
+            println!(
+                "    • AIDO-Pfade zur Bereinigung: {} Verzeichnisse/Dateien",
+                p78_report.uninstall_plan.aido_owned_paths_to_remove.len()
+            );
+            println!(
+                "    • Geschützte externe KI-Modelle ({}/{} unangetastet):",
+                p78_report.uninstall_plan.preserved_external_models.len(),
+                p78_report.uninstall_plan.preserved_external_models.len()
+            );
+            for model_path in &p78_report.uninstall_plan.preserved_external_models {
+                println!("        ✓ Unberührt: {}", model_path);
+            }
+            println!(
+                "    • Schutz lokaler Projekte: {}",
+                p78_report.uninstall_plan.preserved_user_projects_note
+            );
+
+            println!("  Phase 8: Release-Readiness Status (Version {}):", p78_report.release_readiness.version);
+            println!(
+                "    • Alle Phasen abgeschlossen: {} | Zero-Destruction: {} | Private Offline: {}",
+                p78_report.release_readiness.all_phases_completed,
+                p78_report.release_readiness.zero_destruction_verified,
+                p78_report.release_readiness.privacy_offline_verified
+            );
+            for (idx, item) in p78_report.release_readiness.checklist_items.iter().enumerate() {
+                println!("      [{}/8] ✓ {}", idx + 1, item);
+            }
+            println!("    • Statusbericht: {}", p78_report.release_readiness.human_summary);
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check]");
         }
     }
 

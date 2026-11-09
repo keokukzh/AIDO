@@ -62,6 +62,14 @@ pub struct SmartInstallerPlanReport {
     pub next_resumable: Option<smart_installer::InstallerStepRecord>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Phase7And8Report {
+    pub synthesized_app: app_intelligence::AppRegistryEntry,
+    pub sandbox_report: app_intelligence::AdapterSandboxReport,
+    pub uninstall_plan: smart_installer::CleanUninstallPlan,
+    pub release_readiness: smart_installer::ReleaseReadinessReport,
+}
+
 impl AidoCore {
     pub fn new(
         access_mode: AccessMode,
@@ -381,6 +389,72 @@ impl AidoCore {
         )?;
 
         Ok((token, result))
+    }
+    /// Evaluates Phase 7 (Isolated Adapter Sandbox synthesis for unknown apps) and Phase 8 (Clean Uninstall plan
+    /// and 8-Phase Release Readiness evaluation), records audit and system memory, and returns `Phase7And8Report`.
+    pub fn evaluate_adapter_sandbox_and_release_readiness(
+        &self,
+        unknown_app_id: &str,
+        unknown_app_name: &str,
+        publisher: &str,
+        install_path: &str,
+    ) -> Result<Phase7And8Report, Box<dyn std::error::Error>> {
+        let (synthesized_app, sandbox_report) = self.apps.synthesize_and_verify_unknown_app_adapter(
+            &self.gateway,
+            unknown_app_id,
+            unknown_app_name,
+            publisher,
+            install_path,
+            true,
+        )?;
+
+        let (uninstall_plan, _approval_req) = self.installer.prepare_clean_uninstall(
+            &self.gateway,
+            self.bridge.safe_temp_dir(),
+            None,
+        )?;
+
+        let release_readiness = self.installer.evaluate_release_readiness(&self.gateway)?;
+
+        let audit_summary = format!(
+            "Adapter-Sandbox & Release-Readiness: App '{}' ({:?}, {} verifizierte Fähigkeiten, isoliert: {}), Release-Readiness: {} (Alle Phasen: {}, Zero-Destruction: {}).",
+            synthesized_app.display_name,
+            sandbox_report.synthesized_control,
+            sandbox_report.verified_capabilities,
+            sandbox_report.sandbox_isolated,
+            release_readiness.version,
+            release_readiness.all_phases_completed,
+            release_readiness.zero_destruction_verified,
+        );
+
+        self.memory.record_audit(
+            "AdapterSandboxAndReleaseCheck",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &audit_summary,
+        )?;
+
+        self.memory.store_memory(
+            "SystemMemory",
+            "ReleaseReadiness",
+            &audit_summary,
+            &format!(
+                "Adapter-Sandbox: {} | Uninstall-Plan: {} Pfade bereinigen, {} Modelle geschützt | Release-Status: {}",
+                sandbox_report.human_summary,
+                uninstall_plan.aido_owned_paths_to_remove.len(),
+                uninstall_plan.preserved_external_models.len(),
+                release_readiness.human_summary,
+            ),
+            "AidoCore::evaluate_adapter_sandbox_and_release_readiness",
+        )?;
+
+        Ok(Phase7And8Report {
+            synthesized_app,
+            sandbox_report,
+            uninstall_plan,
+            release_readiness,
+        })
     }
 }
 
@@ -764,5 +838,128 @@ mod tests {
         let _ = std::fs::remove_file(&db_path);
         let _ = std::fs::remove_dir_all(&safe_temp_dir);
         let _ = std::fs::remove_dir_all(&workspace_root);
+    }
+
+    #[test]
+    fn aido_core_adapter_sandbox_and_clean_uninstall_preserve_models() {
+        let temp_dir = std::env::temp_dir();
+        let unique = Uuid::new_v4().to_string();
+        let db_path = temp_dir.join(format!("aido_release_test_{}.db", unique));
+        let safe_temp_dir = temp_dir.join(format!("aido_release_staging_{}", unique));
+        let external_models_dir = temp_dir.join(format!("aido_external_models_{}", unique));
+        let test_cache_dir = temp_dir.join(format!("aido_test_cache_{}", unique));
+
+        std::fs::create_dir_all(&external_models_dir).expect("Failed to create external models dir");
+        std::fs::create_dir_all(&test_cache_dir).expect("Failed to create test cache dir");
+
+        let dummy_model_path = external_models_dir.join("Qwen3.8-27B-UD-Q4_K_M.gguf");
+        let model_bytes = b"MOCK_MODEL_WEIGHTS_DO_NOT_DELETE";
+        std::fs::write(&dummy_model_path, model_bytes).expect("Failed to write mock model");
+
+        let test_cache_file = test_cache_dir.join("staging_cache.tmp");
+        std::fs::write(&test_cache_file, b"TEMP_DATA_TO_CLEAN").expect("Failed to write test cache file");
+
+        let core = AidoCore::new(
+            AccessMode::StandardAccess,
+            PrivacyMode::PrivateOffline,
+            &db_path,
+            &safe_temp_dir,
+        )
+        .expect("AidoCore::new failed");
+
+        // 1. Evaluate Adapter Sandbox & Release Readiness
+        let report = core
+            .evaluate_adapter_sandbox_and_release_readiness(
+                "obs-studio",
+                "OBS Studio",
+                "OBS Project",
+                r"C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+            )
+            .expect("evaluate_adapter_sandbox_and_release_readiness failed");
+
+        // Assert sandbox verification metrics
+        assert!(report.sandbox_report.harmless_probe_passed);
+        assert!(report.sandbox_report.sandbox_isolated);
+        assert_eq!(report.sandbox_report.verified_capabilities, 2);
+        assert_eq!(report.sandbox_report.restricted_capabilities, 1);
+        assert_eq!(report.synthesized_app.capabilities.len(), 3);
+        assert_eq!(
+            report.synthesized_app.adapter_origin,
+            app_intelligence::AdapterOrigin::AutoGenerated
+        );
+
+        // Assert release readiness report
+        assert_eq!(report.release_readiness.version, "0.1.0-mvp");
+        assert!(report.release_readiness.all_phases_completed);
+        assert!(report.release_readiness.security_gate_passed);
+        assert!(report.release_readiness.privacy_offline_verified);
+        assert!(report.release_readiness.zero_destruction_verified);
+        assert_eq!(report.release_readiness.checklist_items.len(), 8);
+
+        // 2. Prepare and execute clean uninstall with custom model specs
+        let custom_specs = [(
+            "LLM",
+            "Qwen3.8-27B",
+            dummy_model_path.as_path(),
+            model_bytes.len() as u64,
+        )];
+
+        let (uninstall_plan, approval_req) = core
+            .installer
+            .prepare_clean_uninstall(&core.gateway, &test_cache_dir, Some(&custom_specs))
+            .expect("prepare_clean_uninstall failed");
+
+        assert_eq!(
+            approval_req.action,
+            permission_gateway::ActionKind::ExecuteCleanUninstall
+        );
+        assert!(uninstall_plan
+            .preserved_external_models
+            .contains(&dummy_model_path.display().to_string()));
+
+        let token = core
+            .gateway
+            .approve_request(
+                approval_req.request_id,
+                Some("Freigabe für saubere Deinstallation im Integrationstest".into()),
+            )
+            .expect("approve_request failed");
+
+        let uninstall_result = core
+            .installer
+            .execute_clean_uninstall(&core.gateway, &token, &test_cache_dir)
+            .expect("execute_clean_uninstall failed");
+
+        assert!(uninstall_result.contains("Saubere Deinstallation abgeschlossen"));
+        // AIDO test cache dir must be removed
+        assert!(!test_cache_dir.exists(), "AIDO test cache directory must be removed");
+
+        // External model file MUST be 100% intact!
+        assert!(dummy_model_path.exists(), "External model file MUST exist and NOT be deleted!");
+        let read_back_bytes = std::fs::read(&dummy_model_path).expect("Failed to read dummy model");
+        assert_eq!(read_back_bytes, model_bytes, "Model contents must remain 100 % intact!");
+
+        // 3. Verify audit log & memory
+        let audits = core.memory.list_audit_log(10).expect("list_audit_log failed");
+        assert!(
+            audits.iter().any(|a| a.action == "AdapterSandboxAndReleaseCheck"),
+            "Expected 'AdapterSandboxAndReleaseCheck' in audit log"
+        );
+
+        let memories = core
+            .memory
+            .search_memory("ReleaseReadiness", 5)
+            .expect("search_memory failed");
+        assert!(
+            !memories.is_empty(),
+            "Expected 'ReleaseReadiness' in memory"
+        );
+        assert_eq!(memories[0].layer, "SystemMemory");
+        assert_eq!(memories[0].category, "ReleaseReadiness");
+
+        // Cleanup
+        let _ = std::fs::remove_file(&db_path);
+        let _ = std::fs::remove_dir_all(&safe_temp_dir);
+        let _ = std::fs::remove_dir_all(&external_models_dir);
     }
 }

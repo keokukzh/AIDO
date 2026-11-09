@@ -787,6 +787,115 @@
       color: #cbd5e1;
       line-height: 1.35;
     }
+    /* Phase 7 & 8: Adapter Sandbox & Release Readiness Styles */
+    .release-checklist-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 10px;
+      margin: 10px 0 16px 0;
+    }
+    .release-item {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: #f3f4f6;
+    }
+    .release-item.passed {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: rgba(16, 185, 129, 0.08);
+    }
+    .release-check-icon {
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .sandbox-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sandbox-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .uninstall-comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 12px 0;
+    }
+    .uninstall-box {
+      background: rgba(15, 23, 42, 0.85);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .uninstall-box.danger-scope {
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.05);
+    }
+    .uninstall-box.safe-scope {
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      background: rgba(16, 185, 129, 0.05);
+    }
+    .uninstall-box-title {
+      font-weight: 700;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .uninstall-box.danger-scope .uninstall-box-title { color: #fca5a5; }
+    .uninstall-box.safe-scope .uninstall-box-title { color: #6ee7b7; }
+    .uninstall-path-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.76rem;
+      font-family: monospace;
+    }
+    .uninstall-path-item {
+      padding: 6px 10px;
+      border-radius: 6px;
+      word-break: break-all;
+    }
+    .uninstall-box.danger-scope .uninstall-path-item {
+      background: rgba(239, 68, 68, 0.12);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.25);
+    }
+    .uninstall-box.safe-scope .uninstall-path-item {
+      background: rgba(16, 185, 129, 0.12);
+      color: #a7f3d0;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+    .zero-destruct-banner {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #6ee7b7;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -832,6 +941,7 @@
           <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
           <button id="btn-proactive" data-action="proactive">💡 Proaktive Vorschläge</button>
           <button id="btn-deep-cleanup" data-action="deep-cleanup">🧽 Deep Cleanup</button>
+          <button id="btn-release-check" data-action="release-check">🧩 Adapter-Sandbox & Release-Check</button>
           <button id="btn-apps-projects">🧩 App Intelligence & Projekte</button>
           <button id="btn-installer">🚀 Smart Installer (9-Phasen-Setup)</button>
           <button id="btn-runtime-memory">⚡ Runtime & Memory-Kompaktierung</button>
@@ -873,6 +983,7 @@
     <div class="context-item" data-action="cleanup"><span>🧹 Fast Cleanup (mit Vorschau)</span></div>
     <div class="context-item" data-action="proactive"><span>💡 Proaktive Vorschläge</span></div>
     <div class="context-item" data-action="deep-cleanup"><span>🧽 Deep Cleanup (Tiefenprüfung)</span></div>
+    <div class="context-item" data-action="release-check"><span>🧩 Adapter-Sandbox & Release-Check</span></div>
     <div class="context-item" data-action="apps"><span>🧩 App Intelligence & Projekte</span></div>
     <div class="context-item" data-action="installer"><span>🚀 Smart Installer (9-Phasen-Setup)</span></div>
     <div class="context-item" data-action="runtime"><span>⚡ Runtime & Memory-Kompaktierung</span></div>
