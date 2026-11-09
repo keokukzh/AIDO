@@ -337,6 +337,44 @@ const contextMenu = document.getElementById("context-menu") as HTMLDivElement;
 let currentProposal: ApprovalProposal | null = null;
 let pressTimer: number | null = null;
 
+type FocusMode = "NormalIdle" | "FullscreenOrGaming" | "VoiceRecordingOrCall";
+let currentFocusMode: FocusMode = "NormalIdle";
+const mutedCategories: Set<string> = new Set();
+const dismissalCounts: Map<string, number> = new Map();
+let deepCleanupExecuted = false;
+
+interface DeepCleanupCandidateItem {
+  fileName: string;
+  category: "StaleBuildArtifacts" | "OrphanedCrashDumps" | "ObsoleteShaderAndModelTemp";
+  categoryLabelDe: string;
+  sizeBytes: number;
+  reasonGerman: string;
+}
+
+const deepCleanupCandidatesData: DeepCleanupCandidateItem[] = [
+  {
+    fileName: "rust_incremental_old_target.old_build",
+    category: "StaleBuildArtifacts",
+    categoryLabelDe: "Veralteter Build-Cache",
+    sizeBytes: 512 * 1024,
+    reasonGerman: "Veralteter inkrementeller Build-Cache eines früheren Kompiliervorgangs."
+  },
+  {
+    fileName: "orphaned_webview_crash_dump.dmp_cache",
+    category: "OrphanedCrashDumps",
+    categoryLabelDe: "Verwaister Crash-Dump",
+    sizeBytes: 256 * 1024,
+    reasonGerman: "Verwaister WebView-Crash-Dump ohne aktiven Fehlerbericht."
+  },
+  {
+    fileName: "obsolete_cuda_compute_cache.shader_tmp",
+    category: "ObsoleteShaderAndModelTemp",
+    categoryLabelDe: "Veralteter Shader- & Compute-Cache",
+    sizeBytes: 384 * 1024,
+    reasonGerman: "Veralteter GPU-Shader- und Compute-Zwischenspeicher."
+  }
+];
+
 function appendAudit(entry: string): void {
   const li = document.createElement("li");
   const now = new Date().toLocaleTimeString("de-DE");
@@ -359,6 +397,16 @@ function renderDefaultButtons(): void {
   btnCheck.textContent = "🔍 Systemcheck & Fast Cleanup prüfen";
   btnCheck.onclick = () => startSystemHealthAndCleanupPreview();
 
+  const btnProactive = document.createElement("button");
+  btnProactive.textContent = "💡 Proaktive Vorschläge";
+  btnProactive.dataset.action = "proactive";
+  btnProactive.onclick = () => showProactiveEngineView();
+
+  const btnDeepCleanup = document.createElement("button");
+  btnDeepCleanup.textContent = "🧽 Deep Cleanup";
+  btnDeepCleanup.dataset.action = "deep-cleanup";
+  btnDeepCleanup.onclick = () => startDeepCleanupPreview();
+
   const btnApps = document.createElement("button");
   btnApps.textContent = "🧩 App Intelligence & Projekte";
   btnApps.onclick = () => showAppIntelligenceAndProjects();
@@ -379,7 +427,16 @@ function renderDefaultButtons(): void {
   btnMemory.textContent = "🧠 Memory & Wissen (4-Stufen)";
   btnMemory.onclick = () => showMemorySummary();
 
-  actionButtons.append(btnCheck, btnApps, btnInstaller, btnRuntime, btnPrivacy, btnMemory);
+  actionButtons.append(
+    btnCheck,
+    btnProactive,
+    btnDeepCleanup,
+    btnApps,
+    btnInstaller,
+    btnRuntime,
+    btnPrivacy,
+    btnMemory
+  );
 }
 
 function startSystemHealthAndCleanupPreview(): void {
@@ -456,6 +513,413 @@ function rejectCleanup(): void {
   );
   currentProposal = null;
   renderDefaultButtons();
+}
+
+function startDeepCleanupPreview(): void {
+  setCharacterState("Analysiere Staging (Tiefenprüfung)...", true);
+
+  const totalBytes = deepCleanupCandidatesData.reduce((acc, c) => acc + c.sizeBytes, 0);
+  const totalKb = Math.round(totalBytes / 1024);
+
+  currentProposal = {
+    requestId: crypto.randomUUID(),
+    title: "AIDO Deep Cleanup (Tiefenprüfung verwaister Build- & Shader-Caches)",
+    explanation: `Ich habe das Bereinigungs-Staging lesend geprüft: Es wurden 3 verwaiste Artefakte (${totalKb} KB) in 3 Kategorien gefunden. Deine persönlichen Quellcodes, Projektdateien und KI-Modelle bleiben vollständig unberührt. Darf ich die Tiefenbereinigung jetzt ausführen?`,
+    files: deepCleanupCandidatesData.map((c) => `${c.fileName} (${c.sizeBytes / 1024} KB, ${c.category})`),
+    bytes: totalBytes,
+    actionKind: "DeepCleanupExecute"
+  };
+
+  const reqId = currentProposal.requestId.slice(0, 8);
+
+  let html = `
+    <strong>🧽 AIDO Deep Cleanup (Tiefenprüfung & Freigabe)</strong><br/>
+    ${currentProposal.explanation}<br/>
+
+    <div class="deep-cleanup-grid">
+  `;
+
+  for (const c of deepCleanupCandidatesData) {
+    html += `
+      <div class="deep-cleanup-item">
+        <div class="deep-cleanup-category">${c.categoryLabelDe}</div>
+        <div class="deep-cleanup-size">${c.sizeBytes / 1024} KB</div>
+        <div class="deep-cleanup-file">${c.fileName}</div>
+        <div class="deep-cleanup-desc">${c.reasonGerman}</div>
+      </div>
+    `;
+  }
+
+  html += `
+    </div>
+    <div style="font-size: 0.8rem; color: #34d399; font-weight: 600; margin-top: 6px;">
+      ✓ Gesamtpotenzial: ${totalKb} KB in 3 Kategorien · Freigabe-ID: ${currentProposal.requestId}
+    </div>
+  `;
+
+  setCharacterState("Warte auf deine Freigabe", false);
+  aidoMessage.innerHTML = html;
+
+  appendAudit(
+    `[PermissionGateway] Freigabe-Anfrage ${reqId} erstellt (DeepCleanupExecute, 3 Kategorien, ${totalKb} KB).`
+  );
+
+  actionButtons.innerHTML = "";
+  const btnApprove = document.createElement("button");
+  btnApprove.className = "approve";
+  btnApprove.textContent = "✅ Ja, Deep Cleanup ausführen";
+  btnApprove.onclick = () => executeApprovedDeepCleanup();
+
+  const btnReject = document.createElement("button");
+  btnReject.className = "reject";
+  btnReject.textContent = "❌ Nein, abbrechen";
+  btnReject.onclick = () => rejectDeepCleanup();
+
+  actionButtons.append(btnApprove, btnReject);
+}
+
+function executeApprovedDeepCleanup(): void {
+  if (!currentProposal) return;
+  setCharacterState("Führe Deep Cleanup aus...", true);
+  const reqId = currentProposal.requestId.slice(0, 8);
+  const freedKb = Math.round(currentProposal.bytes / 1024);
+
+  setTimeout(() => {
+    deepCleanupExecuted = true;
+    setCharacterState("Tiefenbereinigung erfolgreich!", false);
+    aidoMessage.innerHTML = `
+      <strong>🧽 Deep Cleanup erfolgreich abgeschlossen!</strong><br/>
+      Ich habe die 3 verwaisten Build-, Shader- und Crash-Dateien (<b>${freedKb} KB</b>) sicher aus dem Staging entfernt.<br/><br/>
+      <em>Bereinigte Kategorien:</em><br/>
+      • StaleBuildArtifacts (rust_incremental_old_target.old_build, 512 KB)<br/>
+      • OrphanedCrashDumps (orphaned_webview_crash_dump.dmp_cache, 256 KB)<br/>
+      • ObsoleteShaderAndModelTemp (obsolete_cuda_compute_cache.shader_tmp, 384 KB)<br/><br/>
+      Deine persönlichen Daten und Quellcodes blieben unberührt. Das Ergebnis wurde im lokalen 4-Stufen-Gedächtnis gespeichert.
+    `;
+
+    appendAudit(
+      `[WindowsBridge] DeepCleanupExecute mit Einmal-Token für Anfrage ${reqId} ausgeführt (3 veraltete Build-/Shader-Dateien entfernt, ${freedKb} KB frei).`
+    );
+
+    const nextId = Math.max(...memoriesData.map((m) => m.id), 0) + 1;
+    memoriesData.push({
+      id: nextId,
+      createdAt: new Date().toISOString(),
+      layer: "EpisodicMemory",
+      category: "DeepCleanup",
+      summary: `Deep Cleanup nach Nutzerfreigabe ausgeführt (3 Dateien, ${freedKb} KB bereinigt)`,
+      details: `Deep Cleanup erfolgreich abgeschlossen: 3 veraltete Build- und Shader-Dateien (${freedKb} KB) wurden bereinigt. VRAM-Status: 29910 MiB frei von 32607 MiB.`,
+      source: "AidoCore::approve_and_execute_deep_cleanup",
+      validity: "active"
+    });
+
+    appendAudit(
+      `[MemoryEngine] Episodische Erinnerung #${nextId} gespeichert: 'Deep Cleanup nach Nutzerfreigabe ausgeführt'.`
+    );
+
+    currentProposal = null;
+    renderDefaultButtons();
+  }, 350);
+}
+
+function rejectDeepCleanup(): void {
+  if (!currentProposal) return;
+  const reqId = currentProposal.requestId.slice(0, 8);
+  setCharacterState("Bereit (Keine Änderung)", false);
+  aidoMessage.textContent =
+    "Tiefenbereinigung abgebrochen. Alle 3 Cache-Dateien (1.152 KB) wurden unverändert belassen.";
+  appendAudit(
+    `[PermissionGateway] Anfrage ${reqId} für Deep Cleanup vom Nutzer abgelehnt — keine Dateien gelöscht.`
+  );
+  currentProposal = null;
+  renderDefaultButtons();
+}
+
+function showProactiveEngineView(): void {
+  setCharacterState("Vordenker-Modus aktiv", false);
+
+  const activeEpisodicCount = memoriesData.filter(
+    (m) => m.layer === "EpisodicMemory" && m.validity === "active"
+  ).length;
+
+  let bannerHtml = "";
+  if (currentFocusMode === "FullscreenOrGaming") {
+    bannerHtml = `
+      <div class="focus-guard-banner">
+        <span style="font-size: 1.6rem;">🎮</span>
+        <div>
+          <strong>Fokus-Schutz aktiv: Vollbild- oder Gaming-Modus erkannt</strong><br/>
+          AIDO bleibt im Hintergrund stumm und unterdrückt alle proaktiven Vorschläge und Popups, um deine Konzentration und Framerate nicht zu stören.
+        </div>
+      </div>
+    `;
+  } else if (currentFocusMode === "VoiceRecordingOrCall") {
+    bannerHtml = `
+      <div class="focus-guard-banner call">
+        <span style="font-size: 1.6rem;">🎙️</span>
+        <div>
+          <strong>Fokus-Schutz aktiv: Audioaufnahme oder Sprachanruf aktiv</strong><br/>
+          AIDO pausiert alle Benachrichtigungen und Töne, um laufende Audioaufnahmen und Gespräche nicht zu unterbrechen.
+        </div>
+      </div>
+    `;
+  }
+
+  // Define candidate suggestions
+  const allSuggestions = [
+    {
+      id: "dirty_git_AIDO",
+      category: "DirtyGitWorkspace",
+      categoryLabel: "Dirty Git Workspace",
+      priority: 9,
+      title: "Ungespeicherte Änderungen in AIDO",
+      humanMessage: "Im Projekt 'AIDO' wurden ungespeicherte Git-Änderungen erkannt (Branch: main, Status: dirty). Möchtest du den Status prüfen oder sichern?",
+      whyNow: "Ungespeicherte Änderungen im Git-Repository festgestellt.",
+      primaryActionLabel: "🚀 Projekt öffnen & prüfen",
+      onPrimaryAction: () => prepareProjectLaunchPreview("AIDO")
+    },
+    {
+      id: "system_cleanup_hint",
+      category: "SystemMaintenance",
+      categoryLabel: "Systemwartung & Deep Cleanup",
+      priority: 8,
+      title: deepCleanupExecuted
+        ? "Systemwartung: Bereinigt"
+        : "Tiefenbereinigung 1.152 KB verfügbar",
+      humanMessage: deepCleanupExecuted
+        ? "Die 3 verwaisten Build- und Shader-Artefakte wurden bereits erfolgreich bereinigt."
+        : "Im Deep-Cleanup-Staging liegen 3 verwaiste Build- und Shader-Artefakte (1.152 KB), die gefahrlos freigegeben werden können.",
+      whyNow: deepCleanupExecuted
+        ? "Wartung kürzlich abgeschlossen."
+        : "Veralteter Build- und Shader-Cache belegt Speicherplatz.",
+      primaryActionLabel: deepCleanupExecuted ? "🧹 Fast Cleanup prüfen" : "🧽 Deep Cleanup öffnen",
+      onPrimaryAction: () => {
+        if (deepCleanupExecuted) {
+          startSystemHealthAndCleanupPreview();
+        } else {
+          startDeepCleanupPreview();
+        }
+      }
+    },
+    {
+      id: "memory_compaction_hint",
+      category: "MemoryConsolidation",
+      categoryLabel: "Gedächtniskompaktierung",
+      priority: 7,
+      title: activeEpisodicCount >= 2
+        ? `Episodisches Gedächtnis kompaktieren (${activeEpisodicCount} aktiv)`
+        : "Gedächtnis konsolidiert",
+      humanMessage: activeEpisodicCount >= 2
+        ? `${activeEpisodicCount} episodische Cleanup-Aktivitäten können zu dauerhaftem semantischen Wissen (Stufe 3) konsolidiert werden.`
+        : "Alle episodischen Erinnerungen wurden bereits semantisch verdichtet.",
+      whyNow: activeEpisodicCount >= 2
+        ? "Schwellenwert für 4-Stufen-Kompaktierung erreicht."
+        : "Gedächtnisstruktur ist optimal organisiert.",
+      primaryActionLabel: "🧹 Jetzt kompaktieren",
+      onPrimaryAction: () => performMemoryCompaction()
+    },
+    {
+      id: "continue_project_AIDO",
+      category: "ProjectContinuation",
+      categoryLabel: "Projektfortsetzung",
+      priority: 6,
+      title: "Weiterarbeiten an AIDO",
+      humanMessage: "Möchtest du am Projekt 'AIDO' weiterarbeiten? Empfohlene nächste Aktion: npm run dev.",
+      whyNow: "Zuletzt geöffnetes Projekt steht zur Fortsetzung bereit.",
+      primaryActionLabel: "🚀 Entwicklungsserver starten",
+      onPrimaryAction: () => prepareProjectLaunchPreview("AIDO")
+    }
+  ];
+
+  // Filter out suggestions dismissed >= 2 times or muted
+  const visibleSuggestions = (currentFocusMode === "NormalIdle")
+    ? allSuggestions.filter((s) => {
+        if (mutedCategories.has(s.category)) return false;
+        const dismissCount = dismissalCounts.get(s.id) || 0;
+        return dismissCount < 2;
+      })
+    : [];
+
+  let html = `
+    <strong>💡 AIDO Proaktive Vordenker-Engine & Fokus-Schutz</strong><br/>
+    AIDO agiert als vorausschauender Partner: Erkennung ungespeicherter Git-Änderungen, anstehender System- & Tiefenbereinigungen und Gedächtniskompaktierung nach <b>MASTERPLAN Kapitel 6.8</b>.<br/>
+
+    <!-- Focus-Guard Mode Switcher -->
+    <div style="margin-top: 10px; font-size: 0.82rem; font-weight: 700; color: #c7d2fe;">🛡️ Fokus-Schutz Aktivitätsmodus:</div>
+    <div class="focus-mode-bar">
+      <span class="focus-pill ${currentFocusMode === "NormalIdle" ? "active" : ""}" data-focus="NormalIdle">
+        🟢 Normaler Desktop
+      </span>
+      <span class="focus-pill gaming ${currentFocusMode === "FullscreenOrGaming" ? "active" : ""}" data-focus="FullscreenOrGaming">
+        🎮 Vollbild / Gaming (Stumm)
+      </span>
+      <span class="focus-pill call ${currentFocusMode === "VoiceRecordingOrCall" ? "active" : ""}" data-focus="VoiceRecordingOrCall">
+        🎙️ Sprachaufnahme / Call (Stumm)
+      </span>
+    </div>
+
+    ${bannerHtml}
+  `;
+
+  if (currentFocusMode === "NormalIdle") {
+    html += `
+      <div class="intel-heading">⚡ Priorisierte proaktive Vorschläge (${visibleSuggestions.length} aktiv)</div>
+      <div class="proactive-grid">
+    `;
+
+    if (visibleSuggestions.length === 0) {
+      html += `
+        <div style="padding: 16px; background: rgba(0,0,0,0.25); border-radius: 12px; font-size: 0.85rem; color: #94a3b8;">
+          Aktuell liegen keine weiteren proaktiven Vorschläge vor (alle Vorschläge wurden bearbeitet, zurückgestellt oder deren Themen stummgeschaltet).
+        </div>
+      `;
+    }
+
+    for (const s of visibleSuggestions) {
+      const dismissCount = dismissalCounts.get(s.id) || 0;
+      const backoffBadge = dismissCount === 1
+        ? '<span class="tag dirty">⏰ Zurückgestellt (1x verworfen · bei 2x wird pausiert)</span>'
+        : "";
+
+      html += `
+        <div class="proactive-card priority-${s.priority}">
+          <div class="proactive-header">
+            <div class="proactive-title">
+              <span>${s.title}</span>
+              <span class="tag action">Prio ${s.priority}</span>
+              <span class="tag branch">${s.categoryLabel}</span>
+              ${backoffBadge}
+            </div>
+          </div>
+          <div style="font-size: 0.86rem; color: #e0e7ff; line-height: 1.45;">${s.humanMessage}</div>
+          <div class="proactive-why">Warum jetzt: ${s.whyNow}</div>
+          <div class="proactive-actions">
+            <button class="approve btn-primary-proactive" data-sugg-id="${s.id}">
+              ${s.primaryActionLabel}
+            </button>
+            <button class="btn-subtle btn-dismiss-proactive" data-sugg-id="${s.id}">
+              ⏳ Später erinnern
+            </button>
+            <button class="btn-subtle btn-mute-proactive" data-cat="${s.category}" data-cat-label="${s.categoryLabel}">
+              🔕 Thema stummschalten
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+
+    if (mutedCategories.size > 0) {
+      html += `
+        <div style="margin-top: 14px; padding: 10px 14px; background: rgba(0,0,0,0.25); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #94a3b8;">
+          <span>Stummgeschaltete Themen: ${Array.from(mutedCategories).join(", ")}</span>
+          <button class="btn-subtle" id="btn-unmute-all">🔔 Alle Themen wieder aktivieren</button>
+        </div>
+      `;
+    }
+  }
+
+  aidoMessage.innerHTML = html;
+
+  // Add event listeners for focus pills
+  const focusPills = aidoMessage.querySelectorAll<HTMLSpanElement>(".focus-pill");
+  focusPills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      const mode = pill.dataset.focus as FocusMode;
+      if (mode && mode !== currentFocusMode) {
+        currentFocusMode = mode;
+        if (mode === "NormalIdle") {
+          appendAudit("[FocusGuard] Modus gewechselt zu: Normaler Desktop (Proaktive Vorschläge aktiv).");
+        } else if (mode === "FullscreenOrGaming") {
+          appendAudit("[FocusGuard] Fokus-Schutz aktiviert: Vollbild / Gaming erkannt — alle Vorschläge stummgeschaltet.");
+        } else if (mode === "VoiceRecordingOrCall") {
+          appendAudit("[FocusGuard] Fokus-Schutz aktiviert: Audio / Call erkannt — Benachrichtigungen unterdrückt.");
+        }
+        showProactiveEngineView();
+      }
+    });
+  });
+
+  // Add event listeners for primary proactive actions
+  const primaryButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-primary-proactive");
+  primaryButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.suggId;
+      const sugg = allSuggestions.find((s) => s.id === id);
+      if (sugg) {
+        sugg.onPrimaryAction();
+      }
+    });
+  });
+
+  // Add event listeners for dismissal backoff
+  const dismissButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-dismiss-proactive");
+  dismissButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.suggId;
+      if (!id) return;
+      const current = dismissalCounts.get(id) || 0;
+      const updated = current + 1;
+      dismissalCounts.set(id, updated);
+      const sugg = allSuggestions.find((s) => s.id === id);
+      const title = sugg ? sugg.title : id;
+      if (updated >= 2) {
+        appendAudit(`[ProactiveEngine] Vorschlag '${title}' 2x verworfen — 2x Backoff aktiv (Vorschlag für diese Sitzung pausiert).`);
+      } else {
+        appendAudit(`[ProactiveEngine] Vorschlag '${title}' zurückgestellt (${updated}/2 Ablehnungen).`);
+      }
+      showProactiveEngineView();
+    });
+  });
+
+  // Add event listeners for muting category
+  const muteButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-mute-proactive");
+  muteButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const cat = btn.dataset.cat;
+      const label = btn.dataset.catLabel || cat;
+      if (!cat) return;
+      mutedCategories.add(cat);
+      appendAudit(`[ProactiveEngine] Thema '${label}' stummgeschaltet.`);
+      showProactiveEngineView();
+    });
+  });
+
+  // Add event listener for unmute all
+  const unmuteBtn = aidoMessage.querySelector<HTMLButtonElement>("#btn-unmute-all");
+  if (unmuteBtn) {
+    unmuteBtn.addEventListener("click", () => {
+      mutedCategories.clear();
+      appendAudit("[ProactiveEngine] Alle Themen wurden wieder aktiviert.");
+      showProactiveEngineView();
+    });
+  }
+
+  appendAudit(
+    `[ProactiveEngine] Vordenker-Ansicht geladen (Aktivitätszustand: ${currentFocusMode}, ${visibleSuggestions.length} aktive Vorschläge).`
+  );
+
+  // Render contextual buttons
+  actionButtons.innerHTML = "";
+  const btnDeepCleanupQuick = document.createElement("button");
+  btnDeepCleanupQuick.textContent = "🧽 Deep Cleanup prüfen";
+  btnDeepCleanupQuick.onclick = () => startDeepCleanupPreview();
+
+  const btnMemoryQuick = document.createElement("button");
+  btnMemoryQuick.textContent = "🧠 Memory & Wissen";
+  btnMemoryQuick.onclick = () => showMemorySummary();
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "🔙 Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnDeepCleanupQuick, btnMemoryQuick, btnBack);
 }
 
 function showAppIntelligenceAndProjects(): void {
@@ -1207,6 +1671,10 @@ contextMenu.addEventListener("click", (e) => {
   const action = target.dataset.action;
   if (action === "health" || action === "cleanup") {
     startSystemHealthAndCleanupPreview();
+  } else if (action === "proactive") {
+    showProactiveEngineView();
+  } else if (action === "deep-cleanup") {
+    startDeepCleanupPreview();
   } else if (action === "apps") {
     showAppIntelligenceAndProjects();
   } else if (action === "installer") {

@@ -623,6 +623,170 @@
       background: var(--success);
       color: #052e16;
     }
+
+    /* Proactive Engine & Focus Guard Styles */
+    .focus-mode-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 10px 0 14px 0;
+    }
+    .focus-pill {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      transition: all 0.2s ease;
+    }
+    .focus-pill:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #f3f4f6;
+    }
+    .focus-pill.active {
+      background: rgba(99, 102, 241, 0.3);
+      color: #e0e7ff;
+      border-color: var(--accent);
+    }
+    .focus-pill.gaming.active {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.6);
+    }
+    .focus-pill.call.active {
+      background: rgba(245, 158, 11, 0.25);
+      color: #fcd34d;
+      border-color: rgba(245, 158, 11, 0.6);
+    }
+    .focus-guard-banner {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      color: #fca5a5;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .focus-guard-banner.call {
+      background: rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.45);
+      color: #fcd34d;
+    }
+    .proactive-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .proactive-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .proactive-card.priority-9 {
+      border-left: 4px solid #f59e0b;
+    }
+    .proactive-card.priority-8 {
+      border-left: 4px solid #10b981;
+    }
+    .proactive-card.priority-7 {
+      border-left: 4px solid #818cf8;
+    }
+    .proactive-card.priority-6 {
+      border-left: 4px solid #38bdf8;
+    }
+    .proactive-card.muted-card {
+      opacity: 0.5;
+      border-style: dashed;
+    }
+    .proactive-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .proactive-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #f3f4f6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .proactive-why {
+      font-size: 0.76rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .proactive-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .btn-subtle {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #cbd5e1;
+      font-size: 0.76rem;
+      padding: 5px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-subtle:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+    }
+    .deep-cleanup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .deep-cleanup-item {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .deep-cleanup-category {
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #34d399;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .deep-cleanup-size {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #f3f4f6;
+    }
+    .deep-cleanup-file {
+      font-family: monospace;
+      font-size: 0.74rem;
+      color: #94a3b8;
+      word-break: break-all;
+    }
+    .deep-cleanup-desc {
+      font-size: 0.74rem;
+      color: #cbd5e1;
+      line-height: 1.35;
+    }
   </style>
 </head>
 <body>
@@ -666,6 +830,8 @@
         </div>
         <div class="options-row" id="action-buttons">
           <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
+          <button id="btn-proactive" data-action="proactive">💡 Proaktive Vorschläge</button>
+          <button id="btn-deep-cleanup" data-action="deep-cleanup">🧽 Deep Cleanup</button>
           <button id="btn-apps-projects">🧩 App Intelligence & Projekte</button>
           <button id="btn-installer">🚀 Smart Installer (9-Phasen-Setup)</button>
           <button id="btn-runtime-memory">⚡ Runtime & Memory-Kompaktierung</button>
@@ -705,6 +871,8 @@
   <div class="context-menu" id="context-menu">
     <div class="context-item" data-action="health"><span>🔍 Systemanalyse starten</span></div>
     <div class="context-item" data-action="cleanup"><span>🧹 Fast Cleanup (mit Vorschau)</span></div>
+    <div class="context-item" data-action="proactive"><span>💡 Proaktive Vorschläge</span></div>
+    <div class="context-item" data-action="deep-cleanup"><span>🧽 Deep Cleanup (Tiefenprüfung)</span></div>
     <div class="context-item" data-action="apps"><span>🧩 App Intelligence & Projekte</span></div>
     <div class="context-item" data-action="installer"><span>🚀 Smart Installer (9-Phasen-Setup)</span></div>
     <div class="context-item" data-action="runtime"><span>⚡ Runtime & Memory-Kompaktierung</span></div>

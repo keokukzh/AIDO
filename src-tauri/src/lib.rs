@@ -35,6 +35,7 @@ pub struct AidoCore {
     pub projects: ProjectIntelligenceEngine,
     pub installer: smart_installer::SmartInstallerEngine,
     pub runtime: runtime_supervisor::RuntimeSupervisor,
+    pub proactive: proactive_engine::ProactiveEngine,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +44,13 @@ pub struct RuntimeAndMemoryReport {
     pub compaction_report: Option<memory::CompactionReport>,
     pub active_memories_count: usize,
     pub semantic_memories_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProactiveAndDeepCleanupReport {
+    pub deep_cleanup_scan: windows_bridge::DeepCleanupScanReport,
+    pub deep_cleanup_approval: permission_gateway::ApprovalRequest,
+    pub proactive_report: proactive_engine::ProactiveEvaluationReport,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +77,7 @@ impl AidoCore {
         let projects = ProjectIntelligenceEngine::new(db_path.as_ref())?;
         let installer = smart_installer::SmartInstallerEngine::new(db_path.as_ref())?;
         let runtime = runtime_supervisor::RuntimeSupervisor::new();
+        let proactive = proactive_engine::ProactiveEngine::new();
         Ok(Self {
             gateway,
             memory,
@@ -78,6 +87,7 @@ impl AidoCore {
             projects,
             installer,
             runtime,
+            proactive,
         })
     }
 
@@ -289,6 +299,88 @@ impl AidoCore {
             active_memories_count,
             semantic_memories_count,
         })
+    }
+
+    /// Evaluates system context, active projects, episodic memories, and reclaimable build/shader caches
+    /// to generate prioritized proactive suggestions under Focus-Guard rules, while also staging Deep Cleanup.
+    pub fn evaluate_proactive_and_deep_cleanup(
+        &self,
+        activity: proactive_engine::UserActivityState,
+    ) -> Result<ProactiveAndDeepCleanupReport, Box<dyn std::error::Error>> {
+        let health = self.bridge.run_system_health_check()?;
+        let (deep_cleanup_scan, deep_cleanup_approval) = self.bridge.prepare_deep_cleanup()?;
+        let projects = self.projects.list_projects()?;
+        let active_episodic_count = self
+            .memory
+            .list_memories_by_layer(Some("EpisodicMemory"), true, 100)?
+            .len();
+
+        let proactive_report = self.proactive.evaluate_context(
+            activity,
+            &health,
+            &projects,
+            active_episodic_count,
+            deep_cleanup_scan.total_reclaimable_bytes,
+        );
+
+        let audit_summary = format!(
+            "Vordenker-Prüfung: Aktivitätszustand {:?}, {} proaktive Vorschläge generiert (Fokus-Schutz unterdrückt: {}), {} KB Deep-Cleanup-Kandidaten vorbereitet.",
+            activity,
+            proactive_report.suggestions.len(),
+            proactive_report.suppressed_by_focus_guard,
+            deep_cleanup_scan.total_reclaimable_bytes / 1024
+        );
+
+        self.memory.record_audit(
+            "ProactiveAndDeepCleanupCheck",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &audit_summary,
+        )?;
+
+        Ok(ProactiveAndDeepCleanupReport {
+            deep_cleanup_scan,
+            deep_cleanup_approval,
+            proactive_report,
+        })
+    }
+
+    /// After explicit user approval, issues an ApprovalToken, deletes categorized stale build/shader/crash caches
+    /// within safe sandbox boundaries, logs to audit and records an EpisodicMemory entry.
+    pub fn approve_and_execute_deep_cleanup(
+        &self,
+        request_id: uuid::Uuid,
+        user_note: Option<String>,
+    ) -> Result<(ApprovalToken, FastCleanupResult), Box<dyn std::error::Error>> {
+        let token = self.gateway.approve_request(request_id, user_note.clone())?;
+        let result = self.bridge.execute_deep_cleanup(&token)?;
+
+        self.memory.record_audit(
+            "DeepCleanupExecute",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &result.human_report,
+        )?;
+
+        self.memory.store_memory(
+            "EpisodicMemory",
+            "DeepCleanup",
+            &format!(
+                "Deep Cleanup nach Nutzerfreigabe ausgeführt ({} Dateien, {} KB bereinigt)",
+                result.removed_files_count,
+                result.freed_disk_bytes / 1024
+            ),
+            &format!(
+                "{} | Nutzer-Notiz: {}",
+                result.human_report,
+                user_note.unwrap_or_else(|| "Keine".into())
+            ),
+            "AidoCore::approve_and_execute_deep_cleanup",
+        )?;
+
+        Ok((token, result))
     }
 }
 
@@ -547,5 +639,130 @@ mod tests {
         // Cleanup
         let _ = std::fs::remove_file(&db_path);
         let _ = std::fs::remove_dir_all(&safe_temp_dir);
+    }
+
+    #[test]
+    fn aido_core_proactive_engine_and_deep_cleanup_end_to_end() {
+        let temp_dir = std::env::temp_dir();
+        let unique = Uuid::new_v4().to_string();
+        let db_path = temp_dir.join(format!("aido_proactive_test_{}.db", unique));
+        let safe_temp_dir = temp_dir.join(format!("aido_proactive_staging_{}", unique));
+        let workspace_root = temp_dir.join(format!("aido_proactive_workspace_{}", unique));
+        std::fs::create_dir_all(&workspace_root).expect("Failed to create workspace root");
+
+        // Create a project inside workspace_root with git init and untracked file to trigger dirty status
+        let project_dir = workspace_root.join("AidoDirtyProject");
+        std::fs::create_dir_all(&project_dir).expect("Failed to create project dir");
+        std::fs::write(
+            project_dir.join("Cargo.toml"),
+            "[package]\nname = \"aido_dirty\"\nversion = \"0.1.0\"\n",
+        )
+        .expect("Failed to write Cargo.toml");
+        let _ = std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&project_dir)
+            .output();
+        let _ = std::fs::write(project_dir.join("uncommitted.txt"), "dirty worktree state");
+
+        let core = AidoCore::new(
+            AccessMode::StandardAccess,
+            PrivacyMode::PrivateOffline,
+            &db_path,
+            &safe_temp_dir,
+        )
+        .expect("AidoCore::new failed");
+
+        // Index project so list_projects has it
+        let (_, indexed_projects) = core
+            .discover_and_register_environment(std::slice::from_ref(&workspace_root))
+            .expect("discover_and_register_environment failed");
+        assert!(!indexed_projects.is_empty());
+
+        // Seed 3 deep cleanup files (1152 KB)
+        let seeded_bytes = core
+            .bridge
+            .seed_demo_deep_cleanup_files()
+            .expect("seed_demo_deep_cleanup_files failed");
+        assert_eq!(seeded_bytes, 1152 * 1024);
+
+        // Store 4 episodic memories to trigger memory consolidation suggestion
+        for i in 1..=4 {
+            core.memory
+                .store_memory(
+                    "EpisodicMemory",
+                    "FastCleanup",
+                    &format!("Cleanup {}", i),
+                    "Details",
+                    "test",
+                )
+                .expect("store_memory failed");
+        }
+
+        // 1. Test Focus-Guard suppression during Gaming/Fullscreen
+        let suppressed = core
+            .evaluate_proactive_and_deep_cleanup(
+                proactive_engine::UserActivityState::FullscreenOrGaming,
+            )
+            .expect("evaluate_proactive_and_deep_cleanup suppressed failed");
+        assert!(suppressed.proactive_report.suppressed_by_focus_guard);
+        assert!(suppressed.proactive_report.suggestions.is_empty());
+        assert!(suppressed
+            .proactive_report
+            .suppression_reason
+            .as_ref()
+            .unwrap()
+            .contains("Fokus-Schutz"));
+
+        // 2. Test NormalIdle evaluation with proactive suggestions and deep cleanup scan
+        let normal = core
+            .evaluate_proactive_and_deep_cleanup(proactive_engine::UserActivityState::NormalIdle)
+            .expect("evaluate_proactive_and_deep_cleanup normal failed");
+        assert!(!normal.proactive_report.suppressed_by_focus_guard);
+        assert!(!normal.proactive_report.suggestions.is_empty());
+        assert_eq!(normal.deep_cleanup_scan.candidates.len(), 3);
+        assert_eq!(
+            normal.deep_cleanup_scan.total_reclaimable_bytes,
+            1152 * 1024
+        );
+        assert_eq!(
+            normal.deep_cleanup_approval.action,
+            permission_gateway::ActionKind::DeepCleanupExecute
+        );
+
+        // 3. Test Deep Cleanup execution with approval
+        let (token, cleanup_result) = core
+            .approve_and_execute_deep_cleanup(
+                normal.deep_cleanup_approval.request_id,
+                Some("Nutzer hat Tiefenbereinigung freigegeben".into()),
+            )
+            .expect("approve_and_execute_deep_cleanup failed");
+
+        assert_eq!(
+            token.action,
+            permission_gateway::ActionKind::DeepCleanupExecute
+        );
+        assert_eq!(cleanup_result.removed_files_count, 3);
+        assert_eq!(cleanup_result.freed_disk_bytes, 1152 * 1024);
+        assert!(cleanup_result.human_report.contains("Deep Cleanup erfolgreich"));
+
+        // 4. Verify audit log & episodic memory
+        let audits = core.memory.list_audit_log(10).expect("list_audit_log failed");
+        assert!(audits.iter().any(|a| a.action == "DeepCleanupExecute"));
+        assert!(audits
+            .iter()
+            .any(|a| a.action == "ProactiveAndDeepCleanupCheck"));
+
+        let memories = core
+            .memory
+            .search_memory("DeepCleanup", 5)
+            .expect("search_memory failed");
+        assert!(!memories.is_empty());
+        assert_eq!(memories[0].layer, "EpisodicMemory");
+        assert_eq!(memories[0].category, "DeepCleanup");
+
+        // Cleanup
+        let _ = std::fs::remove_file(&db_path);
+        let _ = std::fs::remove_dir_all(&safe_temp_dir);
+        let _ = std::fs::remove_dir_all(&workspace_root);
     }
 }

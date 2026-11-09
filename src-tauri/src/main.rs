@@ -43,6 +43,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let report = core.inspect_runtime_and_compact_memory(2)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        "proactive" => {
+            core.bridge.seed_demo_deep_cleanup_files()?;
+            let report = core.evaluate_proactive_and_deep_cleanup(
+                aido_core::proactive_engine::UserActivityState::NormalIdle,
+            )?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -54,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/7] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/8] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -62,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/7] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/8] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -79,14 +86,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/7] Ausführung nach Freigabe:");
+            println!("\n[3/8] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/7] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/8] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -95,7 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/7] App Intelligence & Projektkatalog:");
+            println!("\n[5/8] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -146,7 +153,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 6: Smart Installer & Modell-Wiederverwendung
-            println!("\n[6/7] Smart Installer & Modell-Wiederverwendung:");
+            println!("\n[6/8] Smart Installer & Modell-Wiederverwendung:");
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             let total_models = plan.models.len();
             let reused_models = plan.eta.reused_models_count;
@@ -183,7 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 7: Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung
-            println!("\n[7/7] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
+            println!("\n[7/8] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
             // Store a second episodic memory so compaction threshold (min_entries = 2) is met
             core.memory.store_memory(
                 "EpisodicMemory",
@@ -243,9 +250,73 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "    • Aktive Erinnerungen im System: {}, Semantische Wissenseinträge: {}",
                 rt_report.active_memories_count, rt_report.semantic_memories_count
             );
+
+            // Step 8: Proaktive Vordenker-Engine & Deep Cleanup
+            println!("\n[8/8] Proaktive Vordenker-Engine & Deep Cleanup:");
+            let seeded_deep = core.bridge.seed_demo_deep_cleanup_files()?;
+            println!(
+                "  Test-Staging für Tiefenbereinigung vorbereitet: {} KB in '{}'",
+                seeded_deep / 1024,
+                core.bridge.deep_cleanup_staging_dir().display()
+            );
+
+            // 1. Proaktive Vordenker-Auswertung im Normalzustand
+            let proactive_res = core.evaluate_proactive_and_deep_cleanup(
+                aido_core::proactive_engine::UserActivityState::NormalIdle,
+            )?;
+            println!(
+                "  Vordenker-Auswertung: {} Vorschläge generiert (Fokus-Schutz unterdrückt: {}):",
+                proactive_res.proactive_report.suggestions.len(),
+                proactive_res.proactive_report.suppressed_by_focus_guard
+            );
+            for s in &proactive_res.proactive_report.suggestions {
+                println!(
+                    "    • [Priorität {}] {} ({:?}):",
+                    s.priority, s.title, s.category
+                );
+                println!("      Nachricht: {}", s.human_message);
+                println!("      Warum jetzt: {}", s.why_now);
+                println!("      Optionen: {:?}", s.clickable_options);
+            }
+
+            // 2. Fokus-Schutz Simulation (Gaming / Vollbild)
+            let focus_res = core.evaluate_proactive_and_deep_cleanup(
+                aido_core::proactive_engine::UserActivityState::FullscreenOrGaming,
+            )?;
+            println!(
+                "  Fokus-Schutz Simulation (Gaming/Fullscreen): Unterdrückt = {}, Grund: '{}'",
+                focus_res.proactive_report.suppressed_by_focus_guard,
+                focus_res
+                    .proactive_report
+                    .suppression_reason
+                    .unwrap_or_default()
+            );
+
+            // 3. Deep Cleanup Freigabe & Ausführung
+            println!(
+                "  Deep Cleanup Scan: {} Kandidaten ({} KB freigebbar):",
+                proactive_res.deep_cleanup_scan.candidates.len(),
+                proactive_res.deep_cleanup_scan.total_reclaimable_bytes / 1024
+            );
+            for c in &proactive_res.deep_cleanup_scan.candidates {
+                println!(
+                    "    • [{:?}] {} ({} KB) — {}",
+                    c.category,
+                    c.file_name,
+                    c.size_bytes / 1024,
+                    c.reason_german
+                );
+            }
+
+            let (_dc_token, dc_result) = core.approve_and_execute_deep_cleanup(
+                proactive_res.deep_cleanup_approval.request_id,
+                Some("Nutzer hat Deep Cleanup im Demo-Lauf bestätigt.".into()),
+            )?;
+            println!("  Ausführung nach Deep-Cleanup-Freigabe:");
+            println!("    {}", dc_result.human_report);
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive]");
         }
     }
 
