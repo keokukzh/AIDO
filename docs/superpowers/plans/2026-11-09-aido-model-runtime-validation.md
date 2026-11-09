@@ -30,12 +30,14 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 
 ## Aufgabe 2: Embedding lokal prüfen
 
-- [ ] Das vorhandene `text-embedding-nomic-embed-text-v1.5` laden.
-- [ ] Über einen autorisierten lokalen Client drei harmlose deutsche Testsätze einbetten; nur Anzahl, Dimension und endliche Werte protokollieren.
-- [ ] Mit einer kleinen, vom Team selbst geschriebenen Sammlung prüfen, ob ähnliche Projekttexte näher zueinander liegen als ein themenfremder Text.
-- [ ] Modell wieder entladen; Wiederladezeit messen.
+- [x] Das vorhandene `text-embedding-nomic-embed-text-v1.5` laden.
+- [x] Über einen autorisierten lokalen Client drei harmlose deutsche Testsätze einbetten; drei Vektoren mit je 768 Dimensionen wurden geliefert.
+- [x] Mit einer kleinen, vom Team selbst geschriebenen Sammlung prüfen, ob ähnliche Projekttexte näher zueinander liegen als ein themenfremder Text. Kosinusähnlichkeit: 0,8036 gegenüber 0,5959.
+- [x] Modell wieder entladen; ein früherer Ladevorgang dauerte laut LM Studio 2,96 s. Ein reproduzierter Kaltstart-Benchmark steht noch aus.
 
 **Abnahme:** Lokale API liefert reproduzierbar gültige Vektoren; ein einfacher semantischer Abruf findet den erwarteten Text. Fehlt ein autorisierter Zugang, wird nur dieser Test pausiert, ohne die Tokenpflicht abzuschalten. Qwen3-Embedding-0.6B wird erst bei Qualitätsbedarf als Vergleich hinzugezogen.
+
+**Ausführungsstand:** Der autorisierte Embedding-Funktionstest ist bestanden. Der temporär bereitgestellte Zugang wurde nicht gespeichert; wegen Offenlegung im Chat muss er widerrufen werden. Qualitäts- und Kaltstart-Benchmarks bleiben offen.
 
 ## Aufgabe 3: Bild-Eingang der konkreten Qwen-Datei prüfen
 
