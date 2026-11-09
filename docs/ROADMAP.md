@@ -4,7 +4,7 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Es gibt keine belastbaren 
 
 | Phase | Ziel | Nachweis für Abschluss |
 | --- | --- | --- |
-| 0 | Referenz-PC, Docker-Anhang, vorhandene Modelle und Tools inventarisieren; Anforderungen und Risiken präzisieren. | Inventar mit Quellen, offenen Lücken und freigegebenem Prototypumfang. |
+| 0 | Referenz-PC, vorhandene Modelle und Tools gezielt inventarisieren; historischen Docker-Plan einordnen; Anforderungen und Risiken präzisieren. | Inventar mit Quellen, offenen Lücken und freigegebenem Prototypumfang. |
 | 1 | Windows Bridge und Permission Gateway als minimale Basis. | Erlaubte, abgelehnte und bestätigungspflichtige Aktionen sind reproduzierbar unterscheidbar. |
 | 2 | App Discovery und Capability Registry. | Apps werden erkannt; eine konkrete Fähigkeit wird mit Rechten und Teststatus angezeigt. |
 | 3 | Smart Installer und Datenmodi. | Unterbrechung, Wiederaufnahme und Modi auf geeigneten Windows-11-Testsystemen geprüft. |
@@ -16,8 +16,8 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Es gibt keine belastbaren 
 
 ## Unmittelbare nächste Schritte
 
-1. Fehlenden Docker-Anhang beschaffen und nur daraus belegbare Fakten übernehmen.
-2. Auf dem Referenz-PC Hardware, Windows-Edition, Modelllaufzeiten und installierte Apps mit Zustimmung erfassen.
+1. Den punktuellen Ist-Check in [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) um Ubuntu-Benutzer, Docker-Integration und GPU-Passthrough ergänzen; Änderungen erst nach gesicherter Ausgangslage durchführen.
+2. Auf dem Referenz-PC Windows-Edition, Modelllaufzeiten und ausgewählte Apps mit Zustimmung erfassen; persönliche Nutzungsdaten nur nach Freigabe auswerten.
 3. Eine kleine, messbare Nutzeraufgabe für den ersten Prototyp wählen.
 4. Aktionsschema, Freigabegrenzen und lokale Protokollierung spezifizieren.
 5. Kandidaten für UI, Runtime und Adapter mit kurzen Spikes vergleichen.
