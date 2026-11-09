@@ -47,3 +47,11 @@ Bild-Eingang, Audio, Tool-Aufrufe, Offline-Datenfluss, VRAM-Spitzen und Wiederla
 5. Erst danach über zusätzliche Downloads oder eine andere primäre Runtime entscheiden. Endnutzer-Installer sollen benötigte Modelle je nach gewählten Funktionen erkennen, wiederverwenden oder nach Zustimmung installieren.
 
 Es wurde keine neue Modell- oder Runtime-Installation vorgenommen.
+
+## Ausführung des Prüfplans am 9. November 2026
+
+Die Benutzerumgebung setzt `OLLAMA_MODELS` auf `D:\AI_Models\ollama`; die laufende PowerShell-Sitzung hatte diese Variable nicht geerbt. Ein explizit mit diesem Pfad gestarteter temporärer Ollama-Server zeigte zweimal dieselben Einträge (`kimi-k2.6:cloud`, `qwen3.8:latest`). `ollama show qwen3.8:latest` scheiterte jedoch an einem fehlenden GGUF-Blob. Die frühere Liste mit GameDev-Qwen und qwen2.5 ließ sich diesem Zustand nicht zuordnen. Ollama wird für Modellvergleiche vorläufig ausgeschlossen; der Testserver wurde gestoppt. Es wurde nichts repariert oder gelöscht.
+
+Ein `whisper-server.exe` wurde unter der bestehenden Unsloth/whisper.cpp-Installation gefunden. In den gezielt geprüften Modellverzeichnissen fand sich kein zugehöriges Whisper-Sprachmodell. Ein Sprachtest fand daher nicht statt.
+
+Ein separater, nur an localhost gebundener Embedding-Testserver wurde durch die automatische Freigabeprüfung vor dem Start blockiert. Es gab keinen zweiten Startversuch; die LM-Studio-Tokenpflicht blieb aktiv. Embedding-Vektoren und Bild-Eingang bleiben ungetestet.
