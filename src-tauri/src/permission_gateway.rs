@@ -51,6 +51,10 @@ pub enum ActionKind {
     RollbackInstaller,
     /// Read-only inspection and health probing of local AI runtimes
     ProbeLocalRuntimes,
+    /// Read-only synthesis and isolated verification of unknown app adapter
+    SynthesizeAndVerifyAdapter,
+    /// State-modifying clean uninstallation of AIDO caches and database (requires explicit user ApprovalToken)
+    ExecuteCleanUninstall,
 }
 
 impl ActionKind {
@@ -64,6 +68,7 @@ impl ActionKind {
                 | ActionKind::LaunchProject
                 | ActionKind::RunInstallerStep
                 | ActionKind::RollbackInstaller
+                | ActionKind::ExecuteCleanUninstall
         )
     }
 }
@@ -346,6 +351,7 @@ mod tests {
         assert!(!ActionKind::ScanProjects.is_mutating());
         assert!(!ActionKind::InspectHardwareAndModels.is_mutating());
         assert!(!ActionKind::ProbeLocalRuntimes.is_mutating());
+        assert!(!ActionKind::SynthesizeAndVerifyAdapter.is_mutating());
 
         assert!(ActionKind::FastCleanupExecute.is_mutating());
         assert!(ActionKind::DeepCleanupExecute.is_mutating());
@@ -354,5 +360,6 @@ mod tests {
         assert!(ActionKind::LaunchProject.is_mutating());
         assert!(ActionKind::RunInstallerStep.is_mutating());
         assert!(ActionKind::RollbackInstaller.is_mutating());
+        assert!(ActionKind::ExecuteCleanUninstall.is_mutating());
     }
 }
