@@ -16,10 +16,14 @@ Status aller Punkte: **geplant**, sofern nicht ausdrücklich anders angegeben. D
 | R-08 | Aktionen, Freigaben, Fehler und Datenzugriffe lokal nachvollziehbar protokollieren. |
 | R-09 | Dauerhaftes lokales Memory mit Quelle, Zeit, Gültigkeit, Suche und Löschmöglichkeit aufbauen. |
 | R-10 | Setup-Schritte wiederaufnehmen; bestehende Programme und Modelle nicht ungefragt verändern. |
+| R-11 | Für semantische Memory-Suche ein dediziertes lokales Text-Embedding-Modell mitinstallieren oder eine vorhandene kompatible Installation nach Prüfung wiederverwenden. |
+| R-12 | Für Spracheingabe ein gesondertes lokales Spracherkennungsmodell samt Mikrofonfreigabe bereitstellen; Embeddings ersetzen keine Transkription. |
+| R-13 | Bild-Eingang des gewählten Hauptmodells mit der tatsächlich eingesetzten Runtime und Modelldatei prüfen; Modellname allein gilt nicht als Nachweis. |
+| R-14 | Vor Downloads vorhandene Inferenzlaufzeiten, Modellformate und Versionen erkennen; eine passende Runtime auswählen und unnötige Parallelinstallationen vermeiden. |
 
 ## Spätere Ausbaustufen
 
-Sprachein- und -ausgabe, Bildverständnis, proaktive Vorschläge, geplante Hintergrundaufgaben, Projektwissen, spezialisierte interne Agenten und isoliert erzeugte App-Adapter gehören zur Vision. Sie werden erst nach den Grundlagen für Berechtigungen und überprüfbare Ausführung integriert.
+Sprachausgabe, proaktive Vorschläge, geplante Hintergrundaufgaben, Projektwissen, spezialisierte interne Agenten und isoliert erzeugte App-Adapter gehören zur Vision. Sie werden erst nach den Grundlagen für Berechtigungen und überprüfbare Ausführung integriert.
 
 ## Datenschutz und Sicherheit
 
