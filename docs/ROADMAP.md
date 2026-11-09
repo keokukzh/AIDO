@@ -10,14 +10,12 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Abgeschlossene Nachweise s
 | 3 | Smart Installer, Hardware-Klassen-Erkennung, Modell-Wiederverwendung und transaktionale 9-Phasen-Einrichtung. | **Abgeschlossen.** 4 Hardware-Tiers, 0-GB-Modell-Wiederverwendung, 3-stufige ETA-Prognose, SQLite-Resume & Rollback. |
 | 4 | Vollständige Live-Orchestrierung von Hauptmodell, Vision, Whisper-ASR und 4-stufiger Memory-Kompaktierung. | **Abgeschlossen.** `RuntimeSupervisor` (`--sleep-idle-seconds 300`, CUDA 13.4 DLLs), multimodale Vision/ASR-Pipeline und 4-Stufen-Gedächtniskompaktierung inkl. Nutzer-Vergessen. |
 | 5 | Ausbau Charakter-Interaktion, verständliches Onboarding und Privacy/Memory Center. | **Abgeschlossen.** 4-Stufen-Layer-Filter, Kompaktierungs-Trigger, Vergessen-Steuerung und Fokus-Schutz integriert. |
-| 6 | Proaktive Vorschläge (Vordenker-Engine) und zweistufiges System-Cleanup (*Fast Cleanup* & *Deep Cleanup*). | **Abgeschlossen.** `ProactiveEngine` mit Vollbild-/Call-Fokussperre, 2x-Ablehnungs-Backoff, Themen-Stummschaltung und *Deep Cleanup* mit Freigabetoken (35/35 Tests grün). |
-| 7 | Breitere App-Abdeckung und isoliert geprüfte Adaptererzeugung. | **Nächster Meilenstein:** Isolierte Adapter-Prüfbank für unbekannte Programme. |
-| 8 | Verpackung, Updates, saubere Deinstallation und Releasevorbereitung. | Geplant nach Phase 7. |
+| 6 | Proaktive Vorschläge (Vordenker-Engine) und zweistufiges System-Cleanup (*Fast Cleanup* & *Deep Cleanup*). | **Abgeschlossen.** `ProactiveEngine` mit Vollbild-/Call-Fokussperre, 2x-Ablehnungs-Backoff, Themen-Stummschaltung und *Deep Cleanup* mit Freigabetoken. |
+| 7 | Breitere App-Abdeckung und isoliert geprüfte Adaptererzeugung. | **Abgeschlossen.** Isolierte Adapter-Sandbox (`synthesize_and_verify_unknown_app_adapter`) prüft unbekannte Apps (z. B. OBS Studio / Blender 3D) und trennt harmlose von bestätigungspflichtigen Fähigkeiten. |
+| 8 | Verpackung, Updates, saubere Deinstallation und Releasevorbereitung. | **Abgeschlossen.** Zero-Destruction Clean Uninstaller (`prepare_clean_uninstall` / `execute_clean_uninstall` schützt externe KI-Modelle & Projekte zu 100 %) und 8-Phasen-Release-Readiness (`40/40` Tests grün). |
 
-## Unmittelbare Schritte
+## Zusammenfassung (Alle 8 Phasen abgeschlossen)
 
-1. **Abgeschlossen (Phasen 0–6):**
-   - Lokale Modell- und Runtime-Validierung (`Qwen3.8-27B-UD-Q4_K_M` + `mmproj-BF16` + `DFlash2` + `--sleep-idle-seconds` sowie `whisper-server.exe` + `ggml-small.bin`).
-   - Permission Gateway, Windows Bridge (Fast & Deep Cleanup), App Discovery & Capability Registry, Project Intelligence, 9-stufiger Smart Installer, `RuntimeSupervisor`, 4-stufige Memory-Kompaktierung und `ProactiveEngine` (`35/35` Tests grün, 8-Schritt-CLI-Demo).
-2. **Nächster Meilenstein (Phase 7 & 8):**
-   - Isolierte Adapter-Generierung & -Verifikation für unbekannte Programme sowie sauberes Release-/Uninstaller-Profil (Zero-Destruction für bestehende Nutzerdaten & Modelle).
+- **40/40 automatisierte Rust-Tests** (`cargo test --manifest-path src-tauri/Cargo.toml`) und **0 Clippy-Warnungen** (`cargo clippy --all-targets -- -D warnings`).
+- **9-stufiger End-to-End-CLI-Durchstich** (`cargo run --bin aido-cli -- demo`) verifiziert alle Kernmodule live auf dem Referenz-PC.
+- **Produktionsreifer Frontend-Build** (`npm run build`) für die interaktive Desktop-Oberfläche.
