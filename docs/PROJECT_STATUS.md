@@ -1,10 +1,10 @@
-# Projektstatus — AIDO (Artificial Intelligence Development Operator)
+# Projektstatus — AIDO (Agentic Intelligent Developing Operator)
 
 **Stand: 9. November 2026.** Dieser Status trennt Repository-Artefakte von verifizierten Messungen am Referenz-PC.
 
 ## Repository
 
-- `keokukzh/AIDO` (**Artificial Intelligence Development Operator**) ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
+- `keokukzh/AIDO` (**Agentic Intelligent Developing Operator**) ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
 - Der vollständige Produkt-Masterplan v1.0 ist unter [MASTERPLAN.md](MASTERPLAN.md) hinterlegt.
 - Die lokale Modell- und Runtime-Validierung (Text, Vision, Speculative Decoding, Schlafmodus/Idle-Unload, Embeddings und deutsche Spracherkennung) ist vollständig abgeschlossen und mit SHA-256-Prüfsummen im [Modellinventar](MODEL_RUNTIME_INVENTORY.md) dokumentiert.
 - Der **AIDO-Kern-Prototyp (Phase 1 & Phase 2)** ist implementiert und mit **16 automatisierten Rust-Tests** (`cargo test` + `cargo clippy -- -D warnings`) sowie einem 5-stufigen End-to-End-Durchstich (`aido-cli demo`) verifiziert:

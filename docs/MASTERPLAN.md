@@ -1,8 +1,8 @@
-# AIDO (Artificial Intelligence Development Operator) — Der vollständige Produkt-Masterplan
+# AIDO (Agentic Intelligent Developing Operator) — Der vollständige Produkt-Masterplan
 
 **VERSION 1.0 · 9. NOVEMBER 2026 · PRODUKT- UND ENTWICKLUNGSARCHITEKTUR**
 
-**AIDO = Artificial Intelligence Development Operator**  
+**AIDO = Agentic Intelligent Developing Operator**  
 Dein persönlicher, intelligenter Desktop-Begleiter.
 
 Ein kleiner, sympathischer, animierter Charakter, der auf deinem Windows-Desktop lebt, deinen Computer kennenlernt, eigenständig mitdenkt und dir Aufgaben abnimmt – mit lokalem KI-Gehirn und dauerhaftem Gedächtnis.
@@ -14,7 +14,7 @@ Ein kleiner, sympathischer, animierter Charakter, der auf deinem Windows-Desktop
 
 ## 1. Die endgültige Produktvision
 
-Wir entwickeln keine weitere gewöhnliche Chat-Anwendung. AIDO (**Artificial Intelligence Development Operator**) wird eine intelligente Bedienungs-, Organisations- und Automatisierungsschicht für Windows 11.
+Wir entwickeln keine weitere gewöhnliche Chat-Anwendung. AIDO (**Agentic Intelligent Developing Operator**) wird eine intelligente Bedienungs-, Organisations- und Automatisierungsschicht für Windows 11.
 
 Der Benutzer muss nicht verstehen, wie KI-Modelle, APIs, Agenten, Docker oder Kommandozeilen funktionieren.
 
@@ -46,7 +46,7 @@ Bei den Berechtigungen steht das Konzept jetzt fest: Full Access ist möglich, a
 
 | Bereich | Festlegung |
 | :--- | :--- |
-| **Name & Bedeutung** | **AIDO** — *Artificial Intelligence Development Operator* |
+| **Name & Bedeutung** | **AIDO** — *Agentic Intelligent Developing Operator* |
 | **Zielgruppe** | Jeder Windows-Nutzer, auch ohne technische Kenntnisse |
 | **Betriebssystem** | Windows 11, Home und Pro soweit technisch unterstützt |
 | **Oberfläche** | Animierter, beweglicher 3D-Desktop-Charakter |

@@ -1,6 +1,6 @@
 # Vision
 
-**AIDO** (**Artificial Intelligence Development Operator**) soll ein persönlicher, freundlicher und animierter Assistent auf dem Windows-11-Desktop werden. Der Nutzer spricht mit einem sichtbaren Charakter statt mit einer Sammlung technischer Werkzeuge. AIDO soll Anwendungen verstehen, Arbeitsabläufe begleiten, passende Hilfe anbieten und freigegebene Aufgaben ausführen.
+**AIDO** (**Agentic Intelligent Developing Operator**) soll ein persönlicher, freundlicher und animierter Assistent auf dem Windows-11-Desktop werden. Der Nutzer spricht mit einem sichtbaren Charakter statt mit einer Sammlung technischer Werkzeuge. AIDO soll Anwendungen verstehen, Arbeitsabläufe begleiten, passende Hilfe anbieten und freigegebene Aufgaben ausführen.
 
 ## Für wen?
 

@@ -1,6 +1,6 @@
-# AIDO — Artificial Intelligence Development Operator
+# AIDO — Agentic Intelligent Developing Operator
 
-**AIDO** (**Artificial Intelligence Development Operator**) ist ein persönlicher, animierter Desktop-Begleiter für Windows 11, der Menschen ohne technische Vorkenntnisse bei der Bedienung, Organisation, Entwicklung und Pflege ihres Computers unterstützt.
+**AIDO** (**Agentic Intelligent Developing Operator**) ist ein persönlicher, animierter Desktop-Begleiter für Windows 11, der Menschen ohne technische Vorkenntnisse bei der Bedienung, Organisation, Entwicklung und Pflege ihres Computers unterstützt.
 
 > **„AIDO denkt für dich. Nicht du für AIDO.“**  
 > **„Dein PC. Dein AIDO. Deine Daten.“**

@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", serde_json::to_string_pretty(&projects)?);
         }
         "demo" => {
-            println!("=== AIDO (Artificial Intelligence Development Operator) — Kern-Prototyp & Systemcheck ===");
+            println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
                 "Datenschutzmodus: {:?} | Zugriffsmodus: {:?}",
                 core.gateway.privacy_mode(),

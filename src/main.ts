@@ -225,7 +225,7 @@ function showAppIntelligenceAndProjects(): void {
   setCharacterState("App- & Projekt-Intelligenz aktiv", false);
 
   let html = `
-    <strong>🧩 AIDO (Artificial Intelligence Development Operator) — App Intelligence & Projekte</strong><br/>
+    <strong>🧩 AIDO (Agentic Intelligent Developing Operator) — App Intelligence & Projekte</strong><br/>
     Hier ist die Übersicht deiner erkannten Desktop-Apps und deines kanonischen Projektkatalogs auf diesem PC. Alle Aktionen erfordern eine explizite Nutzer-Freigabe über das Permission Gateway.
     
     <div class="intel-section">
@@ -335,7 +335,7 @@ function showAppIntelligenceAndProjects(): void {
   btnBack.onclick = () => {
     setCharacterState("Bereit (Lokal)", false);
     aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Artificial Intelligence Development Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
     renderDefaultButtons();
   };
 
