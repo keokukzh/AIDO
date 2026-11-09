@@ -1,0 +1,39 @@
+# Lokale Konfiguration und Geheimnisse
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+*.secret
+secrets/
+credentials/
+*.db
+*.sqlite
+*.sqlite3
+
+# Persönliche AIDO-Daten und Modelle
+data/
+memory/
+models/
+downloads/
+logs/
+*.gguf
+*.safetensors
+*.pt
+*.pth
+*.onnx
+
+# Builds und Entwicklungswerkzeuge
+node_modules/
+dist/
+build/
+target/
+.venv/
+__pycache__/
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
