@@ -48,6 +48,8 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 
 **Abnahme:** Bildinhalt wird bei wiederholten Tests korrekt erkannt; Modell-, Projektor- und Runtime-Version stehen im Protokoll. Ein Modellname oder vorhandenes `mmproj` allein reicht nicht als Nachweis.
 
+**Ausführungsstand:** Die Q4-Datei ließ sich in LM Studio 0.4.28 laden, aber es gab in den sichtbaren Ladeparametern keine Projektorzuordnung. Die Chat-Anhangfunktion führte nur zum RAG-Dialog für Dokumente. Ein Bild konnte auf diesem Weg nicht an die installierte Ableitung übergeben werden. Das Modell wurde wieder entladen. Aufgabe 3 bleibt offen; diese Konfiguration zählt nicht als Nachweis für Vision. Siehe [Modellinventar](../../MODEL_RUNTIME_INVENTORY.md).
+
 ## Aufgabe 4: Spracheingabe und optionale Ausgabe auswählen
 
 - [ ] Vorhandene lokale ASR- und TTS-Runtimes inventarisieren.
@@ -55,6 +57,8 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 - [ ] Sprachausgabe separat bewerten, sobald die Voice-Oberfläche spezifiziert ist.
 
 **Abnahme:** Spracheingabe liefert ein verständliches deutsches Transkript ohne externe Anfrage. Embeddings werden ausschließlich für Suche und Memory verwendet. Ein zusätzlicher Download erfolgt erst nach Inventur und Kandidatenentscheidung.
+
+**Ausführungsstand:** Eine vorhandene `whisper-server.exe` ist bekannt. Die gezielte Suche in mehreren Modellverzeichnissen fand kein passendes Sprachmodell; ein ASR-Test und die TTS-Inventur sind noch offen.
 
 ## Aufgabe 5: Hauptmodell und Laufzeit vergleichen
 
