@@ -367,7 +367,7 @@
     }
     .eta-forecast-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 12px;
       margin-bottom: 8px;
     }
@@ -491,6 +491,138 @@
     .phase-badge.completed { background: rgba(16, 185, 129, 0.18); color: #34d399; border-color: rgba(16, 185, 129, 0.4); }
     .phase-badge.paused { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); }
     .phase-badge.rolledback { background: rgba(239, 68, 68, 0.18); color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
+
+    /* Runtime & Memory Compaction Styles */
+    .runtime-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .runtime-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .runtime-card.standby {
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+    .runtime-card.active {
+      border-color: rgba(16, 185, 129, 0.5);
+      background: rgba(16, 185, 129, 0.05);
+    }
+    .runtime-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .runtime-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #f3f4f6;
+    }
+    .memory-layers-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 16px 0;
+    }
+    .filter-badge {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05);
+      color: #94a3b8;
+      transition: all 0.2s ease;
+    }
+    .filter-badge:hover, .filter-badge.active {
+      background: rgba(99, 102, 241, 0.3);
+      color: #e0e7ff;
+      border-color: var(--accent);
+    }
+    .memory-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 480px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .memory-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .memory-card.compacted {
+      opacity: 0.75;
+      border-style: dashed;
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+    .memory-card.forgotten {
+      opacity: 0.45;
+      text-decoration: line-through;
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+    .memory-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .layer-tag {
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+    }
+    .layer-tag.working { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .layer-tag.episodic { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .layer-tag.semantic { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .layer-tag.system { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.4); }
+    .btn-forget {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-forget:hover {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-compact {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .btn-compact:hover {
+      background: var(--success);
+      color: #052e16;
+    }
   </style>
 </head>
 <body>
@@ -536,8 +668,9 @@
           <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
           <button id="btn-apps-projects">🧩 App Intelligence & Projekte</button>
           <button id="btn-installer">🚀 Smart Installer (9-Phasen-Setup)</button>
+          <button id="btn-runtime-memory">⚡ Runtime & Memory-Kompaktierung</button>
           <button id="btn-privacy-center">🔒 Privacy Center anzeigen</button>
-          <button id="btn-memory-center">🧠 Memory & Audit-Log</button>
+          <button id="btn-memory-center">🧠 Memory & Wissen (4-Stufen)</button>
         </div>
       </div>
 
@@ -574,8 +707,9 @@
     <div class="context-item" data-action="cleanup"><span>🧹 Fast Cleanup (mit Vorschau)</span></div>
     <div class="context-item" data-action="apps"><span>🧩 App Intelligence & Projekte</span></div>
     <div class="context-item" data-action="installer"><span>🚀 Smart Installer (9-Phasen-Setup)</span></div>
+    <div class="context-item" data-action="runtime"><span>⚡ Runtime & Memory-Kompaktierung</span></div>
     <div class="context-item" data-action="privacy"><span>🔒 Privacy Center (Offline)</span></div>
-    <div class="context-item" data-action="memory"><span>🧠 Memory & Wissen</span></div>
+    <div class="context-item" data-action="memory"><span>🧠 Memory & Wissen (4-Stufen)</span></div>
     <div class="context-item" data-action="sleep"><span>💤 AIDO schlafen legen (VRAM frei)</span></div>
   </div>
 

@@ -33,6 +33,15 @@ pub struct AidoCore {
     pub apps: AppIntelligenceEngine,
     pub projects: ProjectIntelligenceEngine,
     pub installer: smart_installer::SmartInstallerEngine,
+    pub runtime: runtime_supervisor::RuntimeSupervisor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeAndMemoryReport {
+    pub runtime_status: runtime_supervisor::RuntimeStatusReport,
+    pub compaction_report: Option<memory::CompactionReport>,
+    pub active_memories_count: usize,
+    pub semantic_memories_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +67,7 @@ impl AidoCore {
         let apps = AppIntelligenceEngine::new(db_path.as_ref())?;
         let projects = ProjectIntelligenceEngine::new(db_path.as_ref())?;
         let installer = smart_installer::SmartInstallerEngine::new(db_path.as_ref())?;
+        let runtime = runtime_supervisor::RuntimeSupervisor::new();
         Ok(Self {
             gateway,
             memory,
@@ -66,6 +76,7 @@ impl AidoCore {
             apps,
             projects,
             installer,
+            runtime,
         })
     }
 
@@ -232,6 +243,52 @@ impl AidoCore {
             next_resumable,
         })
     }
+
+    /// Step 7 of the vertical architecture:
+    /// Probes the local LLM and Whisper runtime supervisors, evaluates and compacts episodic memories
+    /// into semantic knowledge when threshold is met, counts active and semantic entries, and records an audit log.
+    pub fn inspect_runtime_and_compact_memory(
+        &self,
+        min_episodic_to_compact: usize,
+    ) -> Result<RuntimeAndMemoryReport, Box<dyn std::error::Error>> {
+        let runtime_status = self.runtime.probe_status(&self.gateway)?;
+        let compaction_report = self
+            .memory
+            .compact_episodic_memories(None, min_episodic_to_compact)?;
+
+        let active_memories = self.memory.list_memories_by_layer(None, true, 1000)?;
+        let semantic_memories = self
+            .memory
+            .list_memories_by_layer(Some("SemanticMemory"), true, 1000)?;
+
+        let active_memories_count = active_memories.len();
+        let semantic_memories_count = semantic_memories.len();
+
+        let audit_summary = format!(
+            "Runtime- & Memory-Status: Llama: {:?}, Whisper: {:?}, CUDA-DLL: {}, {} aktive Erinnerungen, {} semantische Verdichtungen, Kompaktierung: {}",
+            runtime_status.llama_router.state,
+            runtime_status.whisper_asr.state,
+            if runtime_status.llama_router.cuda_dll_ready { "Gefunden" } else { "Fehlt" },
+            active_memories_count,
+            semantic_memories_count,
+            if compaction_report.is_some() { "Ausgeführt" } else { "Keine Schwellenwert-Überschreitung" }
+        );
+
+        self.memory.record_audit(
+            "RuntimeAndMemoryCheck",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &audit_summary,
+        )?;
+
+        Ok(RuntimeAndMemoryReport {
+            runtime_status,
+            compaction_report,
+            active_memories_count,
+            semantic_memories_count,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -391,6 +448,100 @@ mod tests {
         );
         assert_eq!(memories[0].layer, "SystemMemory");
         assert_eq!(memories[0].category, "SmartInstaller");
+
+        // Cleanup
+        let _ = std::fs::remove_file(&db_path);
+        let _ = std::fs::remove_dir_all(&safe_temp_dir);
+    }
+
+    #[test]
+    fn aido_core_runtime_supervisor_vision_and_memory_compaction() {
+        let temp_dir = std::env::temp_dir();
+        let unique = Uuid::new_v4().to_string();
+        let db_path = temp_dir.join(format!("aido_runtime_test_{}.db", unique));
+        let safe_temp_dir = temp_dir.join(format!("aido_runtime_staging_{}", unique));
+
+        let core = AidoCore::new(
+            AccessMode::StandardAccess,
+            PrivacyMode::PrivateOffline,
+            &db_path,
+            &safe_temp_dir,
+        )
+        .expect("AidoCore::new failed");
+
+        // 1. Store 3 EpisodicMemory entries
+        core.memory
+            .store_memory(
+                "EpisodicMemory",
+                "FastCleanup",
+                "Cleanup 1 ausgeführt",
+                "Details zu Cleanup 1",
+                "test",
+            )
+            .expect("store_memory 1 failed");
+        core.memory
+            .store_memory(
+                "EpisodicMemory",
+                "FastCleanup",
+                "Cleanup 2 ausgeführt",
+                "Details zu Cleanup 2",
+                "test",
+            )
+            .expect("store_memory 2 failed");
+        core.memory
+            .store_memory(
+                "EpisodicMemory",
+                "FastCleanup",
+                "Cleanup 3 ausgeführt",
+                "Details zu Cleanup 3",
+                "test",
+            )
+            .expect("store_memory 3 failed");
+
+        // 2. Inspect runtime and compact memory (threshold 2)
+        let report = core
+            .inspect_runtime_and_compact_memory(2)
+            .expect("inspect_runtime_and_compact_memory failed");
+
+        assert!(
+            report.compaction_report.is_some(),
+            "Expected a CompactionReport since 3 entries >= 2"
+        );
+        let compaction = report.compaction_report.as_ref().unwrap();
+        assert_eq!(compaction.compacted_source_entries, 3);
+        assert_eq!(compaction.category, "FastCleanup");
+        assert_eq!(report.semantic_memories_count, 1);
+
+        // Verify SemanticMemory has the consolidated entry
+        let semantic = core
+            .memory
+            .list_memories_by_layer(Some("SemanticMemory"), true, 10)
+            .expect("list_memories_by_layer failed");
+        assert_eq!(semantic.len(), 1);
+        assert_eq!(semantic[0].id, compaction.created_semantic_entry_id);
+
+        // Verify audit log has RuntimeAndMemoryCheck
+        let audits = core.memory.list_audit_log(5).expect("list_audit_log failed");
+        assert!(
+            audits.iter().any(|a| a.action == "RuntimeAndMemoryCheck"),
+            "Expected 'RuntimeAndMemoryCheck' in audit log"
+        );
+
+        // 3. Test multimodal vision payload generation
+        let vision_payload = core.ai.build_vision_chat_payload(
+            "Beschreibe diesen Screenshot",
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        );
+        assert!(vision_payload.get("messages").is_some());
+
+        // 4. Test whisper voice note transcription
+        let asr_result = core
+            .ai
+            .transcribe_voice_note("AIDO öffne Docker", 1.2)
+            .expect("transcribe_voice_note failed");
+        assert_eq!(asr_result.language, "de");
+        assert!(asr_result.local_only);
+        assert!(asr_result.engine.contains("whisper-server.exe"));
 
         // Cleanup
         let _ = std::fs::remove_file(&db_path);

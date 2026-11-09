@@ -51,6 +51,112 @@ interface ModelReuseInfo {
   sizeBytes: number;
 }
 
+interface MemoryItem {
+  id: number;
+  createdAt: string;
+  layer: "WorkingMemory" | "EpisodicMemory" | "SemanticMemory" | "SystemMemory";
+  category: string;
+  summary: string;
+  details: string;
+  source: string;
+  validity: "active" | "compacted" | "forgotten_by_user";
+}
+
+const memoriesData: MemoryItem[] = [
+  {
+    id: 1,
+    createdAt: "2026-11-09T06:00:00Z",
+    layer: "SystemMemory",
+    category: "Hardware",
+    summary: "Predator Orion 7000 · RTX 5090 (32 GB VRAM) · 64 GB RAM",
+    details: "HighEndGpu Profil mit vollständiger lokaler Modell-Wiederverwendung und 0 GB erneutem Downloadbedarf.",
+    source: "AidoCore::evaluate_smart_installer_plan",
+    validity: "active"
+  },
+  {
+    id: 2,
+    createdAt: "2026-11-09T06:01:00Z",
+    layer: "SystemMemory",
+    category: "Security",
+    summary: "Permission Gateway Modus Private Offline (127.0.0.1)",
+    details: "Alle Netzwerkaufrufe außerhalb der lokalen Loopback-Adresse werden technisch blockiert.",
+    source: "AidoCore::new",
+    validity: "active"
+  },
+  {
+    id: 3,
+    createdAt: "2026-11-09T06:02:15Z",
+    layer: "EpisodicMemory",
+    category: "FastCleanup",
+    summary: "Fast Cleanup nach Nutzerfreigabe ausgeführt (3 Dateien, 448 KB bereinigt)",
+    details: "Temporäre Staging-Caches sicher entfernt. VRAM vor Bereinigung: 2300 MiB, frei: 29888 MiB.",
+    source: "AidoCore::approve_and_execute_fast_cleanup",
+    validity: "active"
+  },
+  {
+    id: 4,
+    createdAt: "2026-11-09T06:03:00Z",
+    layer: "EpisodicMemory",
+    category: "FastCleanup",
+    summary: "Zweites Fast Cleanup simuliert (2 Dateien, 128 KB)",
+    details: "Automatische periodische Cache-Bereinigung vor Idle-Phase. 0 verwaiste Prozesse verblieben.",
+    source: "AidoCore::demo",
+    validity: "active"
+  },
+  {
+    id: 5,
+    createdAt: "2026-11-09T06:04:30Z",
+    layer: "WorkingMemory",
+    category: "UserSession",
+    summary: "Aktuelle Entwickler-Sitzung im Workspace C:\\Users\\keoku\\Desktop\\AIDO",
+    details: "Aktives Projekt AIDO, Stack: Node.js/TypeScript + Rust, Branch: main.",
+    source: "AidoCore::discover_and_register_environment",
+    validity: "active"
+  }
+];
+
+const runtimeStatusData = {
+  llamaServer: {
+    serviceId: "llama_router",
+    displayName: "Llama Router (Qwen3.8-27B + Vision + DFlash2)",
+    endpoint: "http://127.0.0.1:18434",
+    state: "SleepingZeroVram" as "StoppedStandby" | "SleepingZeroVram" | "WarmActive",
+    binaryPath: "D:\\AI_Models\\unsloth\\llama.cpp\\build\\bin\\Release\\llama-server.exe",
+    binaryExists: true,
+    sleepIdleSeconds: 300,
+    launchArgs: [
+      "--host 127.0.0.1",
+      "--port 18434",
+      "--models-Dir D:\\AI_Models\\llm",
+      "--ctx-size 32768",
+      "-ngl 99",
+      "--gpu-layers-draft 99",
+      "--flash-attn on",
+      "--sleep-idle-seconds 300"
+    ],
+    humanStatus: "Null-VRAM-Ruhemodus (Zero-VRAM Standby). Nach 300s Inaktivität automatisch entladen (0 MiB VRAM) und bereit für sofortigen Aufruf."
+  },
+  whisperServer: {
+    serviceId: "whisper_asr",
+    displayName: "Whisper ASR (German Speech-to-Text)",
+    endpoint: "http://127.0.0.1:18080",
+    state: "StoppedStandby" as "StoppedStandby" | "WarmActive",
+    binaryPath: "D:\\AI_Models\\unsloth\\whisper.cpp\\build\\bin\\Release\\whisper-server.exe",
+    binaryExists: true,
+    cudaDllReady: true,
+    launchArgs: [
+      "--host 127.0.0.1",
+      "--port 18080",
+      "-m D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin",
+      "-l de",
+      "-fa"
+    ],
+    humanStatus: "Gestoppt (Bereit für On-Demand-Start auf Abruf, 0 MiB VRAM)."
+  },
+  cudaDllPath: "C:\\AI\\llamacpp-cuda",
+  cudaDllReady: true
+};
+
 const installerStepsData: InstallerStep[] = [
   {
     stepIndex: 1,
@@ -261,15 +367,19 @@ function renderDefaultButtons(): void {
   btnInstaller.textContent = "🚀 Smart Installer (9-Phasen-Setup)";
   btnInstaller.onclick = () => showSmartInstallerWizard();
 
+  const btnRuntime = document.createElement("button");
+  btnRuntime.textContent = "⚡ Runtime & Memory-Kompaktierung";
+  btnRuntime.onclick = () => showRuntimeAndMemoryCompaction();
+
   const btnPrivacy = document.createElement("button");
   btnPrivacy.textContent = "🔒 Privacy Center anzeigen";
   btnPrivacy.onclick = () => showPrivacyCenter();
 
   const btnMemory = document.createElement("button");
-  btnMemory.textContent = "🧠 Memory & Audit-Log";
+  btnMemory.textContent = "🧠 Memory & Wissen (4-Stufen)";
   btnMemory.onclick = () => showMemorySummary();
 
-  actionButtons.append(btnCheck, btnApps, btnInstaller, btnPrivacy, btnMemory);
+  actionButtons.append(btnCheck, btnApps, btnInstaller, btnRuntime, btnPrivacy, btnMemory);
 }
 
 function startSystemHealthAndCleanupPreview(): void {
@@ -564,15 +674,299 @@ function showPrivacyCenter(): void {
   renderDefaultButtons();
 }
 
-function showMemorySummary(): void {
-  setCharacterState("Memory & Wissen", false);
-  aidoMessage.innerHTML = `
-    <strong>🧠 AIDO Lokales Gedächtnis (SQLite + FTS5)</strong><br/>
-    • <b>System Memory:</b> Predator Orion 7000 · RTX 5090 (32 GB VRAM) · 64 GB RAM · Windows 11<br/>
-    • <b>Procedural Memory:</b> Geprüfter Ablauf für 'System-Gesundheitscheck & Fast Cleanup' und 'App/Project Launch'<br/>
-    • <b>Kontrolle:</b> Alle Erinnerungen sind lokal gespeichert, mit Quelle & Zeitstempel versehen und jederzeit einsehbar oder löschbar.
+function showMemorySummary(filterLayer = "Alle"): void {
+  setCharacterState("Memory & Privacy Center (4-Stufen)", false);
+
+  const totalCount = memoriesData.length;
+  const workingCount = memoriesData.filter((m) => m.layer === "WorkingMemory" && m.validity === "active").length;
+  const episodicCount = memoriesData.filter((m) => m.layer === "EpisodicMemory" && m.validity === "active").length;
+  const semanticCount = memoriesData.filter((m) => m.layer === "SemanticMemory" && m.validity === "active").length;
+  const systemCount = memoriesData.filter((m) => m.layer === "SystemMemory" && m.validity === "active").length;
+
+  const filteredMemories = filterLayer === "Alle"
+    ? memoriesData
+    : memoriesData.filter((m) => m.layer === filterLayer);
+
+  let html = `
+    <strong>🧠 AIDO 4-Stufen-Gedächtnis & Privacy Center (SQLite + FTS5)</strong><br/>
+    Vollständig lokales, 4-stufiges Gedächtnis nach <b>MASTERPLAN Kapitel 5.2</b>. Alle Erinnerungen sind transparent nachvollziehbar, lokal gespeichert und können vom Nutzer mit einem Klick vergessen werden.<br/>
+
+    <!-- Layer Filter Badges -->
+    <div class="memory-layers-bar">
+      <span class="filter-badge ${filterLayer === "Alle" ? "active" : ""}" data-filter="Alle">Alle (${totalCount})</span>
+      <span class="filter-badge ${filterLayer === "WorkingMemory" ? "active" : ""}" data-filter="WorkingMemory">Stufe 1: Working (${workingCount})</span>
+      <span class="filter-badge ${filterLayer === "EpisodicMemory" ? "active" : ""}" data-filter="EpisodicMemory">Stufe 2: Episodic (${episodicCount})</span>
+      <span class="filter-badge ${filterLayer === "SemanticMemory" ? "active" : ""}" data-filter="SemanticMemory">Stufe 3: Semantic (${semanticCount})</span>
+      <span class="filter-badge ${filterLayer === "SystemMemory" ? "active" : ""}" data-filter="SystemMemory">Stufe 4: System (${systemCount})</span>
+    </div>
+
+    ${episodicCount > 0 ? `
+    <button class="btn-compact" id="btn-compact-memory">
+      🧹 Episodisches Gedächtnis jetzt kompaktieren (${episodicCount} aktive Einträge → Stufe 3 Semantic)
+    </button>
+    ` : ""}
+
+    <div class="memory-list">
   `;
+
+  for (const m of [...filteredMemories].reverse()) {
+    let layerClass = "working";
+    if (m.layer === "EpisodicMemory") layerClass = "episodic";
+    else if (m.layer === "SemanticMemory") layerClass = "semantic";
+    else if (m.layer === "SystemMemory") layerClass = "system";
+
+    let validityBadge = '<span class="tag branch">✓ Aktiv</span>';
+    let cardClass = "";
+    if (m.validity === "compacted") {
+      validityBadge = '<span class="tag" style="background: rgba(148, 163, 184, 0.2); color: #cbd5e1;">📦 Kompaktiert (Semantisch verdichtet)</span>';
+      cardClass = "compacted";
+    } else if (m.validity === "forgotten_by_user") {
+      validityBadge = '<span class="tag dirty" style="color: #f87171;">🗑️ Vom Nutzer vergessen</span>';
+      cardClass = "forgotten";
+    }
+
+    const showForgetBtn = m.validity !== "forgotten_by_user";
+
+    html += `
+      <div class="memory-card ${cardClass}">
+        <div class="memory-card-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="layer-tag ${layerClass}">${m.layer}</span>
+            <span style="font-weight: 700; color: #f3f4f6; font-size: 0.88rem;">${m.category}</span>
+            <span style="font-size: 0.72rem; color: #94a3b8;">#${m.id} · ${m.createdAt.slice(0, 19).replace("T", " ")}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${validityBadge}
+            ${showForgetBtn ? `<button class="btn-forget" data-forget-id="${m.id}" title="Diese Erinnerung dauerhaft ungültig machen">🗑️ Vergessen</button>` : ""}
+          </div>
+        </div>
+        <div style="font-weight: 600; font-size: 0.88rem; color: #e0e7ff;">${m.summary}</div>
+        <div style="font-size: 0.78rem; color: #cbd5e1; white-space: pre-line;">${m.details}</div>
+        <div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;">Quelle: ${m.source}</div>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+
+  aidoMessage.innerHTML = html;
+
+  // Add event listeners for layer filter badges
+  const badges = aidoMessage.querySelectorAll<HTMLSpanElement>(".filter-badge");
+  badges.forEach((b) => {
+    b.addEventListener("click", () => {
+      const filter = b.dataset.filter || "Alle";
+      showMemorySummary(filter);
+    });
+  });
+
+  // Add event listener for compaction button
+  const compactBtn = aidoMessage.querySelector<HTMLButtonElement>("#btn-compact-memory");
+  if (compactBtn) {
+    compactBtn.addEventListener("click", () => {
+      performMemoryCompaction();
+    });
+  }
+
+  // Add event listeners for forget buttons
+  const forgetButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-forget");
+  forgetButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.forgetId);
+      if (id) {
+        forgetMemoryEntryItem(id, filterLayer);
+      }
+    });
+  });
+
+  appendAudit(
+    `[MemoryEngine] 4-Stufen-Gedächtnis aufgerufen: Filter '${filterLayer}', ${filteredMemories.length} Erinnerung(en) angezeigt.`
+  );
+
   renderDefaultButtons();
+}
+
+function showRuntimeAndMemoryCompaction(): void {
+  setCharacterState("Runtime & Memory-Kompaktierung", false);
+
+  const activeEpisodicCount = memoriesData.filter(
+    (m) => m.layer === "EpisodicMemory" && m.validity === "active"
+  ).length;
+  const semanticCount = memoriesData.filter(
+    (m) => m.layer === "SemanticMemory" && m.validity === "active"
+  ).length;
+  const workingCount = memoriesData.filter(
+    (m) => m.layer === "WorkingMemory" && m.validity === "active"
+  ).length;
+  const systemCount = memoriesData.filter(
+    (m) => m.layer === "SystemMemory" && m.validity === "active"
+  ).length;
+
+  let html = `
+    <strong>⚡ AIDO Live-Runtime-Supervisor & 4-Stufen-Memory-Kompaktierung</strong><br/>
+    Überwachung der lokalen Inferenz-Dienste mit automatischem Null-VRAM-Schlafmodus und Verdichtung episodischer Aktivitäten in dauerhaftes semantisches Wissen.<br/>
+
+    <div class="intel-section">
+      <div class="intel-heading">🖥️ Lokale KI-Inferenz-Runtimes & CUDA 13.4 Status</div>
+      <div class="runtime-grid">
+        <!-- Llama Server Card -->
+        <div class="runtime-card standby">
+          <div class="runtime-header">
+            <span class="runtime-title">${runtimeStatusData.llamaServer.displayName}</span>
+            <span class="tag branch">💤 Zero-VRAM Standby</span>
+          </div>
+          <div class="app-meta">Endpunkt: <code>${runtimeStatusData.llamaServer.endpoint}</code> · Executable: <code>${runtimeStatusData.llamaServer.binaryPath}</code></div>
+          <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">
+            ${runtimeStatusData.llamaServer.humanStatus}
+          </div>
+          <div class="tags-row" style="margin-top: 4px;">
+            <span class="tag action">--sleep-idle-seconds ${runtimeStatusData.llamaServer.sleepIdleSeconds}</span>
+            <span class="tag">Qwen3.8-27B-UD-Q4_K_M</span>
+            <span class="tag">mmproj-BF16</span>
+            <span class="tag">DFlash2 (151.5 Tok/s)</span>
+          </div>
+        </div>
+
+        <!-- Whisper Server Card -->
+        <div class="runtime-card standby">
+          <div class="runtime-header">
+            <span class="runtime-title">${runtimeStatusData.whisperServer.displayName}</span>
+            <span class="tag branch">⚡ CUDA 13.4 On-Demand</span>
+          </div>
+          <div class="app-meta">Endpunkt: <code>${runtimeStatusData.whisperServer.endpoint}</code> · Modell: <code>ggml-small.bin (de)</code></div>
+          <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">
+            ${runtimeStatusData.whisperServer.humanStatus}
+          </div>
+          <div class="tags-row" style="margin-top: 4px;">
+            <span class="tag action">CUDA DLL: ${runtimeStatusData.cudaDllPath} (✓ Bereit)</span>
+            <span class="tag">Sprache: Deutsch</span>
+            <span class="tag">Latenz: ~0.34s</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="intel-heading" style="margin-top: 10px;">🧠 4-Stufen-Memory-Kompaktierung (Stufe 2 Episodic → Stufe 3 Semantic)</div>
+      <div class="eta-forecast-grid">
+        <div class="eta-forecast-box">
+          <div class="eta-title">Stufe 1 · Working Memory</div>
+          <div class="eta-main-val">${workingCount} aktiv</div>
+          <div class="eta-desc">Flüchtiger Sitzungskontext & aktuelle Instruktionen</div>
+        </div>
+        <div class="eta-forecast-box ${activeEpisodicCount >= 2 ? "highlight" : ""}">
+          <div class="eta-title">Stufe 2 · Episodic Memory</div>
+          <div class="eta-main-val">${activeEpisodicCount} aktiv</div>
+          <div class="eta-desc">Einzelaktionen, Bereinigungs-Logs & System-Ereignisse</div>
+        </div>
+        <div class="eta-forecast-box">
+          <div class="eta-title">Stufe 3 · Semantic Memory</div>
+          <div class="eta-main-val">${semanticCount} verdichtet</div>
+          <div class="eta-desc">Dauerhaft konsolidiertes Wissen & Verhaltensmuster</div>
+        </div>
+        <div class="eta-forecast-box">
+          <div class="eta-title">Stufe 4 · System Memory</div>
+          <div class="eta-main-val">${systemCount} aktiv</div>
+          <div class="eta-desc">Hardware, Berechtigungsprofil & Sicherheitsrichtlinien</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 8px;">
+        <button class="btn-compact" id="btn-compact-from-runtime">
+          🧹 Episodisches Gedächtnis jetzt kompaktieren (Stufe 2 → Stufe 3 Semantic)
+        </button>
+      </div>
+    </div>
+  `;
+
+  aidoMessage.innerHTML = html;
+
+  const btnCompact = document.getElementById("btn-compact-from-runtime");
+  if (btnCompact) {
+    btnCompact.onclick = () => performMemoryCompaction();
+  }
+
+  appendAudit(
+    `[RuntimeSupervisor] Status abgefragt: Llama (Zero-VRAM Standby, --sleep-idle-seconds 300), Whisper (CUDA 13.4), ${activeEpisodicCount} aktive episodische Erinnerungen.`
+  );
+
+  actionButtons.innerHTML = "";
+  const btnDoCompact = document.createElement("button");
+  btnDoCompact.className = "approve";
+  btnDoCompact.textContent = "🧹 Jetzt kompaktieren";
+  btnDoCompact.onclick = () => performMemoryCompaction();
+
+  const btnOpenMemory = document.createElement("button");
+  btnOpenMemory.textContent = "🧠 4-Stufen-Gedächtnis im Detail";
+  btnOpenMemory.onclick = () => showMemorySummary();
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "🔙 Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnDoCompact, btnOpenMemory, btnBack);
+}
+
+function performMemoryCompaction(): void {
+  const activeEpisodics = memoriesData.filter(
+    (m) => m.layer === "EpisodicMemory" && m.validity === "active"
+  );
+
+  if (activeEpisodics.length === 0) {
+    appendAudit("[MemoryEngine] Kompaktierung übersprungen: Keine aktiven episodischen Erinnerungen vorhanden.");
+    showMemorySummary("EpisodicMemory");
+    return;
+  }
+
+  setCharacterState("Kompaktiere episodisches Gedächtnis...", true);
+
+  setTimeout(() => {
+    const count = activeEpisodics.length;
+    const nextId = Math.max(...memoriesData.map((m) => m.id), 0) + 1;
+    const now = new Date().toISOString();
+
+    // Mark active episodic entries as compacted
+    for (const m of activeEpisodics) {
+      m.validity = "compacted";
+    }
+
+    // Create consolidated semantic entry
+    const newSemantic: MemoryItem = {
+      id: nextId,
+      createdAt: now,
+      layer: "SemanticMemory",
+      category: "FastCleanup",
+      summary: `4-Stufen-Kompaktierung: ${count} episodische Aktivitäten konsolidiert in semantisches Wissen (FastCleanup)`,
+      details: `Semantisch verdichtetes Wissen aus ${count} episodischen Einzelereignissen:\n` +
+        activeEpisodics.map((e) => `• [${e.createdAt.slice(0, 19).replace("T", " ")}] ID #${e.id}: ${e.summary}`).join("\n"),
+      source: "MemoryEngine::compact_episodic_memories",
+      validity: "active"
+    };
+
+    memoriesData.push(newSemantic);
+
+    appendAudit(
+      `[MemoryEngine] 4-Stufen-Kompaktierung erfolgreich: ${count} episodische Einträge verdichtet zu SemanticMemory #${nextId}.`
+    );
+
+    setCharacterState("Kompaktierung abgeschlossen", false);
+    showMemorySummary("SemanticMemory");
+  }, 350);
+}
+
+function forgetMemoryEntryItem(id: number, currentFilter?: string): void {
+  const item = memoriesData.find((m) => m.id === id);
+  if (!item) return;
+
+  item.validity = "forgotten_by_user";
+  appendAudit(
+    `[MemoryEngine] Nutzer hat Erinnerung #${id} vergessen ('${item.summary.slice(0, 35)}...').`
+  );
+  showMemorySummary(currentFilter);
 }
 
 function getStatusBadge(status: InstallerStep["status"]): { label: string; className: string } {
@@ -817,6 +1211,8 @@ contextMenu.addEventListener("click", (e) => {
     showAppIntelligenceAndProjects();
   } else if (action === "installer") {
     showSmartInstallerWizard();
+  } else if (action === "runtime") {
+    showRuntimeAndMemoryCompaction();
   } else if (action === "privacy") {
     showPrivacyCenter();
   } else if (action === "memory") {

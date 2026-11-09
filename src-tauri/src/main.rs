@@ -39,6 +39,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             println!("{}", serde_json::to_string_pretty(&plan)?);
         }
+        "runtime" => {
+            let report = core.inspect_runtime_and_compact_memory(2)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -50,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/6] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/7] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -58,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/6] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/7] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -75,14 +79,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/6] Ausführung nach Freigabe:");
+            println!("\n[3/7] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/6] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/7] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -91,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/6] App Intelligence & Projektkatalog:");
+            println!("\n[5/7] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -142,7 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 6: Smart Installer & Modell-Wiederverwendung
-            println!("\n[6/6] Smart Installer & Modell-Wiederverwendung:");
+            println!("\n[6/7] Smart Installer & Modell-Wiederverwendung:");
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             let total_models = plan.models.len();
             let reused_models = plan.eta.reused_models_count;
@@ -177,9 +181,71 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     next.step_index, next.title_de, next.status
                 );
             }
+
+            // Step 7: Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung
+            println!("\n[7/7] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
+            // Store a second episodic memory so compaction threshold (min_entries = 2) is met
+            core.memory.store_memory(
+                "EpisodicMemory",
+                "FastCleanup",
+                "Zweites Fast Cleanup simuliert (2 Dateien, 128 KB)",
+                "Automatische periodische Cache-Bereinigung vor Idle-Phase",
+                "aido-cli::demo",
+            )?;
+
+            let rt_report = core.inspect_runtime_and_compact_memory(2)?;
+            println!("  Laufzeit-Status:");
+            println!(
+                "    • Llama-Router (127.0.0.1:18434): {:?} (Zero-VRAM Standby mit --sleep-idle-seconds {})",
+                rt_report.runtime_status.llama_router.state,
+                rt_report.runtime_status.llama_router.sleep_idle_seconds.unwrap_or(300)
+            );
+            println!(
+                "    • Whisper ASR (127.0.0.1:18080): {:?} (CUDA 13.4, deutsches Sprachmodell)",
+                rt_report.runtime_status.whisper_asr.state
+            );
+            println!(
+                "    • CUDA 13.4 DLL Verzeichnis: {} [{}]",
+                rt_report.runtime_status.llama_router.cuda_dll_dir,
+                if rt_report.runtime_status.llama_router.cuda_dll_ready { "Bereit" } else { "Fehlt" }
+            );
+
+            // Multimodal Vision & Whisper ASR probe
+            let vision_payload = core.ai.build_vision_chat_payload(
+                "Analysiere Bildschirm für Kontext-Assistenz",
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            );
+            println!(
+                "  Multimodale Vision: mmproj Payload generiert ({} Nachrichten-Elemente)",
+                vision_payload.get("messages").and_then(|m| m.as_array()).map(|a| a.len()).unwrap_or(0)
+            );
+
+            let asr = core.ai.transcribe_voice_note("AIDO, prüfe Projekt-Status", 1.8)?;
+            println!(
+                "  Spracherkennung (ASR): 'AIDO, prüfe Projekt-Status' -> '{}' ({}, lokal: {})",
+                asr.transcript,
+                asr.engine,
+                asr.local_only
+            );
+
+            println!("  4-Stufen-Memory-Kompaktierung (Stufe 2 Episodic -> Stufe 3 Semantic):");
+            if let Some(comp) = &rt_report.compaction_report {
+                println!(
+                    "    • Kompaktierung erfolgreich: {} episodische Einträge -> semantischer Eintrag #{} ({})",
+                    comp.compacted_source_entries, comp.created_semantic_entry_id, comp.category
+                );
+                println!("    • Zusammenfassung: {}", comp.digest_summary);
+                println!("    • Eingesparte Zeichen: {} Zeichen", comp.saved_chars);
+            } else {
+                println!("    • Keine Kompaktierung nötig (Schwellenwert nicht erreicht).");
+            }
+            println!(
+                "    • Aktive Erinnerungen im System: {}, Semantische Wissenseinträge: {}",
+                rt_report.active_memories_count, rt_report.semantic_memories_count
+            );
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects | installer]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime]");
         }
     }
 
