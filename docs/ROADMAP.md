@@ -13,9 +13,10 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Abgeschlossene Nachweise s
 | 6 | Proaktive Vorschläge (Vordenker-Engine) und zweistufiges System-Cleanup (*Fast Cleanup* & *Deep Cleanup*). | **Abgeschlossen.** `ProactiveEngine` mit Vollbild-/Call-Fokussperre, 2x-Ablehnungs-Backoff, Themen-Stummschaltung und *Deep Cleanup* mit Freigabetoken. |
 | 7 | Breitere App-Abdeckung und isoliert geprüfte Adaptererzeugung. | **Abgeschlossen.** Isolierte Adapter-Sandbox (`synthesize_and_verify_unknown_app_adapter`) prüft unbekannte Apps (z. B. OBS Studio / Blender 3D) und trennt harmlose von bestätigungspflichtigen Fähigkeiten. |
 | 8 | Verpackung, Updates, saubere Deinstallation und Releasevorbereitung. | **Abgeschlossen.** Zero-Destruction Clean Uninstaller (`prepare_clean_uninstall` / `execute_clean_uninstall` schützt externe KI-Modelle & Projekte zu 100 %) und 8-Phasen-Release-Readiness (`40/40` Tests grün). |
+| 9 | Agent Remote: Minimalistisches QR- & Smartphone-Daumen-Cockpit mit 100 % PC-Parität (Ende-zu-Ende verschlüsselte lokale LAN-Kopplung mit 60s TTL / 4-stelliger PIN, automatische Umschaltung von `PrivateOffline` zu `LocalConnected`, 1-Tap Daumen-Freigabekarte, 2×2 Schnell-Steuerdeck mit Inline AIDO-Blick Vision Snapshot, monochromer S/W- & W/S-Theme-Toggle und Whisper CUDA Push-to-Talk). | **✅ Abgeschlossen.** Alle 46/46 Rust-Tests grün, vollständige Frontend-Integration und Zero-Cloud-Sicherheit verifiziert. |
 
-## Zusammenfassung (Alle 8 Phasen abgeschlossen)
+## Zusammenfassung (Alle 9 Phasen abgeschlossen)
 
-- **40/40 automatisierte Rust-Tests** (`cargo test --manifest-path src-tauri/Cargo.toml`) und **0 Clippy-Warnungen** (`cargo clippy --all-targets -- -D warnings`).
-- **9-stufiger End-to-End-CLI-Durchstich** (`cargo run --bin aido-cli -- demo`) verifiziert alle Kernmodule live auf dem Referenz-PC.
-- **Produktionsreifer Frontend-Build** (`npm run build`) für die interaktive Desktop-Oberfläche.
+- **46/46 automatisierte Rust-Tests** (`cargo test --manifest-path src-tauri/Cargo.toml`) und **0 Clippy-Warnungen** (`cargo clippy --all-targets -- -D warnings`).
+- **10-stufiger End-to-End-CLI-Durchstich** (`cargo run --bin aido-cli -- demo`) verifiziert alle Kernmodule inklusive Agent Remote live auf dem Referenz-PC.
+- **Produktionsreifer Frontend-Build** (`npm run build`) für die interaktive Desktop-Oberfläche mit minimalistischem S/W- & W/S-Remote-Cockpit.

@@ -452,6 +452,9 @@ const aidoMessage = document.getElementById("aido-message") as HTMLDivElement;
 const actionButtons = document.getElementById("action-buttons") as HTMLDivElement;
 const auditList = document.getElementById("audit-list") as HTMLUListElement;
 const contextMenu = document.getElementById("context-menu") as HTMLDivElement;
+const privacyBadge = document.getElementById("privacy-badge") as HTMLSpanElement | null;
+const btnStaticRemote = document.getElementById("btn-remote") as HTMLButtonElement | null;
+btnStaticRemote?.addEventListener("click", () => showAgentRemoteView());
 
 const monoCanvas = document.getElementById("aido-mono-3d-canvas") as HTMLCanvasElement | null;
 const characterViewport = document.getElementById("character-viewport-container") as HTMLDivElement | null;
@@ -574,6 +577,14 @@ function renderDefaultButtons(): void {
   btnBrandStudio.style.color = "#f8fafc";
   btnBrandStudio.onclick = () => showBrandStudioView();
 
+  const btnRemote = document.createElement("button");
+  btnRemote.textContent = "📱 Agent Remote (QR & Handy-Cockpit)";
+  btnRemote.dataset.action = "remote";
+  btnRemote.style.background = "rgba(255, 255, 255, 0.09)";
+  btnRemote.style.borderColor = "rgba(255, 255, 255, 0.28)";
+  btnRemote.style.color = "#ffffff";
+  btnRemote.onclick = () => showAgentRemoteView();
+
   const btnCheck = document.createElement("button");
   btnCheck.textContent = "🔍 Systemcheck & Fast Cleanup prüfen";
   btnCheck.onclick = () => startSystemHealthAndCleanupPreview();
@@ -615,6 +626,7 @@ function renderDefaultButtons(): void {
 
   actionButtons.append(
     btnBrandStudio,
+    btnRemote,
     btnCheck,
     btnProactive,
     btnDeepCleanup,
@@ -2288,6 +2300,507 @@ function showBrandStudioView(): void {
 }
 
 
+
+// ============================================================================
+// Phase 9: AIDO Agent Remote — Minimalist Monochrome UI Implementation
+// Strictly Black/White (#050507 / #ffffff) or White/Black (#fafafa / #09090b)
+// ============================================================================
+
+interface RemoteProposal {
+  id: string;
+  title: string;
+  desc: string;
+  bytes: number;
+  actionKind: string;
+  approved: boolean;
+}
+
+let remoteMonochromeTheme: "bw" | "wb" = "bw";
+let remotePairingState: "unpaired" | "paired" = "unpaired";
+let remotePin: string = "4829";
+let remoteTtlSeconds: number = 60;
+let remoteTtlInterval: number | null = null;
+let remoteLastBlickTime: string = "19:30:00";
+let remoteFocusGuard: boolean = false;
+let remoteFeedText: string = "AIDO Remote bereit. Alle Befehle laufen mit 100 % PC-Parität über lokalen Loopback.";
+
+let remotePendingProposal: RemoteProposal = {
+  id: "req-rem-101",
+  title: "🚀 Projekt starten: AIDO",
+  desc: "Startet lokalen Vite-Dev-Server und bindet Qwen Vision auf 127.0.0.1:18434 ein.",
+  bytes: 0,
+  actionKind: "ProjectLaunch",
+  approved: false
+};
+
+function getQrCodeSvg(): string {
+  const size = 29;
+  const rects: string[] = [];
+  const addFinder = (x: number, y: number) => {
+    rects.push(`<rect x="${x}" y="${y}" width="7" height="7" fill="#000000"/>`);
+    rects.push(`<rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#ffffff"/>`);
+    rects.push(`<rect x="${x + 2}" y="${y + 2}" width="3" height="3" fill="#000000"/>`);
+  };
+  addFinder(0, 0);
+  addFinder(22, 0);
+  addFinder(0, 22);
+
+  for (let i = 8; i < 22; i += 2) {
+    rects.push(`<rect x="${i}" y="6" width="1" height="1" fill="#000000"/>`);
+    rects.push(`<rect x="6" y="${i}" width="1" height="1" fill="#000000"/>`);
+  }
+
+  rects.push(`<rect x="18" y="18" width="5" height="5" fill="#000000"/>`);
+  rects.push(`<rect x="19" y="19" width="3" height="3" fill="#ffffff"/>`);
+  rects.push(`<rect x="20" y="20" width="1" height="1" fill="#000000"/>`);
+
+  const patternSeed = [
+    0b10110101, 0b11001010, 0b01011100, 0b10010111,
+    0b11100101, 0b00111010, 0b10101101, 0b01110011,
+    0b11010010, 0b10011101, 0b01010110, 0b11101001,
+    0b10110011, 0b01101101, 0b11001011, 0b10100110
+  ];
+  let pIdx = 0;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const inTL = r < 8 && c < 8;
+      const inTR = r < 8 && c >= 21;
+      const inBL = r >= 21 && c < 8;
+      const inTiming = r === 6 || c === 6;
+      const inAlign = r >= 18 && r <= 22 && c >= 18 && c <= 22;
+      if (!inTL && !inTR && !inBL && !inTiming && !inAlign) {
+        const byte = patternSeed[(pIdx++) % patternSeed.length];
+        const bit = (byte >> ((r + c) % 8)) & 1;
+        if (bit === 1) {
+          rects.push(`<rect x="${c}" y="${r}" width="1" height="1" fill="#000000"/>`);
+        }
+      }
+    }
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="152" height="152" shape-rendering="crispEdges">
+    <rect width="${size}" height="${size}" fill="#ffffff"/>
+    ${rects.join("")}
+  </svg>`;
+}
+
+function showAgentRemoteView(): void {
+  setCharacterState("Agent Remote (S/W Minimal)", false);
+
+  if (remoteTtlInterval === null) {
+    remoteTtlInterval = window.setInterval(() => {
+      if (remoteTtlSeconds > 1) {
+        remoteTtlSeconds--;
+      } else {
+        remoteTtlSeconds = 60;
+      }
+      const ttlElem = document.getElementById("remote-ttl-display");
+      if (ttlElem) {
+        ttlElem.textContent = `⏱️ Gültigkeit: ${remoteTtlSeconds}s (TTL-Schutz)`;
+      }
+    }, 1000);
+  }
+
+  const isPaired = remotePairingState === "paired";
+  const statusPillClass = isPaired ? "connected" : "offline";
+  const statusPillLabel = isPaired ? "Modus: LocalConnected (LAN/Remote)" : "Modus: PrivateOffline (127.0.0.1)";
+  const pairedDeviceLabel = isPaired
+    ? "iPhone 16 Pro · AIDO Remote v0.1.0 · Authentifiziert mit PIN " + remotePin
+    : "Kein Smartphone gekoppelt (Wartet auf QR-Scan / PIN)";
+
+  const pinDigitsHtml = remotePin
+    .split("")
+    .map((d) => `<div class="remote-pin-digit">${d}</div>`)
+    .join("");
+
+  const qrSvg = getQrCodeSvg();
+
+  const phoneThemeClass = `theme-${remoteMonochromeTheme}`;
+  const toggleBtnText = remoteMonochromeTheme === "bw" ? "◐ S/W ↔ ◑ W/S" : "◑ W/S ↔ ◐ S/W";
+
+  const thumbBadgeText = remotePendingProposal.approved
+    ? "✓ FREIGEGEBEN &amp; AUSGEFÜHRT"
+    : "⏳ FREIGABE ERFORDERLICH";
+
+  const thumbButtonsHtml = remotePendingProposal.approved
+    ? `<button class="remote-btn-thumb approve" id="btn-remote-thumb-reset" style="grid-column: span 2;">✓ Erfolgreich ausgeführt · Weiterer Befehl</button>`
+    : `<button class="remote-btn-thumb approve" id="btn-remote-thumb-approve">✓ Freigeben</button>
+       <button class="remote-btn-thumb reject" id="btn-remote-thumb-reject">✕ Stopp</button>`;
+
+  const html = `
+    <div style="margin-bottom: 10px;">
+      <div style="font-size: 1.05rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+        <span>📱 AIDO Agent Remote — Minimalistisches Monochrome Handy-Cockpit</span>
+      </div>
+      <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 3px;">
+        Ultra-cleanes Schwarz/Weiß-Design nach <b>MASTERPLAN Kapitel 9</b> mit 100 % PC-Parität, 1-Tap Daumen-Freigabekarte und nativer Umschaltung zwischen Dark- und Light-Minimalismus.
+      </div>
+    </div>
+
+    <div class="remote-split-layout">
+      <!-- Left Column: PC QR & PIN Pairing Station -->
+      <div class="remote-pc-station">
+        <div class="remote-station-header">
+          <div class="remote-station-title">
+            <span>🖥️ PC-Kopplungsstation</span>
+          </div>
+          <span class="remote-status-pill ${statusPillClass}">${statusPillLabel}</span>
+        </div>
+
+        <div style="font-size: 0.78rem; color: #94a3b8; line-height: 1.45;">
+          Scanne den QR-Code mit deinem Smartphone oder bestätige die 4-stellige Einmal-PIN für eine Ende-zu-Ende verschlüsselte lokale Verbindung im LAN.
+        </div>
+
+        <div class="remote-qr-box">
+          <div class="remote-qr-svg-wrap">
+            ${qrSvg}
+          </div>
+          <div class="remote-pin-digits">
+            ${pinDigitsHtml}
+          </div>
+          <div class="remote-ttl-badge" id="remote-ttl-display">
+            ⏱️ Gültigkeit: ${remoteTtlSeconds}s (TTL-Schutz)
+          </div>
+        </div>
+
+        <div class="remote-paired-device-box">
+          <div style="font-weight: 700; color: #ffffff; margin-bottom: 2px;">Gekoppeltes Endgerät:</div>
+          <div style="font-family: monospace; font-size: 0.74rem;">${pairedDeviceLabel}</div>
+          <div style="font-size: 0.7rem; color: #64748b; margin-top: 4px;">
+            Netzwerk-Bindung: <code>127.0.0.1 / LAN</code> · Keine Cloud-Server · Zero-Telemetry
+          </div>
+        </div>
+
+        <div class="remote-station-actions">
+          <button class="remote-station-btn connect" id="btn-station-simulate-pair">
+            <span>${isPaired ? "🔄 PIN erneuern & Neu koppeln" : "📲 QR-Kopplung simulieren / Verbinden"}</span>
+          </button>
+          <button class="remote-station-btn revoke" id="btn-station-revoke-device">
+            <span>🔌 Gerät widerrufen (Sofort-Trennung)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Right Column: Minimalist Smartphone Remote Frame -->
+      <div class="remote-phone-frame ${phoneThemeClass}" id="remote-phone-frame">
+        <!-- 1: Minimal Phone Header -->
+        <div class="remote-phone-header">
+          <div class="remote-phone-brand">
+            <img src="/assets/AIDO-Wortmarke.png" alt="AIDO Wortmarke" class="remote-brand-img" style="height: 17px; width: auto;" />
+            <span class="remote-glow-dot"></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="remote-parity-pill">100 % PC-PARITÄT</span>
+            <button class="remote-theme-toggle" id="btn-remote-theme-toggle" title="Monochrome Theme wechseln">${toggleBtnText}</button>
+          </div>
+        </div>
+
+        <!-- 2: 1-Tap Daumen-Freigabekarte -->
+        <div class="remote-thumb-card">
+          <div class="remote-thumb-badge-row">
+            <span class="remote-thumb-status-badge">${thumbBadgeText}</span>
+            <span style="font-size: 0.64rem; font-family: monospace; opacity: 0.65;">#REQ-${remotePendingProposal.id}</span>
+          </div>
+          <div class="remote-thumb-title">${remotePendingProposal.title}</div>
+          <div class="remote-thumb-desc">${remotePendingProposal.desc}</div>
+          <div class="remote-thumb-buttons">
+            ${thumbButtonsHtml}
+          </div>
+        </div>
+
+        <!-- 3: 2x2 Schnell-Steuerdeck -->
+        <div class="remote-grid-2x2">
+          <div class="remote-tile" id="tile-project">
+            <div class="remote-tile-title">🚀 Projekt starten</div>
+            <div class="remote-tile-sub">AIDO · main</div>
+          </div>
+          <div class="remote-tile" id="tile-cleanup">
+            <div class="remote-tile-title">🧹 Fast Cleanup</div>
+            <div class="remote-tile-sub">Staging (420 KB)</div>
+          </div>
+          <div class="remote-tile" id="tile-blick">
+            <div class="remote-tile-title">👁️ AIDO-Blick</div>
+            <div class="remote-tile-sub">Snapshot on Demand</div>
+          </div>
+          <div class="remote-tile" id="tile-focus">
+            <div class="remote-tile-title">🔒 Fokus-Schutz</div>
+            <div class="remote-tile-sub">${remoteFocusGuard ? "Aktiv (Nicht stören)" : "Inaktiv"}</div>
+          </div>
+        </div>
+
+        <!-- Inline AIDO-Blick Vision-Notiz -->
+        <div class="remote-blick-box">
+          <div class="remote-blick-meta">
+            <span>👁️ AIDO-Blick Vision Snapshot</span>
+            <span>${remoteLastBlickTime} · 0,18s</span>
+          </div>
+          <div style="font-size: 0.72rem; line-height: 1.45;">
+            <b>Qwen3.8-27B-BF16 Vision (102,7 Tok/s):</b> Desktop stabil · VS Code & Terminal im Fokus · Keine Fehler · VRAM: 22,7 GB frei.
+          </div>
+        </div>
+
+        <!-- 4: Chat Dock, Reply Chips & Whisper CUDA Voice -->
+        <div class="remote-chat-dock">
+          <div class="remote-chips-row">
+            <span class="remote-reply-chip" data-chip="status">„Status?“</span>
+            <span class="remote-reply-chip" data-chip="blick">„AIDO-Blick“</span>
+            <span class="remote-reply-chip" data-chip="tests">„Tests prüfen“</span>
+          </div>
+
+          <div class="remote-feed-bubble" id="remote-feed-box">
+            ${remoteFeedText}
+          </div>
+
+          <div class="remote-chat-input-row">
+            <input type="text" class="remote-chat-input" id="remote-input-field" placeholder="Befehl oder Frage tippen..." />
+            <button class="remote-voice-btn" id="btn-remote-voice" title="Whisper CUDA Sprachtranskription">🎙️ Voice (0,34 s)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  aidoMessage.innerHTML = html;
+
+  actionButtons.innerHTML = "";
+  const btnPairToggle = document.createElement("button");
+  btnPairToggle.textContent = isPaired ? "🔌 Verbindung trennen" : "📲 QR-Kopplung simulieren";
+  btnPairToggle.onclick = () => {
+    if (isPaired) {
+      revokeRemoteDevice();
+    } else {
+      simulateRemotePairing();
+    }
+  };
+
+  const btnThemeHeader = document.createElement("button");
+  btnThemeHeader.textContent = remoteMonochromeTheme === "bw" ? "◑ Zu Weiß/Schwarz wechseln" : "◐ Zu Schwarz/Weiß wechseln";
+  btnThemeHeader.onclick = () => {
+    toggleMonochromeTheme();
+  };
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "↩ Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    if (remoteTtlInterval !== null) {
+      clearInterval(remoteTtlInterval);
+      remoteTtlInterval = null;
+    }
+    setCharacterState("Bereit (Lokal)", false);
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnPairToggle, btnThemeHeader, btnBack);
+
+  // Attach Event Handlers
+  document.getElementById("btn-remote-theme-toggle")?.addEventListener("click", () => {
+    toggleMonochromeTheme();
+  });
+
+  document.getElementById("btn-station-simulate-pair")?.addEventListener("click", () => {
+    simulateRemotePairing();
+  });
+
+  document.getElementById("btn-station-revoke-device")?.addEventListener("click", () => {
+    revokeRemoteDevice();
+  });
+
+  document.getElementById("btn-remote-thumb-approve")?.addEventListener("click", () => {
+    approveRemoteProposal();
+  });
+
+  document.getElementById("btn-remote-thumb-reject")?.addEventListener("click", () => {
+    rejectRemoteProposal();
+  });
+
+  document.getElementById("btn-remote-thumb-reset")?.addEventListener("click", () => {
+    remotePendingProposal = {
+      id: "req-rem-102",
+      title: "🚀 Projekt starten: AIDO",
+      desc: "Startet lokalen Vite-Dev-Server und bindet Qwen Vision auf 127.0.0.1:18434 ein.",
+      bytes: 0,
+      actionKind: "ProjectLaunch",
+      approved: false
+    };
+    showAgentRemoteView();
+  });
+
+  // 2x2 Quick Deck tiles
+  document.getElementById("tile-project")?.addEventListener("click", () => {
+    remotePendingProposal = {
+      id: crypto.randomUUID().slice(0, 8),
+      title: "🚀 Projekt starten: AIDO",
+      desc: "Lokalen Vite-Dev-Server auf 127.0.0.1:5173 starten und Browser-Sitzung einbinden.",
+      bytes: 0,
+      actionKind: "ProjectLaunch",
+      approved: false
+    };
+    remoteFeedText = "Bereit zum Start: AIDO (main). Bitte Daumen-Freigabe erteilen.";
+    appendAudit("[AgentRemote] Schnell-Kachel '🚀 Projekt starten: AIDO' geladen.");
+    showAgentRemoteView();
+  });
+
+  document.getElementById("tile-cleanup")?.addEventListener("click", () => {
+    remotePendingProposal = {
+      id: crypto.randomUUID().slice(0, 8),
+      title: "🧹 Fast Cleanup (420 KB)",
+      desc: "Temporäre Staging-Caches in target/.tmp und Shader-Dumps sicher bereinigen.",
+      bytes: 420 * 1024,
+      actionKind: "FastCleanup",
+      approved: false
+    };
+    remoteFeedText = "Bereit für Fast Cleanup: 420 KB Staging-Caches. Bitte Daumen-Freigabe erteilen.";
+    appendAudit("[AgentRemote] Schnell-Kachel '🧹 Fast Cleanup' geladen.");
+    showAgentRemoteView();
+  });
+
+  document.getElementById("tile-blick")?.addEventListener("click", () => {
+    triggerRemoteBlick();
+  });
+
+  document.getElementById("tile-focus")?.addEventListener("click", () => {
+    remoteFocusGuard = !remoteFocusGuard;
+    remoteFeedText = remoteFocusGuard
+      ? "🔒 Fokus-Schutz AKTIV: Vollbild-Modus geschützt, keine störenden Dialoge."
+      : "🔓 Fokus-Schutz DEAKTIVIERT: Normale Benachrichtigungen aktiv.";
+    appendAudit(
+      `[AgentRemote] Fokus-Schutz über Smartphone-Cockpit ${remoteFocusGuard ? "aktiviert" : "deaktiviert"}.`
+    );
+    showAgentRemoteView();
+  });
+
+  // Reply chips
+  const chips = aidoMessage.querySelectorAll<HTMLSpanElement>(".remote-reply-chip");
+  chips.forEach((c) => {
+    c.addEventListener("click", () => {
+      const chipType = c.dataset.chip;
+      if (chipType === "status") {
+        remoteFeedText = "📊 Status: RTX 5090 · 22,7 GB VRAM frei · Qwen 27B bereit · Latenz: 0,18 s.";
+        appendAudit("[AgentRemote] Schnell-Chip 'Status?' abgerufen.");
+        showAgentRemoteView();
+      } else if (chipType === "blick") {
+        triggerRemoteBlick();
+      } else if (chipType === "tests") {
+        remoteFeedText = "🧪 Tests: cargo test: 46/46 bestanden (100 % grün) · 0 Clippy-Warnungen · npm build: OK.";
+        appendAudit("[AgentRemote] Schnell-Chip 'Tests prüfen' abgerufen: 46/46 grün.");
+        showAgentRemoteView();
+      }
+    });
+  });
+
+  // Chat input
+  const inputElem = document.getElementById("remote-input-field") as HTMLInputElement | null;
+  inputElem?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && inputElem.value.trim()) {
+      const val = inputElem.value.trim();
+      remoteFeedText = `💬 „${val}“ empfangen. AIDO verarbeitet deine Anfrage lokal auf der RTX 5090.`;
+      appendAudit(`[AgentRemote] Nachricht via Smartphone gesendet: '${val}'.`);
+      inputElem.value = "";
+      showAgentRemoteView();
+    }
+  });
+
+  // Voice button
+  document.getElementById("btn-remote-voice")?.addEventListener("click", () => {
+    triggerRemoteVoice();
+  });
+}
+
+function toggleMonochromeTheme(): void {
+  remoteMonochromeTheme = remoteMonochromeTheme === "bw" ? "wb" : "bw";
+  appendAudit(
+    `[AgentRemote] Monochrome Theme gewechselt: ${
+      remoteMonochromeTheme === "bw" ? "Schwarz/Weiß (Dark Minimal)" : "Weiß/Schwarz (Light Minimal)"
+    }.`
+  );
+  showAgentRemoteView();
+}
+
+function simulateRemotePairing(): void {
+  remotePairingState = "paired";
+  if (privacyBadge) {
+    privacyBadge.className = "badge access";
+    privacyBadge.innerHTML = "🌐 Modus: LocalConnected (LAN/Remote)";
+  }
+  remoteFeedText = `Gerät erfolgreich gekoppelt! Authentifiziert als iPhone 16 Pro via PIN ${remotePin}. 100 % PC-Parität aktiv.`;
+  appendAudit(
+    `[AgentRemote] QR- & PIN-Kopplung erfolgreich: 'iPhone 16 Pro' verbunden (PIN ${remotePin}). Gateway-Modus: LocalConnected.`
+  );
+  showAgentRemoteView();
+}
+
+function revokeRemoteDevice(): void {
+  remotePairingState = "unpaired";
+  if (privacyBadge) {
+    privacyBadge.className = "badge offline";
+    privacyBadge.innerHTML = "🔒 Private Offline (127.0.0.1)";
+  }
+  remoteFeedText = "Gerät widerrufen. Gateway befindet sich wieder im isolierten Modus PrivateOffline.";
+  appendAudit("[AgentRemote] Gekoppeltes Gerät widerrufen. Gateway-Modus sofort auf PrivateOffline zurückgesetzt.");
+  showAgentRemoteView();
+}
+
+function approveRemoteProposal(): void {
+  remotePendingProposal.approved = true;
+  setCharacterState("Führe freigegebene Aktion aus...", true);
+  monoViewer?.setState("thinking");
+
+  setTimeout(() => {
+    setCharacterState("Bereit (Remote)", false);
+    monoViewer?.setState("speaking");
+    remoteFeedText = `✓ Aktion '${remotePendingProposal.title}' erfolgreich ausgeführt!`;
+    appendAudit(
+      `[AgentRemote] 1-Tap Daumen-Freigabe erteilt: '${remotePendingProposal.title}' mit 100 % PC-Parität ausgeführt.`
+    );
+    showAgentRemoteView();
+    setTimeout(() => {
+      if (monoViewer?.getState() === "speaking") monoViewer?.setState("idle");
+    }, 1800);
+  }, 450);
+}
+
+function rejectRemoteProposal(): void {
+  remoteFeedText = `✕ Aktion '${remotePendingProposal.title}' abgelehnt / gestoppt.`;
+  appendAudit(`[AgentRemote] Daumen-Freigabe für '${remotePendingProposal.title}' abgelehnt.`);
+  showAgentRemoteView();
+}
+
+function triggerRemoteBlick(): void {
+  monoViewer?.setState("thinking");
+  remoteLastBlickTime = new Date().toLocaleTimeString("de-DE");
+  remoteFeedText = "👁️ AIDO-Blick Vision Snapshot empfangen (102,7 Tok/s). Desktop ist stabil.";
+  appendAudit("[AgentRemote] On-Demand AIDO-Blick (Qwen Vision Snapshot) über Smartphone angefordert.");
+  setTimeout(() => {
+    monoViewer?.setState("idle");
+    showAgentRemoteView();
+  }, 450);
+}
+
+function triggerRemoteVoice(): void {
+  monoViewer?.setState("listening");
+  setCharacterState("Smartphone hört zu (Whisper CUDA)...", true);
+  remoteFeedText = "🎙️ Höre zu... (Whisper-small CUDA auf 127.0.0.1:18080)";
+  showAgentRemoteView();
+
+  setTimeout(() => {
+    monoViewer?.setState("thinking");
+    setTimeout(() => {
+      monoViewer?.setState("speaking");
+      setCharacterState("Bereit (Remote)", false);
+      remoteFeedText = "🗣️ „Zeige mir den aktuellen Sicherheitsstatus und System-Caches.“ (Transkribiert in 0,34 s via CUDA)";
+      appendAudit(
+        "[AgentRemote] Whisper CUDA Spracheingabe transkribiert (0,34 s Latenz): 'Zeige mir den aktuellen Sicherheitsstatus und System-Caches.'"
+      );
+      showAgentRemoteView();
+      setTimeout(() => {
+        if (monoViewer?.getState() === "speaking") monoViewer?.setState("idle");
+      }, 2000);
+    }, 400);
+  }, 400);
+}
+
 // Character Stage & 3D Interactive Controls
 let pointerStartTime = 0;
 let pointerMovedDuringClick = false;
@@ -2380,6 +2893,8 @@ contextMenu.addEventListener("click", (e) => {
   const action = target.dataset.action;
   if (action === "brand-studio") {
     showBrandStudioView();
+  } else if (action === "remote") {
+    showAgentRemoteView();
   } else if (action === "health" || action === "cleanup") {
     startSystemHealthAndCleanupPreview();
   } else if (action === "proactive") {

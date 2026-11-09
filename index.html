@@ -1188,6 +1188,627 @@
       gap: 10px;
       margin-top: 10px;
     }
+
+    /* =========================================================================
+       Phase 9: AIDO Agent Remote — Minimalist Monochrome UI
+       Strictly Black/White (#050507 / #ffffff) or White/Black (#fafafa / #09090b)
+       ========================================================================= */
+    .remote-split-layout {
+      display: grid;
+      grid-template-columns: minmax(320px, 1.1fr) minmax(340px, 380px);
+      gap: 22px;
+      align-items: start;
+      margin-top: 8px;
+    }
+    @media (max-width: 960px) {
+      .remote-split-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Card: PC QR & PIN Pairing Station */
+    .remote-pc-station {
+      background: rgba(8, 10, 16, 0.96);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 20px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 0 28px rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+    .remote-station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 12px;
+    }
+    .remote-station-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.2px;
+    }
+    .remote-status-pill {
+      font-size: 0.72rem;
+      font-family: monospace;
+      padding: 3px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+    .remote-status-pill.offline {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+    }
+    .remote-status-pill.connected {
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.25);
+    }
+    .remote-qr-box {
+      background: #050507;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      box-shadow: 0 0 32px rgba(255, 255, 255, 0.06);
+      position: relative;
+    }
+    .remote-qr-svg-wrap {
+      width: 172px;
+      height: 172px;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.18);
+      position: relative;
+    }
+    .remote-pin-digits {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+    }
+    .remote-pin-digit {
+      width: 44px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 8px;
+      box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.05);
+    }
+    .remote-ttl-badge {
+      font-size: 0.74rem;
+      font-family: monospace;
+      color: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+    .remote-station-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .remote-station-btn {
+      padding: 11px 16px;
+      border-radius: 11px;
+      font-weight: 700;
+      font-size: 0.84rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .remote-station-btn.connect {
+      background: #ffffff;
+      color: #050507;
+      border: 1px solid #ffffff;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.28);
+    }
+    .remote-station-btn.connect:hover {
+      box-shadow: 0 0 26px rgba(255, 255, 255, 0.55);
+      transform: translateY(-1px);
+    }
+    .remote-station-btn.revoke {
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .remote-station-btn.revoke:hover {
+      background: rgba(239, 68, 68, 0.16);
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #fca5a5;
+    }
+    .remote-paired-device-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    /* Right Card: Minimalist Smartphone Remote Frame */
+    .remote-phone-frame {
+      border-radius: 36px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      position: relative;
+      transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+      user-select: none;
+    }
+    /* Theme: Black / White (Dark Monochrome) */
+    .remote-phone-frame.theme-bw {
+      background: #050507;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 0 35px rgba(255, 255, 255, 0.08), 0 20px 45px rgba(0, 0, 0, 0.85), inset 0 0 1px rgba(255, 255, 255, 0.35);
+    }
+    /* Theme: White / Black (Light Monochrome) */
+    .remote-phone-frame.theme-wb {
+      background: #fafafa;
+      color: #09090b;
+      border: 1px solid rgba(9, 9, 11, 0.16);
+      box-shadow: 0 0 35px rgba(0, 0, 0, 0.15), 0 20px 45px rgba(0, 0, 0, 0.14), inset 0 0 1px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Adapting Assets within Themes */
+    .remote-phone-frame.theme-bw .remote-brand-img {
+      filter: invert(1);
+    }
+    .remote-phone-frame.theme-wb .remote-brand-img {
+      filter: invert(0);
+    }
+
+    /* 1: Minimal Phone Header */
+    .remote-phone-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid;
+    }
+    .remote-phone-frame.theme-bw .remote-phone-header {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    .remote-phone-frame.theme-wb .remote-phone-header {
+      border-color: rgba(9, 9, 11, 0.12);
+    }
+    .remote-phone-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .remote-glow-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+      animation: remote-dot-pulse 2s infinite ease-in-out;
+    }
+    .remote-phone-frame.theme-bw .remote-glow-dot {
+      background: #ffffff;
+      box-shadow: 0 0 8px #ffffff;
+    }
+    .remote-phone-frame.theme-wb .remote-glow-dot {
+      background: #09090b;
+      box-shadow: 0 0 6px rgba(9, 9, 11, 0.65);
+    }
+    @keyframes remote-dot-pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    .remote-parity-pill {
+      font-size: 0.66rem;
+      font-family: monospace;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid;
+    }
+    .remote-phone-frame.theme-bw .remote-parity-pill {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+    }
+    .remote-phone-frame.theme-wb .remote-parity-pill {
+      background: rgba(9, 9, 11, 0.08);
+      border-color: rgba(9, 9, 11, 0.25);
+      color: #09090b;
+    }
+    .remote-theme-toggle {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .remote-phone-frame.theme-bw .remote-theme-toggle {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #ffffff;
+    }
+    .remote-phone-frame.theme-bw .remote-theme-toggle:hover {
+      background: #ffffff;
+      color: #050507;
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.4);
+    }
+    .remote-phone-frame.theme-wb .remote-theme-toggle {
+      background: rgba(9, 9, 11, 0.08);
+      border-color: rgba(9, 9, 11, 0.3);
+      color: #09090b;
+    }
+    .remote-phone-frame.theme-wb .remote-theme-toggle:hover {
+      background: #09090b;
+      color: #fafafa;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 2: 1-Tap Daumen-Freigabekarte */
+    .remote-thumb-card {
+      border: 1px solid;
+      border-radius: 18px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .remote-phone-frame.theme-bw .remote-thumb-card {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.18);
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+    }
+    .remote-phone-frame.theme-wb .remote-thumb-card {
+      background: rgba(9, 9, 11, 0.03);
+      border-color: rgba(9, 9, 11, 0.18);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+    }
+    .remote-thumb-badge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .remote-thumb-status-badge {
+      font-size: 0.66rem;
+      font-family: monospace;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid;
+    }
+    .remote-phone-frame.theme-bw .remote-thumb-status-badge {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+    }
+    .remote-phone-frame.theme-wb .remote-thumb-status-badge {
+      background: rgba(9, 9, 11, 0.08);
+      border-color: rgba(9, 9, 11, 0.25);
+      color: #09090b;
+    }
+    .remote-thumb-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    .remote-thumb-desc {
+      font-size: 0.74rem;
+      line-height: 1.45;
+      opacity: 0.8;
+    }
+    .remote-thumb-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 2px;
+    }
+    .remote-btn-thumb {
+      padding: 11px 14px;
+      border-radius: 12px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.18s ease;
+      border: 1px solid;
+    }
+    .remote-phone-frame.theme-bw .remote-btn-thumb.approve {
+      background: #ffffff;
+      color: #050507;
+      border-color: #ffffff;
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
+    }
+    .remote-phone-frame.theme-bw .remote-btn-thumb.approve:hover {
+      box-shadow: 0 0 24px rgba(255, 255, 255, 0.6);
+      transform: translateY(-1px);
+    }
+    .remote-phone-frame.theme-bw .remote-btn-thumb.reject {
+      background: rgba(255, 255, 255, 0.06);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .remote-phone-frame.theme-bw .remote-btn-thumb.reject:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    .remote-phone-frame.theme-wb .remote-btn-thumb.approve {
+      background: #09090b;
+      color: #fafafa;
+      border-color: #09090b;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    }
+    .remote-phone-frame.theme-wb .remote-btn-thumb.approve:hover {
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      transform: translateY(-1px);
+    }
+    .remote-phone-frame.theme-wb .remote-btn-thumb.reject {
+      background: rgba(9, 9, 11, 0.05);
+      color: #09090b;
+      border-color: rgba(9, 9, 11, 0.2);
+    }
+    .remote-phone-frame.theme-wb .remote-btn-thumb.reject:hover {
+      background: rgba(9, 9, 11, 0.12);
+      border-color: rgba(9, 9, 11, 0.35);
+    }
+
+    /* 3: 2x2 Schnell-Steuerdeck */
+    .remote-grid-2x2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .remote-tile {
+      border: 1px solid;
+      border-radius: 14px;
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      text-align: left;
+    }
+    .remote-phone-frame.theme-bw .remote-tile {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+    }
+    .remote-phone-frame.theme-bw .remote-tile:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.32);
+      box-shadow: 0 0 16px rgba(255, 255, 255, 0.18);
+      transform: translateY(-1px);
+    }
+    .remote-phone-frame.theme-wb .remote-tile {
+      background: rgba(9, 9, 11, 0.03);
+      border-color: rgba(9, 9, 11, 0.14);
+      color: #09090b;
+    }
+    .remote-phone-frame.theme-wb .remote-tile:hover {
+      background: rgba(9, 9, 11, 0.08);
+      border-color: rgba(9, 9, 11, 0.3);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      transform: translateY(-1px);
+    }
+    .remote-tile-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .remote-tile-sub {
+      font-size: 0.66rem;
+      opacity: 0.68;
+      font-family: monospace;
+    }
+
+    /* Inline AIDO-Blick Vision-Notiz */
+    .remote-blick-box {
+      border: 1px solid;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 0.76rem;
+      line-height: 1.45;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .remote-phone-frame.theme-bw .remote-blick-box {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #f8fafc;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.06);
+    }
+    .remote-phone-frame.theme-wb .remote-blick-box {
+      background: rgba(9, 9, 11, 0.04);
+      border-color: rgba(9, 9, 11, 0.2);
+      color: #09090b;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    .remote-blick-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: monospace;
+      font-size: 0.68rem;
+      opacity: 0.75;
+      border-bottom: 1px dashed;
+      padding-bottom: 4px;
+    }
+    .remote-phone-frame.theme-bw .remote-blick-meta { border-color: rgba(255, 255, 255, 0.15); }
+    .remote-phone-frame.theme-wb .remote-blick-meta { border-color: rgba(9, 9, 11, 0.15); }
+
+    /* 4: Chat Dock, Reply Chips & Whisper CUDA Voice */
+    .remote-chat-dock {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .remote-chips-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+    .remote-reply-chip {
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      border: 1px solid;
+      transition: all 0.15s ease;
+    }
+    .remote-phone-frame.theme-bw .remote-reply-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+    }
+    .remote-phone-frame.theme-bw .remote-reply-chip:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+    }
+    .remote-phone-frame.theme-wb .remote-reply-chip {
+      background: rgba(9, 9, 11, 0.05);
+      border-color: rgba(9, 9, 11, 0.18);
+      color: #09090b;
+    }
+    .remote-phone-frame.theme-wb .remote-reply-chip:hover {
+      background: rgba(9, 9, 11, 0.12);
+      border-color: rgba(9, 9, 11, 0.35);
+    }
+    .remote-chat-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .remote-chat-input {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      border: 1px solid;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    .remote-phone-frame.theme-bw .remote-chat-input {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+    }
+    .remote-phone-frame.theme-bw .remote-chat-input:focus {
+      border-color: rgba(255, 255, 255, 0.5);
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.15);
+    }
+    .remote-phone-frame.theme-wb .remote-chat-input {
+      background: rgba(9, 9, 11, 0.05);
+      border-color: rgba(9, 9, 11, 0.18);
+      color: #09090b;
+    }
+    .remote-phone-frame.theme-wb .remote-chat-input:focus {
+      border-color: rgba(9, 9, 11, 0.5);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    .remote-voice-btn {
+      padding: 9px 13px;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .remote-phone-frame.theme-bw .remote-voice-btn {
+      background: #ffffff;
+      color: #050507;
+      border-color: #ffffff;
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.35);
+    }
+    .remote-phone-frame.theme-bw .remote-voice-btn:hover {
+      box-shadow: 0 0 26px rgba(255, 255, 255, 0.6);
+      transform: scale(1.03);
+    }
+    .remote-phone-frame.theme-wb .remote-voice-btn {
+      background: #09090b;
+      color: #fafafa;
+      border-color: #09090b;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
+    }
+    .remote-phone-frame.theme-wb .remote-voice-btn:hover {
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
+      transform: scale(1.03);
+    }
+    .remote-feed-bubble {
+      font-size: 0.75rem;
+      line-height: 1.4;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid;
+      margin-top: 2px;
+    }
+    .remote-phone-frame.theme-bw .remote-feed-bubble {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .remote-phone-frame.theme-wb .remote-feed-bubble {
+      background: rgba(9, 9, 11, 0.04);
+      border-color: rgba(9, 9, 11, 0.12);
+      color: rgba(9, 9, 11, 0.9);
+    }
+
   </style>
 </head>
 <body>
@@ -1343,6 +1964,7 @@
         </div>
         <div class="options-row" id="action-buttons">
           <button id="btn-brand-studio" data-action="brand-studio" style="background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff;">🎨 AIDO-MONO 3D & Brand Studio</button>
+          <button id="btn-remote" data-action="remote" style="background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.28); color: #ffffff;">📱 Agent Remote (QR & Handy-Cockpit)</button>
           <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
           <button id="btn-proactive" data-action="proactive">💡 Proaktive Vorschläge</button>
           <button id="btn-deep-cleanup" data-action="deep-cleanup">🧽 Deep Cleanup</button>
@@ -1385,6 +2007,7 @@
 
   <div class="context-menu" id="context-menu">
     <div class="context-item" data-action="brand-studio"><span>🎨 AIDO-MONO 3D & Brand Studio</span></div>
+    <div class="context-item" data-action="remote"><span>📱 Agent Remote (QR & Handy-Cockpit)</span></div>
     <div class="context-item" data-action="health"><span>🔍 Systemanalyse starten</span></div>
     <div class="context-item" data-action="cleanup"><span>🧹 Fast Cleanup (mit Vorschau)</span></div>
     <div class="context-item" data-action="proactive"><span>💡 Proaktive Vorschläge</span></div>

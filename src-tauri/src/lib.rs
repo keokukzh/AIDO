@@ -1,3 +1,4 @@
+pub mod agent_remote;
 pub mod ai_client;
 pub mod app_intelligence;
 pub mod memory;
@@ -36,6 +37,7 @@ pub struct AidoCore {
     pub installer: smart_installer::SmartInstallerEngine,
     pub runtime: runtime_supervisor::RuntimeSupervisor,
     pub proactive: proactive_engine::ProactiveEngine,
+    pub remote: agent_remote::AgentRemoteEngine,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +88,7 @@ impl AidoCore {
         let installer = smart_installer::SmartInstallerEngine::new(db_path.as_ref())?;
         let runtime = runtime_supervisor::RuntimeSupervisor::new();
         let proactive = proactive_engine::ProactiveEngine::new();
+        let remote = agent_remote::AgentRemoteEngine::new(db_path.as_ref())?;
         Ok(Self {
             gateway,
             memory,
@@ -96,6 +99,7 @@ impl AidoCore {
             installer,
             runtime,
             proactive,
+            remote,
         })
     }
 
@@ -455,6 +459,172 @@ impl AidoCore {
             uninstall_plan,
             release_readiness,
         })
+    }
+
+    /// Starts a pairing challenge with a scannable QR payload, a 4-digit PIN, and a 60s TTL.
+    pub fn start_remote_pairing_challenge(
+        &self,
+    ) -> Result<agent_remote::PairingChallenge, Box<dyn std::error::Error>> {
+        let challenge = self.remote.generate_pairing_challenge("192.168.1.42", 18435, 60)?;
+        self.memory.record_audit(
+            "RemotePairingChallenge",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &format!(
+                "Pairing-Challenge generiert: ID={}, PIN={}, URL={}",
+                challenge.challenge_id, challenge.pin_code, challenge.qr_url
+            ),
+        )?;
+        Ok(challenge)
+    }
+
+    /// Completes pairing using the 4-digit PIN, issues a revocable session token,
+    /// sets privacy mode to LocalConnected, and stores an audit & memory entry.
+    pub fn complete_remote_pairing(
+        &self,
+        challenge_id: &str,
+        pin_code: &str,
+        device_name: &str,
+    ) -> Result<agent_remote::PairedRemoteDevice, Box<dyn std::error::Error>> {
+        let device = self.remote.verify_pairing_and_issue_session(
+            &self.gateway,
+            challenge_id,
+            pin_code,
+            device_name,
+        )?;
+        self.memory.record_audit(
+            "PairRemoteDevice",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &format!(
+                "Smartphone-Kopplung erfolgreich: Gerät='{}', ID={}",
+                device.device_name, device.device_id
+            ),
+        )?;
+        self.memory.store_memory(
+            "SystemMemory",
+            "AgentRemote",
+            &format!(
+                "Smartphone '{}' erfolgreich per QR+PIN gekoppelt.",
+                device.device_name
+            ),
+            &format!(
+                "Geräte-ID: {}, Volle PC-Parität: {}, Token: aido_rmt_***",
+                device.device_id, device.full_pc_parity
+            ),
+            "AidoCore::complete_remote_pairing",
+        )?;
+        Ok(device)
+    }
+
+    /// Authenticates a smartphone session token, runs a system health check, lists indexed projects,
+    /// captures an on-demand AIDO-Blick snapshot, and builds the 4-zone RemoteCockpitState.
+    pub fn build_remote_cockpit_state(
+        &self,
+        session_token: &str,
+    ) -> Result<agent_remote::RemoteCockpitState, Box<dyn std::error::Error>> {
+        let device = self.remote.authenticate_session(session_token)?;
+        let health = self.bridge.run_system_health_check()?;
+        let projects = self.projects.list_projects()?;
+        let latest_blick = self
+            .remote
+            .capture_aido_blick(&self.gateway, session_token, &health, &projects)?;
+
+        let quick_tiles = vec![
+            agent_remote::RemoteQuickTile {
+                tile_id: "tile_blick".into(),
+                label_de: "AIDO-Blick".into(),
+                subtitle_de: "Desktop-Snapshot anfordern".into(),
+                action_kind: "CaptureAidoBlickSnapshot".into(),
+                requires_approval: false,
+            },
+            agent_remote::RemoteQuickTile {
+                tile_id: "tile_fast_cleanup".into(),
+                label_de: "Fast Cleanup".into(),
+                subtitle_de: "Temp-Caches freigeben".into(),
+                action_kind: "FastCleanupExecute".into(),
+                requires_approval: true,
+            },
+            agent_remote::RemoteQuickTile {
+                tile_id: "tile_deep_cleanup".into(),
+                label_de: "Deep Cleanup".into(),
+                subtitle_de: "Stale Artefakte prüfen".into(),
+                action_kind: "DeepCleanupExecute".into(),
+                requires_approval: true,
+            },
+            agent_remote::RemoteQuickTile {
+                tile_id: "tile_project_launch".into(),
+                label_de: "Projekt Start".into(),
+                subtitle_de: "Empfohlene Aktion starten".into(),
+                action_kind: "LaunchProject".into(),
+                requires_approval: true,
+            },
+        ];
+
+        let reply_chips_de = vec![
+            "Ja, jetzt freigeben".to_string(),
+            "AIDO-Blick aktualisieren".to_string(),
+            "Später erinnern".to_string(),
+        ];
+
+        let pending_approvals_count = self.gateway.pending_requests_count();
+
+        Ok(agent_remote::RemoteCockpitState {
+            device_name: device.device_name,
+            privacy_mode: format!("{:?}", self.gateway.privacy_mode()),
+            full_pc_parity: device.full_pc_parity,
+            vram_used_mib: health.gpu.vram_used_mib,
+            vram_total_mib: health.gpu.vram_total_mib,
+            ram_free_mb: health.system_ram_free_mb,
+            pending_approvals_count,
+            quick_tiles,
+            latest_blick,
+            reply_chips_de,
+        })
+    }
+
+    /// Executes an explicit user approval initiated via the paired smartphone cockpit,
+    /// enforcing full PC parity, issuing an ApprovalToken, recording an audit log and an EpisodicMemory entry.
+    pub fn execute_remote_approval(
+        &self,
+        session_token: &str,
+        request_id: uuid::Uuid,
+        user_note: Option<String>,
+    ) -> Result<(ApprovalToken, String), Box<dyn std::error::Error>> {
+        let device = self.remote.authenticate_session(session_token)?;
+        if !device.full_pc_parity {
+            return Err("Gekoppeltes Gerät verfügt über keine volle PC-Parität".into());
+        }
+        let note = Some(format!(
+            "[Remote:{}] {}",
+            device.device_name,
+            user_note.unwrap_or_else(|| "Per Daumen-Cockpit freigegeben".into())
+        ));
+        let token = self.gateway.approve_request(request_id, note)?;
+        let confirmation = format!(
+            "Aktion '{:?}' erfolgreich per Smartphone-Cockpit ('{}') freigegeben.",
+            token.action, device.device_name
+        );
+        self.memory.record_audit(
+            "RemoteApprovalExecute",
+            &format!("{:?}", self.gateway.access_mode()),
+            &format!("{:?}", self.gateway.privacy_mode()),
+            true,
+            &format!(
+                "Remote-Freigabe erteilt für Request-ID {}: Gerät='{}'",
+                request_id, device.device_name
+            ),
+        )?;
+        self.memory.store_memory(
+            "EpisodicMemory",
+            "AgentRemote",
+            &format!("Remote-Freigabe für {:?} erteilt.", token.action),
+            &confirmation,
+            "AidoCore::execute_remote_approval",
+        )?;
+        Ok((token, confirmation))
     }
 }
 
@@ -961,5 +1131,114 @@ mod tests {
         let _ = std::fs::remove_file(&db_path);
         let _ = std::fs::remove_dir_all(&safe_temp_dir);
         let _ = std::fs::remove_dir_all(&external_models_dir);
+    }
+
+    #[test]
+    fn aido_core_agent_remote_qr_pairing_full_parity_approval_and_revoke() {
+        let temp_dir = std::env::temp_dir();
+        let unique = Uuid::new_v4().to_string();
+        let db_path = temp_dir.join(format!("aido_remote_integration_{}.db", unique));
+        let safe_temp_dir = temp_dir.join(format!("aido_remote_staging_{}", unique));
+
+        let core = AidoCore::new(
+            AccessMode::StandardAccess,
+            PrivacyMode::PrivateOffline,
+            &db_path,
+            &safe_temp_dir,
+        )
+        .expect("AidoCore::new failed");
+
+        // 1. Initial mode is PrivateOffline
+        assert_eq!(core.gateway.privacy_mode(), PrivacyMode::PrivateOffline);
+
+        // 2. Generate pairing challenge
+        let challenge = core
+            .start_remote_pairing_challenge()
+            .expect("start_remote_pairing_challenge failed");
+        assert_eq!(challenge.pin_code.len(), 4);
+        assert!(challenge.qr_url.contains("192.168.1.42:18435/remote?ticket="));
+
+        // 3. Complete pairing
+        let device = core
+            .complete_remote_pairing(
+                &challenge.challenge_id,
+                &challenge.pin_code,
+                "iPhone 16 Pro · Test Remote",
+            )
+            .expect("complete_remote_pairing failed");
+
+        assert_eq!(device.device_name, "iPhone 16 Pro · Test Remote");
+        assert!(device.full_pc_parity);
+        assert_eq!(core.gateway.privacy_mode(), PrivacyMode::LocalConnected);
+
+        // 4. Create an approval request and build cockpit state
+        let req = core
+            .gateway
+            .request_approval(
+                permission_gateway::ActionKind::FastCleanupExecute,
+                "Fast Cleanup",
+                "Bereinigt temporäre Caches",
+                vec!["temp_cache".into()],
+                1024,
+                0,
+            )
+            .expect("request_approval failed");
+
+        let cockpit = core
+            .build_remote_cockpit_state(&device.session_token)
+            .expect("build_remote_cockpit_state failed");
+
+        assert_eq!(cockpit.pending_approvals_count, 1);
+        assert!(cockpit.full_pc_parity);
+        assert_eq!(cockpit.quick_tiles.len(), 4);
+        assert_eq!(cockpit.reply_chips_de.len(), 3);
+        assert!(!cockpit.latest_blick.vision_summary_de.is_empty());
+
+        // 5. Remote approval execution
+        let (token, confirmation) = core
+            .execute_remote_approval(
+                &device.session_token,
+                req.request_id,
+                Some("Freigabe vom Sofa per Daumen".into()),
+            )
+            .expect("execute_remote_approval failed");
+
+        assert_eq!(token.action, permission_gateway::ActionKind::FastCleanupExecute);
+        assert!(confirmation.contains("iPhone 16 Pro · Test Remote"));
+
+        // Consume approval token
+        assert!(core
+            .gateway
+            .consume_approval_token(&token, &permission_gateway::ActionKind::FastCleanupExecute)
+            .is_ok());
+
+        // Verify memory & audit log
+        let audits = core.memory.list_audit_log(10).expect("list_audit_log failed");
+        assert!(audits.iter().any(|a| a.action == "RemotePairingChallenge"));
+        assert!(audits.iter().any(|a| a.action == "PairRemoteDevice"));
+        assert!(audits.iter().any(|a| a.action == "RemoteApprovalExecute"));
+
+        let memories = core
+            .memory
+            .search_memory("AgentRemote", 5)
+            .expect("search_memory failed");
+        assert!(!memories.is_empty());
+
+        // 6. Revoke device
+        let revoked = core
+            .remote
+            .revoke_device(&core.gateway, &device.device_id)
+            .expect("revoke_device failed");
+        assert!(revoked);
+
+        // Privacy mode restored to PrivateOffline
+        assert_eq!(core.gateway.privacy_mode(), PrivacyMode::PrivateOffline);
+
+        // Session no longer authorized
+        assert!(core.remote.authenticate_session(&device.session_token).is_err());
+
+        // Cleanup
+        let _ = std::fs::remove_file(&db_path);
+        let _ = std::fs::remove_dir_all(&safe_temp_dir);
     }
 }

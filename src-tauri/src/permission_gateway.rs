@@ -55,6 +55,12 @@ pub enum ActionKind {
     SynthesizeAndVerifyAdapter,
     /// State-modifying clean uninstallation of AIDO caches and database (requires explicit user ApprovalToken)
     ExecuteCleanUninstall,
+    /// State-modifying pairing of a smartphone remote cockpit (requires explicit user confirmation / PIN)
+    PairRemoteDevice,
+    /// State-modifying revocation of a paired smartphone remote session
+    RevokeRemoteDevice,
+    /// Read-only on-demand desktop snapshot and vision summary for paired smartphone
+    CaptureAidoBlickSnapshot,
 }
 
 impl ActionKind {
@@ -69,6 +75,8 @@ impl ActionKind {
                 | ActionKind::RunInstallerStep
                 | ActionKind::RollbackInstaller
                 | ActionKind::ExecuteCleanUninstall
+                | ActionKind::PairRemoteDevice
+                | ActionKind::RevokeRemoteDevice
         )
     }
 }
@@ -148,21 +156,54 @@ impl PermissionGateway {
         *self.privacy_mode.lock().unwrap() = mode;
     }
 
+    /// Returns the number of currently pending approval requests.
+    pub fn pending_requests_count(&self) -> usize {
+        self.pending_requests.lock().unwrap().len()
+    }
+
     /// Verifies that an outgoing endpoint complies with the active PrivacyMode.
     /// In PrivateOffline mode, only loopback addresses (127.0.0.1 / localhost) are permitted.
+    /// In LocalConnected mode, loopback, private LAN addresses (RFC 1918), and local tunnel endpoints are permitted.
     pub fn check_endpoint_allowed(&self, url: &str) -> Result<(), GatewayError> {
         let mode = self.privacy_mode();
-        if mode == PrivacyMode::PrivateOffline {
-            let lower = url.trim().to_ascii_lowercase();
-            let is_loopback = lower.starts_with("http://127.0.0.1:")
-                || lower.starts_with("http://127.0.0.1/")
-                || lower == "http://127.0.0.1"
-                || lower.starts_with("http://localhost:")
-                || lower.starts_with("http://localhost/")
-                || lower == "http://localhost";
-            if !is_loopback {
-                return Err(GatewayError::OfflineViolation(url.to_string()));
+        let lower = url.trim().to_ascii_lowercase();
+
+        let is_loopback = lower.starts_with("http://127.0.0.1:")
+            || lower.starts_with("http://127.0.0.1/")
+            || lower == "http://127.0.0.1"
+            || lower.starts_with("https://127.0.0.1:")
+            || lower.starts_with("https://127.0.0.1/")
+            || lower == "https://127.0.0.1"
+            || lower.starts_with("http://localhost:")
+            || lower.starts_with("http://localhost/")
+            || lower == "http://localhost"
+            || lower.starts_with("https://localhost:")
+            || lower.starts_with("https://localhost/")
+            || lower == "https://localhost";
+
+        match mode {
+            PrivacyMode::PrivateOffline => {
+                if !is_loopback {
+                    return Err(GatewayError::OfflineViolation(url.to_string()));
+                }
             }
+            PrivacyMode::LocalConnected => {
+                let is_lan_or_tunnel = lower.starts_with("http://192.168.")
+                    || lower.starts_with("https://192.168.")
+                    || lower.starts_with("http://10.")
+                    || lower.starts_with("https://10.")
+                    || lower.starts_with("https://tunnel.aido.local")
+                    || lower.starts_with("http://aido-remote.local")
+                    || (16..=31).any(|octet| {
+                        lower.starts_with(&format!("http://172.{}.", octet))
+                            || lower.starts_with(&format!("https://172.{}.", octet))
+                    });
+
+                if !is_loopback && !is_lan_or_tunnel {
+                    return Err(GatewayError::OfflineViolation(url.to_string()));
+                }
+            }
+            PrivacyMode::HybridAI => {}
         }
         Ok(())
     }
@@ -299,6 +340,23 @@ mod tests {
     }
 
     #[test]
+    fn local_connected_allows_lan_and_tunnel_but_blocks_external_cloud() {
+        let gw = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::LocalConnected);
+        assert!(gw.check_endpoint_allowed("http://127.0.0.1:18434/v1/chat/completions").is_ok());
+        assert!(gw.check_endpoint_allowed("http://192.168.1.42:18435/remote").is_ok());
+        assert!(gw.check_endpoint_allowed("http://10.0.0.5:8080/api").is_ok());
+        assert!(gw.check_endpoint_allowed("http://172.20.1.10:3000").is_ok());
+        assert!(gw.check_endpoint_allowed("https://tunnel.aido.local/cockpit").is_ok());
+        assert!(gw.check_endpoint_allowed("http://aido-remote.local").is_ok());
+        assert_eq!(
+            gw.check_endpoint_allowed("https://api.openai.com/v1/chat/completions"),
+            Err(GatewayError::OfflineViolation(
+                "https://api.openai.com/v1/chat/completions".into()
+            ))
+        );
+    }
+
+    #[test]
     fn readonly_mode_blocks_mutating_approval_and_execution() {
         let gw = PermissionGateway::new(AccessMode::ReadOnly, PrivacyMode::PrivateOffline);
         assert!(gw.check_readonly_allowed(&ActionKind::SystemHealthCheck).is_ok());
@@ -352,6 +410,7 @@ mod tests {
         assert!(!ActionKind::InspectHardwareAndModels.is_mutating());
         assert!(!ActionKind::ProbeLocalRuntimes.is_mutating());
         assert!(!ActionKind::SynthesizeAndVerifyAdapter.is_mutating());
+        assert!(!ActionKind::CaptureAidoBlickSnapshot.is_mutating());
 
         assert!(ActionKind::FastCleanupExecute.is_mutating());
         assert!(ActionKind::DeepCleanupExecute.is_mutating());
@@ -361,5 +420,7 @@ mod tests {
         assert!(ActionKind::RunInstallerStep.is_mutating());
         assert!(ActionKind::RollbackInstaller.is_mutating());
         assert!(ActionKind::ExecuteCleanUninstall.is_mutating());
+        assert!(ActionKind::PairRemoteDevice.is_mutating());
+        assert!(ActionKind::RevokeRemoteDevice.is_mutating());
     }
 }
