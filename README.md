@@ -1,16 +1,32 @@
 # AIDO
 
-AIDO ist ein geplantes Produkt für Windows 11: ein animierter Desktop-Begleiter, der Menschen ohne technische Vorkenntnisse bei der Bedienung ihres Computers unterstützt. Die KI soll vorzugsweise lokal laufen, sich nützliche Zusammenhänge merken, installierte Anwendungen erkennen und Aufgaben nach nachvollziehbarer Freigabe ausführen.
+AIDO ist ein persönlicher, animierter Desktop-Begleiter für Windows 11, der Menschen ohne technische Vorkenntnisse bei der Bedienung, Organisation und Pflege ihres Computers unterstützt.
 
-**Projektstand: Konzept und Architekturplanung.** Dieses Repository enthält derzeit keine AIDO-Anwendung, keinen Installer und keine nachgewiesenen Produkttests. Es ist eine Grundlage für die Entwicklung, keine Installationsanleitung.
+> **„AIDO denkt für dich. Nicht du für AIDO.“**  
+> **„Dein PC. Dein AIDO. Deine Daten.“**
 
-## Grundprinzipien
+## Projektstand (9. November 2026)
 
-- **Einfacher Einstieg:** Installation, App-Auswahl und Berechtigungen werden in verständlicher Sprache erklärt.
-- **Lokal zuerst:** Für geeignete Hardware ist ein vollständig lokaler Betrieb das Ziel. Ein lokales Modell allein garantiert noch keinen Offline-Betrieb; alle Komponenten und Netzwerkwege müssen dafür geprüft werden.
-- **Kontrollierbare Aktionen:** Zugriffsumfang und automatische Ausführung sind getrennte Einstellungen. Relevante Änderungen erfordern eine Freigabe.
-- **Ehrliche Fähigkeiten:** AIDO soll pro Anwendung anzeigen, was erkannt, verbunden und tatsächlich getestet wurde.
-- **Dauerhaftes Gedächtnis:** Wissen wird lokal, strukturiert und überprüfbar gespeichert; Nutzer können es einsehen, korrigieren und löschen.
+1. **Lokale Modell- & Runtime-Kette verifiziert (Phase 1 abgeschlossen):**
+   - **Hauptmodell & Vision:** `Qwen3.8-27B-UD-Q4_K_M.gguf` + `mmproj-Qwen3.8-27B-BF16.gguf` + `Qwen3.8-27B-DFlash2-Q4_K_M.gguf` auf `llama-server.exe` (`v0.9.0-dev` Build 12176, CUDA 13.4) mit **151,54 Token/s** (Text warm), **102,70 Token/s** (Vision) und automatischer VRAM-Freigabe im Schlafmodus (`--sleep-idle-seconds`, **22,7 GB VRAM** werden im Leerlauf automatisch freigegeben).
+   - **Deutsche Spracherkennung (ASR):** `whisper-server.exe` (`v1.9.5-unsloth.18`) + `ggml-small.bin` auf CUDA 13.4 (**0,341 s** Latenz für 6,9 s deutsches Audio).
+   - **Lokale Text-Embeddings:** `text-embedding-nomic-embed-text-v1.5` (768 Dimensionen).
+2. **Erster ausführbarer AIDO-Kern-Prototyp (`src-tauri/` & `src/`, Phase 2 MVP-Durchstich):**
+   - **Permission Gateway (`src-tauri/src/permission_gateway.rs`):** Erzwingt die Trennung zwischen KI-Vorschlag und Ausführung (`ReadOnly`, `StandardAccess`, `FullAccess`), prüft Einmal-Freigabetokens (`ApprovalToken`) und blockiert im Modus `PrivateOffline` technisch jede Nicht-Loopback-Verbindung (`!= 127.0.0.1`).
+   - **Windows Bridge (`src-tauri/src/windows_bridge.rs`):** Liest GPU-/VRAM-Status (`nvidia-smi`), Systemspeicher (RAM), Top-Prozesse und führt nach expliziter Nutzerfreigabe ein kontrolliertes *Fast Cleanup* im isolierten AIDO-Cache-Bereich aus.
+   - **Memory Engine (`src-tauri/src/memory.rs`):** Lokale SQLite-Datenbank mit **FTS5-Volltextsuche** und lückenlosem `audit_log`.
+   - **Desktop-Oberfläche (`index.html`, `src/main.ts`):** Animierter Charakter mit Chat, Freigabe-Karte, Push-to-Talk, Screenshot-Kontext, Rechtsklick-Menü und Privacy/Memory Center.
+
+## Schnellstart (Kern-Prototyp & Tests)
+
+```powershell
+# Rust Unit- & Integrationstests ausführen (Permission Gateway, Privacy Guard, SQLite FTS5, Windows Bridge)
+cd src-tauri
+cargo test
+
+# End-to-End-Demo (Systemcheck -> KI-Vorschlag -> Freigabe-Token -> Fast Cleanup -> Memory-Abruf)
+cargo run --bin aido-cli -- demo
+```
 
 ## Dokumentation
 
@@ -20,14 +36,8 @@ AIDO ist ein geplantes Produkt für Windows 11: ein animierter Desktop-Begleiter
 | [Ziele](docs/GOALS.md) | Ziele und messbare Erfolgskriterien |
 | [Anforderungen](docs/REQUIREMENTS.md) | Geplante Funktionen und Schutzanforderungen |
 | [Architektur](docs/ARCHITECTURE.md) | Komponenten und technische Kandidaten |
-| [Projektstatus](docs/PROJECT_STATUS.md) | Verifizierter Stand und offene Quellen |
-| [Entwicklungsumgebung](docs/DEVELOPMENT_SETUP.md) | Früher Docker-Plan, aktueller Ist-Check und Übernahme für AIDO |
-| [Modellinventar](docs/MODEL_RUNTIME_INVENTORY.md) | Vorhandene Laufzeiten, Modelle und durchgeführte Kurztests |
+| [Projektstatus](docs/PROJECT_STATUS.md) | Verifizierter Stand und Testergebnisse |
+| [Entwicklungsumgebung](docs/DEVELOPMENT_SETUP.md) | Früher Docker-Plan, Ist-Check und Übernahme für AIDO |
+| [Modellinventar](docs/MODEL_RUNTIME_INVENTORY.md) | Verifizierte Laufzeiten, SHA-256-Prüfsummen und Benchmarks |
 | [Roadmap](docs/ROADMAP.md) | Entwicklungsreihenfolge und Abnahme |
-| [Entscheidungen](docs/DECISIONS.md) | Beschlüsse und ausdrücklich offene Fragen |
-
-Die Dokumente beruhen auf den AIDO-Interviews und der Produktplanung vom 9. November 2026. Technische Bibliotheken und Modellnamen sind Kandidaten, keine fest eingebauten Abhängigkeiten. Der frühere Docker-Plan und der davor liegende Produktgedanke wurden nachgereicht und in der Entwicklungsumgebung eingeordnet. Aussagen über das Referenzsystem sind dort als punktuelle Beobachtungen markiert.
-
-## Mitarbeit und Lizenz
-
-Vor Implementierungsbeginn sind technische Machbarkeit, Sicherheitsgrenzen und Lizenzen externer Komponenten zu prüfen. Eine Produktlizenz ist noch nicht entschieden; dieses private Repository enthält daher bewusst keine LICENSE-Datei.
+| [Entscheidungen](docs/DECISIONS.md) | Beschlüsse aus den AIDO-Interviews |
