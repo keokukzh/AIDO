@@ -85,6 +85,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let report = core.rea.inspect_binary(&target_path)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        "phone" => {
+            let sub = args.get(2).map(|s| s.as_str()).unwrap_or("status");
+            match sub {
+                "status" => {
+                    let status = core.phone_status()?;
+                    println!("{}", serde_json::to_string_pretty(&status)?);
+                }
+                "observe" => {
+                    let serial = args.get(3).map(|s| s.as_str());
+                    let mut obs = core.phone.observe(&core.gateway, serial, false)?;
+                    obs.screenshot_png_base64 = None;
+                    println!("{}", serde_json::to_string_pretty(&obs)?);
+                }
+                "run" => {
+                    let goal = args.get(3).map(|s| s.as_str()).unwrap_or("Öffne Einstellungen");
+                    let mut serial: Option<String> = None;
+                    let mut auto = false;
+                    let mut yes_sensitive = false;
+                    let mut idx = 4;
+                    while idx < args.len() {
+                        match args[idx].as_str() {
+                            "--serial" | "-s" if idx + 1 < args.len() => {
+                                serial = Some(args[idx + 1].clone());
+                                idx += 1;
+                            }
+                            "--auto" => auto = true,
+                            "--yes-sensitive" => yes_sensitive = true,
+                            _ => {}
+                        }
+                        idx += 1;
+                    }
+                    let report = core.run_phone_goal_with_options(
+                        serial.as_deref(),
+                        goal,
+                        auto,
+                        yes_sensitive,
+                    )?;
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                }
+                _ => {
+                    println!("Verwendung: aido-cli phone [status | observe [serial] | run \"<ziel>\" [--serial S] [--auto] [--yes-sensitive]]");
+                }
+            }
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -96,7 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/12] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/13] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -104,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/12] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/13] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -121,14 +165,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/12] Ausführung nach Freigabe:");
+            println!("\n[3/13] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/12] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/13] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -137,7 +181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/12] App Intelligence & Projektkatalog:");
+            println!("\n[5/13] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -188,7 +232,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 6: Smart Installer & Modell-Wiederverwendung
-            println!("\n[6/12] Smart Installer & Modell-Wiederverwendung:");
+            println!("\n[6/13] Smart Installer & Modell-Wiederverwendung:");
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             let total_models = plan.models.len();
             let reused_models = plan.eta.reused_models_count;
@@ -225,7 +269,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 7: Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung
-            println!("\n[7/12] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
+            println!("\n[7/13] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
             // Store a second episodic memory so compaction threshold (min_entries = 2) is met
             core.memory.store_memory(
                 "EpisodicMemory",
@@ -287,7 +331,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 8: Proaktive Vordenker-Engine & Deep Cleanup
-            println!("\n[8/12] Proaktive Vordenker-Engine & Deep Cleanup:");
+            println!("\n[8/13] Proaktive Vordenker-Engine & Deep Cleanup:");
             let seeded_deep = core.bridge.seed_demo_deep_cleanup_files()?;
             println!(
                 "  Test-Staging für Tiefenbereinigung vorbereitet: {} KB in '{}'",
@@ -351,7 +395,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    {}", dc_result.human_report);
 
             // Step 9: Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8)
-            println!("\n[9/12] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
+            println!("\n[9/13] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
             let p78_report = core.evaluate_adapter_sandbox_and_release_readiness(
                 "obs-studio",
                 "OBS Studio",
@@ -417,7 +461,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Statusbericht: {}", p78_report.release_readiness.human_summary);
 
             // Step 10: Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität)
-            println!("\n[10/12] Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität):");
+            println!("\n[10/13] Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität):");
             let challenge = core.start_remote_pairing_challenge()?;
             println!("  1. Pairing-Challenge generiert:");
             println!("    • Challenge-ID: {}", challenge.challenge_id);
@@ -447,7 +491,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Zone 4 (Daumen-Aktionen): Pending Approvals = {}, Reply-Chips: {:?}", cockpit.pending_approvals_count, cockpit.reply_chips_de);
 
             // Step 11: Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes)
-            println!("\n[11/12] Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes):");
+            println!("\n[11/13] Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes):");
             let mp_report = core.evaluate_masterplan_completion()?;
             println!("  1. 7-Ebenen-Gedächtnis & Procedural Skills:");
             println!(
@@ -529,7 +573,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Hinweis: {}", mp_report.docker_audit.remediation_hint_de);
 
             // Step 12: REA Universelle App-Reverse-Engineering & Adapter-Synthese (morluto/rea)
-            println!("\n[12/12] REA Universelle App-Reverse-Engineering & Adapter-Synthese (morluto/rea):");
+            println!("\n[12/13] REA Universelle App-Reverse-Engineering & Adapter-Synthese (morluto/rea):");
             let target_exe = {
                 let notepad = PathBuf::from(r"C:\Windows\System32\notepad.exe");
                 if notepad.exists() {
@@ -584,9 +628,76 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Bevorzugte Steuerung: {:?}", rea_entry.preferred_control);
             println!("    • Herkunft: {:?}", rea_entry.adapter_origin);
             println!("    • Zusammenfassung: {}", rea_report.human_summary_de);
+
+            // Step 13: AIDO Phone Agent (Android über ADB)
+            println!("\n[13/13] AIDO Phone Agent (Android über ADB):");
+            let phone_status = core.phone_status()?;
+            println!("  1. ADB-Infrastruktur & Status:");
+            println!(
+                "    • ADB verfügbar: {} ({})",
+                phone_status.adb_available,
+                phone_status.adb_path.as_deref().unwrap_or("Nicht gefunden")
+            );
+            println!(
+                "    • Verbundene Geräte ({}):",
+                phone_status.devices.len()
+            );
+            for d in &phone_status.devices {
+                let ime = phone_status
+                    .adb_keyboard_installed
+                    .get(&d.serial)
+                    .copied()
+                    .unwrap_or(false);
+                println!(
+                    "        - Serial: {} | Modell: {} | Transport: {} | ADB Keyboard: {}",
+                    d.serial, d.model, d.transport, ime
+                );
+            }
+
+            if phone_status.devices.is_empty() {
+                println!("  2. Kein physisches Gerät verbunden:");
+                println!("    • Hinweis: Bitte USB-Debugging auf dem Android-Smartphone aktivieren oder per 'adb pair <IP:Port> <Code>' verbinden.");
+                println!("    • Starte deterministischen Trockenlauf mit Mock-Runner für 'Öffne Einstellungen'...");
+
+                let mock_runner = std::sync::Arc::new(aido_core::phone_bridge::MockAdbRunner::new());
+                mock_runner.set_response_for_substr(
+                    "devices -l",
+                    Ok(b"List of devices attached\nMOCK_PIXEL_8 device usb:1-1 product:shiba model:Pixel_8\n".to_vec()),
+                );
+                mock_runner.set_response_for_substr(
+                    "dumpsys window",
+                    Ok(b"mCurrentFocus=Window{123 u0 com.android.settings/com.android.settings.Settings}\n".to_vec()),
+                );
+                mock_runner.set_response_for_substr(
+                    "ime list",
+                    Ok(b"com.android.adbkeyboard/.AdbIME\n".to_vec()),
+                );
+
+                let mock_bridge = aido_core::phone_bridge::PhoneBridge::new(mock_runner);
+                let demo_core = core.with_phone_bridge(mock_bridge);
+                let dry_run = demo_core.run_phone_goal(Some("MOCK_PIXEL_8"), "Öffne Einstellungen", true)?;
+
+                println!("    • Trockenlauf-Ergebnis:");
+                println!("        - Ziel: '{}'", dry_run.goal);
+                println!("        - Abgeschlossen: {}", dry_run.completed);
+                println!("        - Ausgeführte Schritte: {}", dry_run.steps.len());
+                for s in &dry_run.steps {
+                    println!("          Schritt {}: {:?} -> {}", s.step, s.action, s.outcome_de);
+                }
+                println!("        - Zusammenfassung: {}", dry_run.summary_de);
+            } else {
+                let first_serial = &phone_status.devices[0].serial;
+                println!(
+                    "  2. Aktives Gerät '{}' erkannt. Führe Testbeobachtung durch...",
+                    first_serial
+                );
+                let obs = core.phone.observe(&core.gateway, Some(first_serial), false)?;
+                println!("    • Vordergrund-App: {}", obs.foreground_package);
+                println!("    • Erkannte UI-Elemente: {}", obs.ui_nodes.len());
+            }
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check | remote | masterplan | rea]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check | remote | masterplan | rea | phone]");
         }
     }
 

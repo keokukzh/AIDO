@@ -12,6 +12,7 @@ pub enum SpecialistRole {
     AutomationExpert,
     SecurityExpert,
     ResearchExpert,
+    PhoneExpert,
 }
 
 impl SpecialistRole {
@@ -25,6 +26,7 @@ impl SpecialistRole {
             SpecialistRole::AutomationExpert => "Automatisierungs-Experte",
             SpecialistRole::SecurityExpert => "Sicherheits-Experte",
             SpecialistRole::ResearchExpert => "Recherche-Experte",
+            SpecialistRole::PhoneExpert => "Handy-Experte",
         }
     }
 
@@ -38,6 +40,7 @@ impl SpecialistRole {
             SpecialistRole::AutomationExpert => "Hintergrundaufgaben und wiederkehrende Abläufe",
             SpecialistRole::SecurityExpert => "Aktionen gegen Berechtigungsregeln prüfen",
             SpecialistRole::ResearchExpert => "Bei erlaubtem Internetzugriff Informationen recherchieren",
+            SpecialistRole::PhoneExpert => "Android steuern über ADB, Apps bedienen und Anrufe/SMS initiieren",
         }
     }
 }
@@ -103,6 +106,11 @@ impl SpecialistRouter {
                 SpecialistRole::ResearchExpert.title_de(),
                 SpecialistRole::ResearchExpert.description_de(),
             ),
+            (
+                SpecialistRole::PhoneExpert,
+                SpecialistRole::PhoneExpert.title_de(),
+                SpecialistRole::PhoneExpert.description_de(),
+            ),
         ]
     }
 
@@ -125,6 +133,24 @@ impl SpecialistRouter {
                 SpecialistRole::ResearchExpert,
                 vec![MemoryLayer::SoulMemory, MemoryLayer::SemanticMemory],
                 false,
+            )
+        } else if q.contains("handy")
+            || q.contains("smartphone")
+            || q.contains("telefon")
+            || q.contains("android")
+            || q.contains("whatsapp")
+            || q.contains("sms")
+            || q.contains("anrufen")
+            || q.contains("app auf dem handy")
+        {
+            (
+                SpecialistRole::PhoneExpert,
+                vec![
+                    MemoryLayer::SoulMemory,
+                    MemoryLayer::ProceduralMemory,
+                    MemoryLayer::EpisodicMemory,
+                ],
+                true,
             )
         } else if q.contains("hardware")
             || q.contains("vram")
@@ -303,7 +329,15 @@ mod tests {
         assert!(plan_sec.required_memory_layers.contains(&MemoryLayer::SoulMemory));
         assert!(plan_sec.requires_gateway_approval);
 
-        // 7. AidoCore (General)
+        // 7. PhoneExpert
+        let plan_phone = router.route_intent(&gateway, "Öffne WhatsApp auf dem Handy und sende SMS");
+        assert_eq!(plan_phone.selected_specialist, SpecialistRole::PhoneExpert);
+        assert!(plan_phone.required_memory_layers.contains(&MemoryLayer::SoulMemory));
+        assert!(plan_phone.required_memory_layers.contains(&MemoryLayer::ProceduralMemory));
+        assert!(plan_phone.required_memory_layers.contains(&MemoryLayer::EpisodicMemory));
+        assert!(plan_phone.requires_gateway_approval);
+
+        // 8. AidoCore (General)
         let plan_core = router.route_intent(&gateway, "Guten Morgen AIDO, wie ist der Gesamtstatus?");
         assert_eq!(plan_core.selected_specialist, SpecialistRole::AidoCore);
         assert!(plan_core.required_memory_layers.contains(&MemoryLayer::SoulMemory));
@@ -311,7 +345,7 @@ mod tests {
 
         // Verify list_all_specialists
         let all = SpecialistRouter::list_all_specialists();
-        assert_eq!(all.len(), 8);
+        assert_eq!(all.len(), 9);
     }
 
     #[test]

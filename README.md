@@ -42,7 +42,7 @@ AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architekto
   - `AIDO-Ausgeschriebener-Name.png` (2.172 × 724 px)
   - `AIDO-MONO.glb` (140.924 Bytes)
 
-## Projektstand (9. November 2026 — Phasen 0 bis 12 abgeschlossen, 100 % Masterplan & REA App-Steuerung)
+## Projektstand (9. November 2026 — Phasen 0 bis 13 abgeschlossen, 100 % Masterplan, REA & Phone Agent)
 
 1. **Lokale Modell- & Runtime-Kette verifiziert (Phase 0 & 1 abgeschlossen):**
    - **Hauptmodell & Vision:** `Qwen3.8-27B-UD-Q4_K_M.gguf` + `mmproj-Qwen3.8-27B-BF16.gguf` + `Qwen3.8-27B-DFlash2-Q4_K_M.gguf` auf `llama-server.exe` (`v0.9.0-dev` Build 12176, CUDA 13.4) mit **151,54 Token/s** (Text warm), **102,70 Token/s** (Vision) und automatischer VRAM-Freigabe im Schlafmodus (`--sleep-idle-seconds`, **22,7 GB VRAM** werden im Leerlauf automatisch freigegeben).
@@ -75,17 +75,35 @@ AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architekto
    - **Evidenz-basierte Fähigkeiten & SHA-256 Provenance:** Extrahiert importierte DLLs (`USER32.dll`, `KERNEL32.dll`, `D3D12.dll` etc.) und synthetisiert daraus verifizierte AIDO-Fähigkeiten mit strikter Trennung harmloser Aktionen von freigabepflichtigen Gateway-Operationen.
    - **1-Klick Adapter-Registrierung:** Persistiert neu analysierte Programme direkt in AIDOs SQLite-App-Registry (`app_registry`), ordnet die beste Steuerungsmethode zu (`UiAutomation`, `McpPlugin`, `Cli`) und protokolliert lückenlose Audits.
    - **Interaktives REA Studio im Frontend:** Integrierte Studio-Ansicht (`#btn-rea`) mit Schnell-Presets (Notepad, OBS Studio, VS Code, CMD), Live-Header-Inspektion, Chip-Badges und 1-Klick-Registrierung.
+7. **Phase 13: AIDO Phone Agent (Android über ADB, Safety-Layer, Procedural Skills, ✅ Abgeschlossen):**
+   - **Lokale Android-Steuerung über ADB:** Volle Kontrolle über Android-Smartphones via USB oder Wi-Fi Pairing (`adb pair <ip:port> <code>`) ohne Cloud-Zwang.
+   - **UI-Tree Parsing & Vision-Fallback:** Parst `uiautomator dump` XML mit Bounding-Boxen und Center-Koordinaten für zielsichere Klicks auf UI-Nodes; `screencap` als Vision-Fallback für multimodale Modelle.
+   - **ADB-Keyboard IME mit UTF-8/Umlauten:** Nahtlose deutsche Texteingabe via Base64-Broadcast (`AdbIME`) mit voller Unterstützung für Umlaute und Emojis.
+   - **Strikter Safety-Layer & Permission Gateway:** Sensible Aktionen (SMS senden, Anrufe starten, APK-Installationen) erfordern zwingend eine Einzelfreigabe (`PhoneSensitiveAct`). Banking-, Zahlungs- und Passwort-Apps (`bank`, `paypal`, `revolut`, `n26`, `1password`, `authenticator` etc.) werden hard-geblockt und sofort an den Nutzer übergeben (*Hand-Off*).
+   - **Minimalistisches Schwarz/Weiß Phone Agent Cockpit:** Desktop-Oberfläche (`#btn-phone`) mit nativer S/W- & W/S-Umschaltung, Geräteverwaltung, Live-Bildschirm-Mockup, Ziel-Eingabe mit Whisper CUDA Sprachsteuerung, Not-Stopp-Taste und interaktiven Schritt-Freigabekarten.
+   - **Prozedurale Skills im Gedächtnis:** Erfolgreich ausgeführte Android-Handlungsabläufe werden automatisch als `ProceduralSkill` (`phone_<ziel>`) in AIDOs SQLite-Memory für künftige Wiederverwendung abgelegt.
+   - **CLI-Integration:** `aido-cli phone status`, `aido-cli phone observe [serial]`, `aido-cli phone run "<ziel>" [--auto] [--yes-sensitive]`, sowie Schritt 13/13 in `aido-cli demo`.
+   - *Inspiration:* [droidrun/mobilerun](https://github.com/droidrun/mobilerun), [zai-org/Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM), [mobile-next/mobile-mcp](https://github.com/mobile-next/mobile-mcp), AdbPhoneAgent. *Hinweis: iOS wird aktuell nicht unterstützt (erfordert macOS & WebDriverAgent).*
 
 ## Schnellstart (Kern-Prototyp & Tests)
 
 ```powershell
-# Rust Unit- & Integrationstests ausführen (70 Tests über alle 12 Phasen)
+# Rust Unit- & Integrationstests ausführen (86+ Tests über alle 13 Phasen)
 cd src-tauri
 $env:PATH = "C:\Users\keoku\.cargo\bin;" + $env:PATH
 cargo test
 
-# 12-stufige End-to-End-Demo (Systemcheck -> Fast Cleanup -> Memory -> Apps -> Projekte -> Installer -> Runtime -> Proaktive Vordenker-Engine & Deep Cleanup -> Adapter-Sandbox & Release-Check -> Agent Remote -> Masterplan-Abschluss -> REA App Reverse Engineering)
+# 13-stufige End-to-End-Demo (Systemcheck -> Fast Cleanup -> Memory -> Apps -> Projekte -> Installer -> Runtime -> Proaktive Vordenker-Engine & Deep Cleanup -> Adapter-Sandbox & Release-Check -> Agent Remote -> Masterplan-Abschluss -> REA App Reverse Engineering -> Phone Agent Android ADB)
 cargo run --bin aido-cli -- demo
+
+# Phone Agent Status & Android-Geräte abrufen
+cargo run --bin aido-cli -- phone status
+
+# UI-Tree des aktuellen Handy-Bildschirms analysieren
+cargo run --bin aido-cli -- phone observe
+
+# Ziel automatisiert auf dem Android-Gerät ausführen (mit Safety-Gateway)
+cargo run --bin aido-cli -- phone run "Öffne Einstellungen"
 
 # Vollständigen Masterplan-Report als JSON abrufen
 cargo run --bin aido-cli -- masterplan
@@ -123,5 +141,5 @@ Die [animierte AIDO-Landingpage](landingpage/index.html) lässt sich direkt im B
 | [Projektstatus](docs/PROJECT_STATUS.md) | Verifizierter Stand und Testergebnisse |
 | [Entwicklungsumgebung](docs/DEVELOPMENT_SETUP.md) | Früher Docker-Plan, Ist-Check und Übernahme für AIDO |
 | [Modellinventar](docs/MODEL_RUNTIME_INVENTORY.md) | Verifizierte Laufzeiten, SHA-256-Prüfsummen und Benchmarks |
-| [Roadmap](docs/ROADMAP.md) | Entwicklungsreihenfolge und Abnahme (Phasen 0 bis 12 abgeschlossen) |
+| [Roadmap](docs/ROADMAP.md) | Entwicklungsreihenfolge und Abnahme (Phasen 0 bis 13 abgeschlossen) |
 | [Entscheidungen](docs/DECISIONS.md) | Beschlüsse aus den AIDO-Interviews |

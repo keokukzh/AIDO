@@ -5,6 +5,8 @@ pub mod app_intelligence;
 pub mod docker_sandbox_bridge;
 pub mod memory;
 pub mod permission_gateway;
+pub mod phone_agent;
+pub mod phone_bridge;
 pub mod proactive_engine;
 pub mod project_intelligence;
 pub mod rea_bridge;
@@ -22,7 +24,9 @@ use permission_gateway::{
 };
 use project_intelligence::{ProjectEntry, ProjectIntelligenceEngine};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use windows_bridge::{FastCleanupResult, SystemHealthReport, WindowsBridge};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +52,7 @@ pub struct AidoCore {
     pub admin_broker: admin_broker::AdminBroker,
     pub docker_bridge: docker_sandbox_bridge::DockerSandboxBridge,
     pub rea: rea_bridge::ReaBridge,
+    pub phone: phone_bridge::PhoneBridge,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +97,48 @@ pub struct Phase7And8Report {
     pub release_readiness: smart_installer::ReleaseReadinessReport,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhoneStatusReport {
+    pub adb_available: bool,
+    pub adb_path: Option<String>,
+    pub devices: Vec<phone_bridge::PhoneDevice>,
+    pub adb_keyboard_installed: HashMap<String, bool>,
+}
+
+fn slugify_text(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.to_lowercase().chars() {
+        if c.is_alphanumeric() {
+            out.push(c);
+        } else if !out.ends_with('_') {
+            out.push('_');
+        }
+    }
+    out.trim_matches('_').to_string()
+}
+
+struct HybridPhonePlanner {
+    rule: phone_agent::RuleBasedPhonePlanner,
+    llm: phone_agent::LlmPhonePlanner,
+}
+
+impl phone_agent::PhonePlanner for HybridPhonePlanner {
+    fn next_action(
+        &self,
+        goal: &str,
+        obs: &phone_bridge::PhoneObservation,
+        history: &[phone_agent::PhoneStepRecord],
+    ) -> phone_bridge::PhoneAction {
+        let act = self.rule.next_action(goal, obs, history);
+        if let phone_bridge::PhoneAction::HandOffToUser { reason } = &act {
+            if reason.contains("konnte vom regelbasierten Planer nicht eindeutig interpretiert werden") {
+                return self.llm.next_action(goal, obs, history);
+            }
+        }
+        act
+    }
+}
+
 impl AidoCore {
     pub fn new(
         access_mode: AccessMode,
@@ -114,6 +161,13 @@ impl AidoCore {
         let admin_broker = admin_broker::AdminBroker::new();
         let docker_bridge = docker_sandbox_bridge::DockerSandboxBridge::new();
         let rea = rea_bridge::ReaBridge::new();
+        let phone_runner: Arc<dyn phone_bridge::AdbRunner> =
+            if let Some(adb_path) = phone_bridge::locate_adb() {
+                Arc::new(phone_bridge::SystemAdbRunner::new(adb_path))
+            } else {
+                Arc::new(phone_bridge::NoAdbRunner)
+            };
+        let phone = phone_bridge::PhoneBridge::new(phone_runner);
         Ok(Self {
             gateway,
             memory,
@@ -130,6 +184,7 @@ impl AidoCore {
             admin_broker,
             docker_bridge,
             rea,
+            phone,
         })
     }
 
@@ -806,6 +861,127 @@ impl AidoCore {
         )?;
 
         Ok((report, registered_entry))
+    }
+
+    /// Replaces the default phone bridge with a custom (e.g. mock-backed) bridge instance.
+    pub fn with_phone_bridge(mut self, bridge: phone_bridge::PhoneBridge) -> Self {
+        self.phone = bridge;
+        self
+    }
+
+    /// Reports ADB availability, connected Android devices, and ADB Keyboard installation status.
+    pub fn phone_status(&self) -> Result<PhoneStatusReport, phone_bridge::PhoneError> {
+        let adb_path = phone_bridge::locate_adb().map(|p| p.to_string_lossy().to_string());
+        let adb_available = adb_path.is_some();
+        let devices = match self.phone.list_devices() {
+            Ok(d) => d,
+            Err(phone_bridge::PhoneError::AdbNotFound) => Vec::new(),
+            Err(e) => return Err(e),
+        };
+        let mut adb_keyboard_installed = HashMap::new();
+        for dev in &devices {
+            let has_ime = self.phone.adb_keyboard_status(Some(&dev.serial));
+            adb_keyboard_installed.insert(dev.serial.clone(), has_ime);
+        }
+        Ok(PhoneStatusReport {
+            adb_available,
+            adb_path,
+            devices,
+            adb_keyboard_installed,
+        })
+    }
+
+    /// Runs a user goal on an Android phone using the Phone Agent.
+    /// Non-sensitive actions are auto-approved if `auto_approve_non_sensitive` is true.
+    /// Sensitive actions (SMS, Calls, APK install, Wi-Fi pairing) always require explicit approval.
+    pub fn run_phone_goal(
+        &self,
+        serial: Option<&str>,
+        goal: &str,
+        auto_approve_non_sensitive: bool,
+    ) -> Result<phone_agent::PhoneRunReport, Box<dyn std::error::Error>> {
+        self.run_phone_goal_with_options(serial, goal, auto_approve_non_sensitive, false)
+    }
+
+    /// Runs a user goal with granular auto-approval options for both standard and sensitive actions.
+    pub fn run_phone_goal_with_options(
+        &self,
+        serial: Option<&str>,
+        goal: &str,
+        auto_approve_non_sensitive: bool,
+        yes_sensitive: bool,
+    ) -> Result<phone_agent::PhoneRunReport, Box<dyn std::error::Error>> {
+        let planner = Arc::new(HybridPhonePlanner {
+            rule: phone_agent::RuleBasedPhonePlanner::new(),
+            llm: phone_agent::LlmPhonePlanner::new(self.ai.clone()),
+        });
+        let agent = phone_agent::PhoneAgent::new(Arc::new(self.phone.clone()), planner);
+
+        let report = agent.run_goal(
+            &self.gateway,
+            serial,
+            goal,
+            &|act| {
+                let action_kind = match act {
+                    phone_bridge::PhoneAction::SendSms { .. }
+                    | phone_bridge::PhoneAction::StartCall { .. } => {
+                        permission_gateway::ActionKind::PhoneSensitiveAct
+                    }
+                    _ => permission_gateway::ActionKind::PhoneAct,
+                };
+
+                if action_kind == permission_gateway::ActionKind::PhoneSensitiveAct {
+                    if !yes_sensitive {
+                        return None;
+                    }
+                } else if !auto_approve_non_sensitive {
+                    return None;
+                }
+
+                let req = self.gateway.latest_pending_request(Some(&action_kind))?;
+                self.gateway
+                    .approve_request(req.request_id, Some("Automatisch freigegeben".into()))
+                    .ok()
+            },
+        );
+
+        if report.completed {
+            self.memory.record_audit(
+                "PhoneAgentGoal",
+                &format!("{:?}", self.gateway.access_mode()),
+                &format!("{:?}", self.gateway.privacy_mode()),
+                true,
+                &format!(
+                    "Ziel auf Smartphone erfolgreich ausgeführt: '{}' ({} Schritte)",
+                    goal,
+                    report.steps.len()
+                ),
+            )?;
+
+            self.memory.store_memory(
+                "EpisodicMemory",
+                "PhoneAgent",
+                &format!("Smartphone-Aktion ausgeführt: '{}'", goal),
+                &format!(
+                    "Zusammenfassung: {} | Schritte: {}",
+                    report.summary_de,
+                    report.steps.len()
+                ),
+                "AidoCore::run_phone_goal",
+            )?;
+
+            let slug = slugify_text(goal);
+            let skill_id = format!("phone_{}", slug);
+            let steps_json = serde_json::to_string(&report.steps).unwrap_or_else(|_| "[]".into());
+            let _ = self.memory.register_or_update_procedural_skill(
+                &skill_id,
+                &format!("Smartphone-Ablauf: {}", goal),
+                goal,
+                &steps_json,
+            )?;
+        }
+
+        Ok(report)
     }
 }
 
@@ -1565,5 +1741,79 @@ mod tests {
         let _ = std::fs::remove_file(db_path);
         let _ = std::fs::remove_dir_all(safe_temp_dir);
         let _ = std::fs::remove_dir_all(test_bin_dir);
+    }
+
+    #[test]
+    fn aido_core_phone_agent_integration_with_mock_runner() {
+        let temp_dir = std::env::temp_dir();
+        let unique = Uuid::new_v4().to_string();
+        let db_path = temp_dir.join(format!("aido_phone_int_test_{}.db", unique));
+        let safe_temp_dir = temp_dir.join(format!("aido_phone_staging_{}", unique));
+
+        let core = AidoCore::new(
+            AccessMode::StandardAccess,
+            PrivacyMode::PrivateOffline,
+            &db_path,
+            &safe_temp_dir,
+        )
+        .expect("AidoCore initialization failed");
+
+        // 1. Set up mock ADB runner
+        let runner = Arc::new(phone_bridge::MockAdbRunner::new());
+        runner.set_response_for_substr(
+            "devices -l",
+            Ok(b"List of devices attached\nR58N123ABC device usb:1-1 product:dm3q model:SM_S918B\n".to_vec()),
+        );
+        runner.set_response_for_substr(
+            "dumpsys window",
+            Ok(b"mCurrentFocus=Window{123 u0 com.android.settings/com.android.settings.Settings}\n".to_vec()),
+        );
+        runner.set_response_for_substr(
+            "ime list",
+            Ok(b"com.android.adbkeyboard/.AdbIME\n".to_vec()),
+        );
+
+        // 2. Swap into core via with_phone_bridge helper
+        let mock_bridge = phone_bridge::PhoneBridge::new(runner.clone());
+        let core = core.with_phone_bridge(mock_bridge);
+
+        // 3. Verify phone_status reports the mock device and adb keyboard
+        let status = core.phone_status().expect("phone_status failed");
+        assert_eq!(status.devices.len(), 1);
+        assert_eq!(status.devices[0].serial, "R58N123ABC");
+        assert_eq!(status.devices[0].model, "SM_S918B");
+        assert_eq!(status.adb_keyboard_installed.get("R58N123ABC"), Some(&true));
+
+        // 4. Run goal "Öffne Einstellungen" with auto-approval
+        let report = core
+            .run_phone_goal(Some("R58N123ABC"), "Öffne Einstellungen", true)
+            .expect("run_phone_goal failed");
+
+        assert!(report.completed);
+        assert!(!report.handed_off);
+        assert!(report.steps.len() >= 2);
+
+        // 5. Verify audit log entry
+        let audits = core.memory.list_audit_log(5).expect("list audit log");
+        assert!(audits.iter().any(|a| a.action == "PhoneAgentGoal"));
+
+        // 6. Verify EpisodicMemory
+        let memories = core
+            .memory
+            .search_memory("PhoneAgent", 5)
+            .expect("search_memory failed");
+        assert!(!memories.is_empty());
+        assert_eq!(memories[0].category, "PhoneAgent");
+
+        // 7. Verify ProceduralSkill registration
+        let skills = core
+            .memory
+            .list_procedural_skills(false)
+            .expect("list_procedural_skills failed");
+        assert!(skills.iter().any(|s| s.skill_id.starts_with("phone_")));
+
+        // Cleanup
+        let _ = std::fs::remove_file(db_path);
+        let _ = std::fs::remove_dir_all(safe_temp_dir);
     }
 }

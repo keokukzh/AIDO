@@ -28,6 +28,7 @@ pub struct VoiceTranscriptionResult {
     pub local_only: bool,
 }
 
+#[derive(Clone)]
 pub struct LocalAiClient {
     gateway: PermissionGateway,
     llama_base_url: String,

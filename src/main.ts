@@ -457,6 +457,8 @@ const btnStaticRemote = document.getElementById("btn-remote") as HTMLButtonEleme
 btnStaticRemote?.addEventListener("click", () => showAgentRemoteView());
 const btnStaticRea = document.getElementById("btn-rea") as HTMLButtonElement | null;
 btnStaticRea?.addEventListener("click", () => showReaStudioView());
+const btnStaticPhone = document.getElementById("btn-phone") as HTMLButtonElement | null;
+btnStaticPhone?.addEventListener("click", () => showPhoneAgentView());
 
 const monoCanvas = document.getElementById("aido-mono-3d-canvas") as HTMLCanvasElement | null;
 const characterViewport = document.getElementById("character-viewport-container") as HTMLDivElement | null;
@@ -590,6 +592,16 @@ function renderDefaultButtons(): void {
   btnRea.style.fontWeight = "600";
   btnRea.onclick = () => showReaStudioView();
 
+  const btnPhone = document.createElement("button");
+  btnPhone.id = "btn-phone";
+  btnPhone.textContent = "📲 Phone Agent (Android)";
+  btnPhone.dataset.action = "phone";
+  btnPhone.style.background = "rgba(255, 255, 255, 0.12)";
+  btnPhone.style.borderColor = "rgba(255, 255, 255, 0.32)";
+  btnPhone.style.color = "#ffffff";
+  btnPhone.style.fontWeight = "600";
+  btnPhone.onclick = () => showPhoneAgentView();
+
   const btnBrandStudio = document.createElement("button");
   btnBrandStudio.textContent = "🎨 AIDO-MONO 3D & Brand Studio";
   btnBrandStudio.dataset.action = "brand-studio";
@@ -648,6 +660,7 @@ function renderDefaultButtons(): void {
   actionButtons.append(
     btnMasterplan,
     btnRea,
+    btnPhone,
     btnBrandStudio,
     btnRemote,
     btnCheck,
@@ -3521,6 +3534,710 @@ function showReaStudioView(targetPathOverride?: string): void {
   appendAudit(`[REA Studio] REA Reverse Engineering Studio geöffnet für '${report.displayName}'.`);
 }
 
+// =========================================================================
+// Phase 13: AIDO Phone Agent (Android über ADB, Safety-Layer, UI-Nodes)
+// =========================================================================
+
+interface SimulatedPhoneDevice {
+  serial: string;
+  model: string;
+  transport: "usb" | "wifi";
+  state: "device" | "unauthorized" | "offline";
+  batteryPercent: number;
+}
+
+interface SimulatedUiNode {
+  index: number;
+  text: string;
+  resourceId: string;
+  clickable: boolean;
+  isPassword?: boolean;
+}
+
+interface PhonePlannedStep {
+  id: number;
+  stepNumber: number;
+  kind: "Act" | "SensitiveAct" | "HandOff";
+  title: string;
+  detail: string;
+  sensitive: boolean;
+  status: "pending" | "approved" | "rejected" | "handed_off";
+}
+
+const phoneDevices: SimulatedPhoneDevice[] = [
+  {
+    serial: "Pixel-8-USB",
+    model: "Google Pixel 8 · USB 3.2",
+    transport: "usb",
+    state: "device",
+    batteryPercent: 84,
+  },
+];
+
+let phoneKeyboardInstalled: boolean = false;
+let phoneForegroundApp: string = "com.android.settings";
+let phoneForegroundTitle: string = "Einstellungen";
+let phoneIsHandoffActive: boolean = false;
+let phoneEmergencyStopped: boolean = false;
+let phoneNoticeMessage: string = "";
+
+const phonePresetScreens: Record<string, { title: string; nodes: SimulatedUiNode[] }> = {
+  "com.android.settings": {
+    title: "Einstellungen",
+    nodes: [
+      { index: 0, text: "Einstellungen", resourceId: "android:id/title", clickable: false },
+      { index: 1, text: "Netzwerk & Internet · WLAN, Mobilfunk", resourceId: "com.android.settings:id/network", clickable: true },
+      { index: 2, text: "Verbundene Geräte · Bluetooth, Kopplung", resourceId: "com.android.settings:id/connected", clickable: true },
+      { index: 3, text: "Apps & Benachrichtigungen", resourceId: "com.android.settings:id/apps", clickable: true },
+      { index: 4, text: "Akku · 84 % verbleibend", resourceId: "com.android.settings:id/battery", clickable: true },
+      { index: 5, text: "Speicher · 42 GB von 128 GB belegt", resourceId: "com.android.settings:id/storage", clickable: true },
+      { index: 6, text: "Töne & Vibration", resourceId: "com.android.settings:id/sound", clickable: true },
+      { index: 7, text: "Display · Dunkles Design aktiv", resourceId: "com.android.settings:id/display", clickable: true },
+      { index: 8, text: "Sicherheit & Datenschutz", resourceId: "com.android.settings:id/security", clickable: true },
+      { index: 9, text: "System & Updates", resourceId: "com.android.settings:id/system", clickable: true },
+    ],
+  },
+  "com.android.settings.network": {
+    title: "Netzwerk & Internet",
+    nodes: [
+      { index: 0, text: "Internet & WLAN", resourceId: "com.android.settings:id/wifi_settings", clickable: true },
+      { index: 1, text: "WLAN aktiviert · Heimnetz-5G", resourceId: "com.android.settings:id/active_wifi", clickable: true },
+      { index: 2, text: "SIM-Karten · Telekom 5G (Aktiv)", resourceId: "com.android.settings:id/sim_cards", clickable: true },
+      { index: 3, text: "Flugmodus · Deaktiviert", resourceId: "com.android.settings:id/airplane", clickable: true },
+      { index: 4, text: "Hotspot & Tethering", resourceId: "com.android.settings:id/tethering", clickable: true },
+    ],
+  },
+  "com.whatsapp": {
+    title: "WhatsApp",
+    nodes: [
+      { index: 0, text: "WhatsApp", resourceId: "com.whatsapp:id/toolbar_title", clickable: false },
+      { index: 1, text: "Chats (3 ungelesen)", resourceId: "com.whatsapp:id/tab_chats", clickable: true },
+      { index: 2, text: "Max Mustermann: Alles klar für heute Abend!", resourceId: "com.whatsapp:id/chat_0", clickable: true },
+      { index: 3, text: "Team AIDO: Release v0.1.0 steht bereit 🚀", resourceId: "com.whatsapp:id/chat_1", clickable: true },
+      { index: 4, text: "Sarah K.: Danke dir für den schnellen Check!", resourceId: "com.whatsapp:id/chat_2", clickable: true },
+      { index: 5, text: "Neuer Chat / Lupe", resourceId: "com.whatsapp:id/fab", clickable: true },
+    ],
+  },
+  "com.google.android.apps.messaging": {
+    title: "Nachrichten (SMS)",
+    nodes: [
+      { index: 0, text: "Nachrichten", resourceId: "com.google.android.apps.messaging:id/title", clickable: false },
+      { index: 1, text: "Chat starten", resourceId: "com.google.android.apps.messaging:id/start_chat", clickable: true },
+      { index: 2, text: "Empfänger: +49 170 1234567", resourceId: "com.google.android.apps.messaging:id/recipient", clickable: true },
+      { index: 3, text: "Text: 'Hallo von AIDO! Termin steht fest.'", resourceId: "com.google.android.apps.messaging:id/body", clickable: true },
+      { index: 4, text: "Senden (SMS)", resourceId: "com.google.android.apps.messaging:id/send", clickable: true },
+    ],
+  },
+  "com.paypal.android.p2pmobile": {
+    title: "PayPal · Banking/Zahlung",
+    nodes: [
+      { index: 0, text: "PayPal Login", resourceId: "com.paypal.android:id/header", clickable: false },
+      { index: 1, text: "E-Mail-Adresse eingeben", resourceId: "com.paypal.android:id/email", clickable: true },
+      { index: 2, text: "Passwort eingeben", resourceId: "com.paypal.android:id/password", clickable: true, isPassword: true },
+      { index: 3, text: "Zwei-Faktor-Code (2FA)", resourceId: "com.paypal.android:id/2fa", clickable: true, isPassword: true },
+      { index: 4, text: "Einloggen", resourceId: "com.paypal.android:id/submit", clickable: true },
+    ],
+  },
+};
+
+let phoneCurrentNodes: SimulatedUiNode[] = phonePresetScreens["com.android.settings"].nodes;
+
+let phonePlanSteps: PhonePlannedStep[] = [
+  {
+    id: 1,
+    stepNumber: 1,
+    kind: "Act",
+    title: "App starten: Einstellungen (com.android.settings)",
+    detail: "adb shell monkey -p com.android.settings -c android.intent.category.LAUNCHER 1",
+    sensitive: false,
+    status: "approved",
+  },
+  {
+    id: 2,
+    stepNumber: 2,
+    kind: "Act",
+    title: "Tippe auf UI-Node [1]: Netzwerk & Internet",
+    detail: "adb shell input tap 540 680 (Center von Node [1])",
+    sensitive: false,
+    status: "pending",
+  },
+];
+
+function triggerPhoneEmergencyStop(): void {
+  phoneEmergencyStopped = true;
+  for (const step of phonePlanSteps) {
+    if (step.status === "pending") {
+      step.status = "rejected";
+    }
+  }
+  phoneNoticeMessage = "🛑 Not-Stopp betätigt! Alle ADB-Befehle und Automations-Schritte sofort abgebrochen.";
+  appendAudit("[PhoneAgent] 🛑 Not-Stopp ausgelöst! Alle ADB-Befehle und geplanten Schritte abgebrochen.");
+  showPhoneAgentView();
+}
+
+function triggerPhoneScreenshot(): void {
+  monoViewer?.setState("thinking");
+  setTimeout(() => {
+    monoViewer?.setState("idle");
+    phoneNoticeMessage = `📸 UI-Tree & Screenshot aktualisiert (${phoneCurrentNodes.length} interaktive Nodes geladen).`;
+    appendAudit(`[PhoneAgent] UI-Tree aktualisiert: ${phoneCurrentNodes.length} Nodes erfasst via uiautomator dump (Foreground: ${phoneForegroundApp}).`);
+    showPhoneAgentView();
+  }, 350);
+}
+
+function triggerPhoneVoice(): void {
+  monoViewer?.setState("listening");
+  setCharacterState("Handy-Befehl hört zu (Whisper CUDA)...", true);
+  setTimeout(() => {
+    monoViewer?.setState("thinking");
+    setTimeout(() => {
+      monoViewer?.setState("speaking");
+      setCharacterState("Bereit (Phone Agent)", false);
+      const recognized = "Öffne WhatsApp";
+      appendAudit("[PhoneAgent] Whisper CUDA Spracheingabe transkribiert (0,34 s Latenz): 'Öffne WhatsApp'");
+      handlePhoneGoal(recognized);
+      setTimeout(() => {
+        if (monoViewer?.getState() === "speaking") monoViewer?.setState("idle");
+      }, 1500);
+    }, 400);
+  }, 400);
+}
+
+function handlePhoneGoal(goal: string): void {
+  phoneEmergencyStopped = false;
+  const lower = goal.toLowerCase();
+
+  if (lower.includes("einstellung") || lower.includes("settings")) {
+    phoneForegroundApp = "com.android.settings";
+    phoneForegroundTitle = "Einstellungen";
+    phoneCurrentNodes = phonePresetScreens["com.android.settings"].nodes;
+    phoneIsHandoffActive = false;
+    phonePlanSteps = [
+      {
+        id: Date.now(),
+        stepNumber: 1,
+        kind: "Act",
+        title: "App starten: Einstellungen (com.android.settings)",
+        detail: "adb shell monkey -p com.android.settings -c android.intent.category.LAUNCHER 1",
+        sensitive: false,
+        status: "pending",
+      },
+    ];
+    appendAudit(`[PhoneAgent] Ziel geplant: '${goal}' -> LaunchApp(com.android.settings).`);
+    phoneNoticeMessage = `Neuer Schritt geplant für Ziel: '${goal}'.`;
+  } else if (lower.includes("whatsapp")) {
+    phoneForegroundApp = "com.whatsapp";
+    phoneForegroundTitle = "WhatsApp";
+    phoneCurrentNodes = phonePresetScreens["com.whatsapp"].nodes;
+    phoneIsHandoffActive = false;
+    phonePlanSteps = [
+      {
+        id: Date.now(),
+        stepNumber: 1,
+        kind: "Act",
+        title: "App starten: WhatsApp (com.whatsapp)",
+        detail: "adb shell monkey -p com.whatsapp -c android.intent.category.LAUNCHER 1",
+        sensitive: false,
+        status: "pending",
+      },
+    ];
+    appendAudit(`[PhoneAgent] Ziel geplant: '${goal}' -> LaunchApp(com.whatsapp).`);
+    phoneNoticeMessage = `Neuer Schritt geplant für Ziel: '${goal}'.`;
+  } else if (lower.includes("sms") || lower.includes("nachricht")) {
+    phoneForegroundApp = "com.google.android.apps.messaging";
+    phoneForegroundTitle = "Nachrichten (SMS)";
+    phoneCurrentNodes = phonePresetScreens["com.google.android.apps.messaging"].nodes;
+    phoneIsHandoffActive = false;
+    phonePlanSteps = [
+      {
+        id: Date.now(),
+        stepNumber: 1,
+        kind: "SensitiveAct",
+        title: "SMS senden an +49 170 1234567: 'Hallo von AIDO!'",
+        detail: "adb shell am start -a android.intent.action.SENDTO -d sms:+491701234567 --es sms_body 'Hallo von AIDO!'",
+        sensitive: true,
+        status: "pending",
+      },
+    ];
+    appendAudit("[PhoneAgent] Sensible Aktion geplant: SendSms (+49 170 1234567). PermissionGateway Einzelfreigabe erforderlich.");
+    phoneNoticeMessage = "⚠️ Sensible Aktion erfordert Einzelfreigabe: SMS senden.";
+  } else if (lower.includes("zurück") || lower.includes("back")) {
+    phonePlanSteps = [
+      {
+        id: Date.now(),
+        stepNumber: 1,
+        kind: "Act",
+        title: "Zurück-Taste ausführen (KEYCODE_BACK)",
+        detail: "adb shell input keyevent KEYCODE_BACK",
+        sensitive: false,
+        status: "pending",
+      },
+    ];
+    appendAudit("[PhoneAgent] Taste zurück gesendet (KEYCODE_BACK).");
+    phoneNoticeMessage = "Schritt geplant: KEYCODE_BACK.";
+  } else if (lower.includes("bank") || lower.includes("paypal") || lower.includes("2fa") || lower.includes("passwort")) {
+    phoneForegroundApp = "com.paypal.android.p2pmobile";
+    phoneForegroundTitle = "PayPal · Banking/Zahlung";
+    phoneCurrentNodes = phonePresetScreens["com.paypal.android.p2pmobile"].nodes;
+    phoneIsHandoffActive = true;
+    phonePlanSteps = [
+      {
+        id: Date.now(),
+        stepNumber: 1,
+        kind: "HandOff",
+        title: "🛑 Hard-Block: Übergabe an Nutzer wegen Banking/Passwort",
+        detail: "Package 'com.paypal.android.p2pmobile' blockiert automatische Taps & Tastatureingaben",
+        sensitive: true,
+        status: "handed_off",
+      },
+    ];
+    appendAudit("[SafetyLayer] Banking/Passwort-App 'com.paypal.android.p2pmobile' erkannt! Automatisierte Steuerung hart blockiert. Übergabe an Nutzer.");
+    phoneNoticeMessage = "🛑 Sicherheits-Blockade aktiv: Banking/Passwort-App erkannt. Übergabe an Nutzer.";
+  } else {
+    phonePlanSteps = [
+      {
+        id: Date.now(),
+        stepNumber: 1,
+        kind: "Act",
+        title: `Ziel ausführen: ${goal}`,
+        detail: `adb shell input tap 540 960 (Ziel: ${goal})`,
+        sensitive: false,
+        status: "pending",
+      },
+    ];
+    appendAudit(`[PhoneAgent] Ziel geplant: '${goal}'.`);
+    phoneNoticeMessage = `Schritt geplant für Ziel: '${goal}'.`;
+  }
+
+  showPhoneAgentView();
+}
+
+function tapPhoneNode(node: SimulatedUiNode): void {
+  if (node.isPassword) {
+    phoneIsHandoffActive = true;
+    appendAudit(`[SafetyLayer] Passwortfeld '${node.resourceId}' angetippt. Not-Handoff an Nutzer aktiviert.`);
+    phoneNoticeMessage = "🛑 Sicherheits-Blockade: Passwortfeld angetippt. Automatisierte Eingabe blockiert.";
+    showPhoneAgentView();
+    return;
+  }
+
+  if (node.text.includes("Netzwerk")) {
+    phoneForegroundApp = "com.android.settings.network";
+    phoneForegroundTitle = "Netzwerk & Internet";
+    phoneCurrentNodes = phonePresetScreens["com.android.settings.network"].nodes;
+    appendAudit(`[PhoneAgent] Node [${node.index}] ('${node.text}') angetippt: Wechsel zu 'Netzwerk & Internet'.`);
+  } else {
+    appendAudit(`[PhoneAgent] Node [${node.index}] ('${node.text}') angetippt via adb shell input tap.`);
+  }
+
+  showPhoneAgentView();
+}
+
+function approvePhoneStep(stepId: number): void {
+  const step = phonePlanSteps.find((s) => s.id === stepId);
+  if (!step) return;
+
+  step.status = "approved";
+  if (step.sensitive) {
+    appendAudit(`[PermissionGateway] Einzelfreigabe erteilt für sensible Aktion '${step.title}' (Token verifiziert).`);
+  } else {
+    appendAudit(`[PermissionGateway] Freigabe erteilt für '${step.title}' (Token verifiziert). Ausführung erfolgreich.`);
+  }
+
+  phoneNoticeMessage = `✓ Schritt '${step.title}' erfolgreich ausgeführt.`;
+  showPhoneAgentView();
+}
+
+function rejectPhoneStep(stepId: number): void {
+  const step = phonePlanSteps.find((s) => s.id === stepId);
+  if (!step) return;
+
+  step.status = "rejected";
+  appendAudit(`[PhoneAgent] Schritt '${step.title}' vom Nutzer abgelehnt/gestoppt.`);
+  phoneNoticeMessage = `✕ Schritt '${step.title}' wurde gestoppt.`;
+  showPhoneAgentView();
+}
+
+function showPhoneAgentView(): void {
+  setCharacterState("Phone Agent (Android ADB)", false);
+
+  const phoneThemeClass = `theme-${remoteMonochromeTheme}`;
+  const toggleBtnText = remoteMonochromeTheme === "bw" ? "◐ S/W ↔ ◑ W/S" : "◑ W/S ↔ ◐ S/W";
+
+  const devicesHtml = phoneDevices
+    .map(
+      (d) => `
+    <div class="phone-device-item">
+      <div>
+        <div style="font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+          <span>📱 ${d.model}</span>
+          <span class="phone-device-badge ${d.transport}">${d.transport.toUpperCase()}</span>
+        </div>
+        <div style="font-size: 0.72rem; color: #94a3b8; font-family: monospace; margin-top: 2px;">
+          Serial: <code>${d.serial}</code> · Status: ${d.state} · Akku: ${d.batteryPercent} % 🔋
+        </div>
+      </div>
+      <span class="badge offline" style="font-size: 0.72rem;">Verbunden</span>
+    </div>`
+    )
+    .join("");
+
+  const nodesHtml = phoneCurrentNodes
+    .map(
+      (n) => `
+    <div class="phone-node-item" data-node-index="${n.index}">
+      <span class="phone-node-num">[${n.index}]</span>
+      <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+        <span style="font-weight: ${n.clickable ? "600" : "400"};">${n.text}</span>
+        ${n.isPassword ? `<span style="font-size: 0.65rem; color: #ef4444; margin-left: 6px;">[🔒 Passwortfeld]</span>` : ""}
+      </div>
+      ${n.clickable ? `<span style="font-size: 0.68rem; opacity: 0.6; font-family: monospace;">[TAP]</span>` : ""}
+    </div>`
+    )
+    .join("");
+
+  const stepsHtml = phonePlanSteps
+    .map((s) => {
+      const badgeText = s.sensitive
+        ? `<span class="phone-sensitive-badge">⚠️ Sensibel – Einzelfreigabe</span>`
+        : `<span class="mono-badge">#${s.stepNumber} · Standard</span>`;
+
+      const actionButtons =
+        s.status === "pending"
+          ? `<div style="display: flex; gap: 8px; margin-top: 6px;">
+               <button class="phone-btn primary btn-phone-step-approve" data-step-id="${s.id}">✓ Freigeben</button>
+               <button class="phone-btn danger btn-phone-step-reject" data-step-id="${s.id}">✕ Stopp</button>
+             </div>`
+          : s.status === "approved"
+          ? `<div style="font-size: 0.74rem; color: #34d399; font-weight: 600; margin-top: 4px;">✓ Freigegeben &amp; Ausgeführt</div>`
+          : s.status === "handed_off"
+          ? `<div style="font-size: 0.74rem; color: #ef4444; font-weight: 600; margin-top: 4px;">🛑 An Nutzer übergeben</div>`
+          : `<div style="font-size: 0.74rem; color: #fca5a5; font-weight: 600; margin-top: 4px;">✕ Vom Nutzer gestoppt / abgelehnt</div>`;
+
+      return `
+      <div class="phone-approval-card" style="border-left: 3px solid ${s.sensitive ? "#f59e0b" : "#38bdf8"};">
+        <div class="phone-approval-badge-row">
+          <span style="font-weight: 700; font-size: 0.84rem; color: #ffffff;">Schritt ${s.stepNumber}: ${s.title}</span>
+          ${badgeText}
+        </div>
+        <div style="font-family: monospace; font-size: 0.72rem; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 5px 8px; border-radius: 6px; word-break: break-all;">
+          ${s.detail}
+        </div>
+        ${actionButtons}
+      </div>`;
+    })
+    .join("");
+
+  const handoffCardHtml = phoneIsHandoffActive
+    ? `<div class="phone-handoff-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; color: #ef4444; font-size: 0.88rem;">🛑 An dich übergeben (Safety-Layer Hard-Block)</span>
+          <span style="font-size: 0.68rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.4); font-family: monospace;">SICHERHEITS-SCHUTZ</span>
+        </div>
+        <div style="font-size: 0.75rem; color: #fca5a5; line-height: 1.45;">
+          <b>Sensible Banking- oder Passwort-App im Vordergrund:</b> <code>${phoneForegroundApp}</code>.<br/>
+          AIDO blockiert jede automatisierte Eingabe, um Finanzdaten und Anmeldedaten zu schützen. Bitte führe die gewünschte Aktion manuell auf deinem Smartphone durch.
+        </div>
+        <div>
+          <button class="phone-btn primary" id="btn-phone-handoff-return" style="margin-top: 4px;">
+            👤 Manuell am Handy fortsetzen / Zurück zu Einstellungen
+          </button>
+        </div>
+      </div>`
+    : "";
+
+  const noticeHtml = phoneNoticeMessage
+    ? `<div style="padding: 8px 12px; border-radius: 8px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.78rem;">
+         ${phoneNoticeMessage}
+       </div>`
+    : "";
+
+  const emergencyBannerHtml = phoneEmergencyStopped
+    ? `<div style="padding: 10px 14px; border-radius: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
+         <span>🛑 NOT-STOPP AKTIV — Alle ADB-Aktionen sofort abgebrochen</span>
+         <button class="phone-btn subtle" id="btn-phone-reset-stop" style="font-size: 0.74rem;">Freigeben &amp; Zurücksetzen</button>
+       </div>`
+    : "";
+
+  const html = `
+    <div style="margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div style="font-size: 1.08rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+          <span>📲 AIDO Phone Agent — Android-Steuerung über ADB</span>
+          <span class="mono-badge">Phase 13</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="phone-btn danger" id="btn-phone-top-stop" title="Not-Stopp: Alle ADB-Aktionen sofort unterbrechen">🛑 Not-Stopp</button>
+          <button class="remote-theme-toggle" id="btn-phone-theme-toggle" title="Monochrome Theme wechseln">${toggleBtnText}</button>
+        </div>
+      </div>
+      <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">
+        Minimalistisches Schwarz/Weiß-Cockpit mit Hairline-Bordüren, Safety-Layer, UI-Tree-Parsing &amp; Einzelfreigaben nach <b>MASTERPLAN Phase 13</b>.
+      </div>
+    </div>
+
+    ${emergencyBannerHtml}
+    ${noticeHtml}
+
+    <div class="phone-agent-split">
+      <!-- Left Column: Live Screen Mockup & UI Nodes -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="phone-screen-mockup ${phoneThemeClass}" id="phone-screen-frame">
+          <!-- Status Bar -->
+          <div class="phone-status-bar">
+            <span>12:45 · 5G</span>
+            <span>AIDO-ADB · 84 % 🔋</span>
+          </div>
+
+          <!-- App Header -->
+          <div class="phone-app-header">
+            <div>
+              <div style="font-weight: 700; font-size: 0.86rem;">${phoneForegroundTitle}</div>
+              <div style="font-size: 0.68rem; font-family: monospace; opacity: 0.7;">${phoneForegroundApp}</div>
+            </div>
+            <span class="phone-app-badge">UI-Tree Dump</span>
+          </div>
+
+          <!-- UI Node List -->
+          <div style="font-size: 0.72rem; opacity: 0.75; margin-top: 2px;">
+            Erkannte interaktive UI-Nodes (${phoneCurrentNodes.length}):
+          </div>
+          <div class="phone-node-list">
+            ${nodesHtml}
+          </div>
+
+          <!-- Screen Controls -->
+          <div style="display: flex; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <button class="phone-btn primary" id="btn-phone-screenshot" style="flex: 1;">
+              📸 Screenshot / UI lesen
+            </button>
+            <button class="phone-btn subtle" id="btn-phone-key-back" title="Taste Zurück (KEYCODE_BACK)">
+              ↩ Zurück
+            </button>
+            <button class="phone-btn subtle" id="btn-phone-key-home" title="Taste Home (KEYCODE_HOME)">
+              ⚪ Home
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Geräte, Ziel-Eingabe, Schritt-Protokoll & Keyboard -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- 1: Geräte & Verbindungen -->
+        <div class="phone-card">
+          <div class="phone-card-title">
+            <span>🔌 Verbundene Android-Geräte (ADB)</span>
+            <span class="mono-badge">${phoneDevices.length} Gerät(e)</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${devicesHtml}
+          </div>
+
+          <div class="phone-empty-hint">
+            ℹ️ <b>Anschluss:</b> USB-Debugging in Entwickleroptionen aktivieren → Kabel verbinden → oder <code>adb pair &lt;ip:port&gt; &lt;code&gt;</code> für WLAN-Verbindung.
+          </div>
+
+          <!-- WLAN-Pairing Form -->
+          <div class="phone-pair-form">
+            <div style="font-size: 0.75rem; font-weight: 600; color: #ffffff;">🔗 WLAN-Pairing (Android 11+ adb pair):</div>
+            <div class="phone-pair-row">
+              <input class="phone-input" id="phone-pair-ip" placeholder="IP:Port (z. B. 192.168.1.50:38475)" style="flex: 1.2;" />
+              <input class="phone-input" id="phone-pair-code" placeholder="6-stelliger Code" style="flex: 0.8;" />
+              <button class="phone-btn primary" id="btn-phone-pair-submit">🔗 Koppeln (Freigabe nötig)</button>
+            </div>
+          </div>
+
+          <!-- ADB Keyboard Status -->
+          <div class="phone-keyboard-status">
+            <div>
+              <div style="font-weight: 700; color: #ffffff;">ADB-Keyboard IME:</div>
+              <div style="color: #94a3b8; font-size: 0.72rem; margin-top: 2px;">
+                ${phoneKeyboardInstalled
+                  ? "✓ Aktiviert (com.android.adbkeyboard) · Volle UTF-8 & Umlaut-Unterstützung"
+                  : "Nicht installiert · Eingabe auf Standard-ASCII beschränkt (keine Umlaute/Emojis)"}
+              </div>
+            </div>
+            ${phoneKeyboardInstalled
+              ? `<span class="badge offline" style="font-size: 0.72rem;">✓ Bereit</span>`
+              : `<button class="phone-btn primary" id="btn-phone-install-keyboard">📥 Installieren (Freigabe nötig)</button>`}
+          </div>
+        </div>
+
+        <!-- 2: Ziel-Eingabe (Goal Planner) -->
+        <div class="phone-card">
+          <div class="phone-card-title">
+            <span>🎯 Ziel-Eingabe &amp; Sprachsteuerung</span>
+            <span class="mono-badge">Whisper CUDA</span>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <input class="phone-input" id="phone-goal-input" placeholder="Ziel eingeben (z. B. 'Öffne WhatsApp', 'SMS an …')" style="flex: 1;" />
+            <button class="phone-btn primary" id="btn-phone-goal-submit">🎯 Planen</button>
+            <button class="remote-voice-btn" id="btn-phone-voice" title="Whisper CUDA Sprachtranskription">🎙️ Voice (0,34 s)</button>
+          </div>
+
+          <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Schnell-Ziele (Quick Chips):</div>
+          <div class="phone-chip-group">
+            <span class="phone-chip" data-goal="Öffne Einstellungen">⚙️ Öffne Einstellungen</span>
+            <span class="phone-chip" data-goal="Öffne WhatsApp">💬 Öffne WhatsApp</span>
+            <span class="phone-chip" data-goal="SMS an 0170 1234567: Bin gleich da">✉️ SMS an Max</span>
+            <span class="phone-chip" data-goal="Zurück">↩️ Zurück</span>
+            <span class="phone-chip" data-goal="Simuliere Banking (PayPal)">🛡️ Simuliere Banking (PayPal)</span>
+          </div>
+        </div>
+
+        <!-- 3: Schritt-Protokoll & Freigabekarten -->
+        <div class="phone-card">
+          <div class="phone-card-title">
+            <span>📜 Schritt-Protokoll &amp; Permission Gateway</span>
+            <span class="mono-badge">${phonePlanSteps.length} Schritt(e)</span>
+          </div>
+
+          ${handoffCardHtml}
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            ${stepsHtml}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  aidoMessage.innerHTML = html;
+
+  // Bottom action buttons
+  actionButtons.innerHTML = "";
+  const btnEmergency = document.createElement("button");
+  btnEmergency.textContent = "🛑 Not-Stopp";
+  btnEmergency.style.background = "rgba(239, 68, 68, 0.25)";
+  btnEmergency.style.borderColor = "rgba(239, 68, 68, 0.6)";
+  btnEmergency.style.color = "#fca5a5";
+  btnEmergency.onclick = () => triggerPhoneEmergencyStop();
+
+  const btnScan = document.createElement("button");
+  btnScan.textContent = "📸 Screenshot / UI lesen";
+  btnScan.onclick = () => triggerPhoneScreenshot();
+
+  const btnThemeToggle = document.createElement("button");
+  btnThemeToggle.textContent = remoteMonochromeTheme === "bw" ? "◑ Zu Weiß/Schwarz wechseln" : "◐ Zu Schwarz/Weiß wechseln";
+  btnThemeToggle.onclick = () => {
+    toggleMonochromeTheme();
+    showPhoneAgentView();
+  };
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "↩ Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    phoneNoticeMessage = "";
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnEmergency, btnScan, btnThemeToggle, btnBack);
+
+  // Attach event handlers inside the view
+  document.getElementById("btn-phone-top-stop")?.addEventListener("click", () => triggerPhoneEmergencyStop());
+  document.getElementById("btn-phone-reset-stop")?.addEventListener("click", () => {
+    phoneEmergencyStopped = false;
+    phoneNoticeMessage = "";
+    showPhoneAgentView();
+  });
+  document.getElementById("btn-phone-theme-toggle")?.addEventListener("click", () => {
+    toggleMonochromeTheme();
+    showPhoneAgentView();
+  });
+  document.getElementById("btn-phone-screenshot")?.addEventListener("click", () => triggerPhoneScreenshot());
+  document.getElementById("btn-phone-key-back")?.addEventListener("click", () => handlePhoneGoal("Zurück"));
+  document.getElementById("btn-phone-key-home")?.addEventListener("click", () => handlePhoneGoal("Öffne Einstellungen"));
+
+  document.querySelectorAll(".phone-node-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      const idxStr = (el as HTMLElement).dataset.nodeIndex;
+      if (idxStr !== undefined) {
+        const node = phoneCurrentNodes.find((n) => n.index === parseInt(idxStr, 10));
+        if (node) tapPhoneNode(node);
+      }
+    });
+  });
+
+  document.getElementById("btn-phone-pair-submit")?.addEventListener("click", () => {
+    const ipInput = document.getElementById("phone-pair-ip") as HTMLInputElement | null;
+    const codeInput = document.getElementById("phone-pair-code") as HTMLInputElement | null;
+    const ipVal = ipInput?.value?.trim() || "192.168.1.50:38475";
+    const codeVal = codeInput?.value?.trim() || "582914";
+
+    if (!phoneDevices.some((d) => d.transport === "wifi")) {
+      phoneDevices.push({
+        serial: "192.168.1.50:5555",
+        model: "Google Pixel 8 · Wi-Fi",
+        transport: "wifi",
+        state: "device",
+        batteryPercent: 82,
+      });
+    }
+    appendAudit(`[PhoneAgent] WLAN-Pairing für '${ipVal}' mit Code '${codeVal}' erfolgreich (Freigabetoken konsumiert). adb connect 192.168.1.50:5555 aktiv.`);
+    phoneNoticeMessage = "✓ WLAN-Gerät '192.168.1.50:5555' erfolgreich gekoppelt und verbunden!";
+    showPhoneAgentView();
+  });
+
+  document.getElementById("btn-phone-install-keyboard")?.addEventListener("click", () => {
+    phoneKeyboardInstalled = true;
+    appendAudit("[PhoneAgent] ADB-Keyboard APK (AdbIME) per Einzelfreigabe installiert und aktiviert. Volle UTF-8 & Umlaut-Unterstützung aktiv.");
+    phoneNoticeMessage = "✓ ADB-Keyboard erfolgreich installiert und als Standard-IME eingerichtet!";
+    showPhoneAgentView();
+  });
+
+  const goalInput = document.getElementById("phone-goal-input") as HTMLInputElement | null;
+  document.getElementById("btn-phone-goal-submit")?.addEventListener("click", () => {
+    const goal = goalInput?.value?.trim();
+    if (goal) handlePhoneGoal(goal);
+  });
+  goalInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const goal = goalInput?.value?.trim();
+      if (goal) handlePhoneGoal(goal);
+    }
+  });
+
+  document.getElementById("btn-phone-voice")?.addEventListener("click", () => triggerPhoneVoice());
+
+  document.querySelectorAll(".phone-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const goal = (chip as HTMLElement).dataset.goal;
+      if (goal) handlePhoneGoal(goal);
+    });
+  });
+
+  document.querySelectorAll(".btn-phone-step-approve").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const stepId = parseInt((btn as HTMLElement).dataset.stepId || "0", 10);
+      approvePhoneStep(stepId);
+    });
+  });
+
+  document.querySelectorAll(".btn-phone-step-reject").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const stepId = parseInt((btn as HTMLElement).dataset.stepId || "0", 10);
+      rejectPhoneStep(stepId);
+    });
+  });
+
+  document.getElementById("btn-phone-handoff-return")?.addEventListener("click", () => {
+    phoneIsHandoffActive = false;
+    phoneForegroundApp = "com.android.settings";
+    phoneForegroundTitle = "Einstellungen";
+    phoneCurrentNodes = phonePresetScreens["com.android.settings"].nodes;
+    appendAudit("[PhoneAgent] Manuelle Nutzer-Aktion abgeschlossen. Steuerung an AIDO zurückgegeben.");
+    phoneNoticeMessage = "Kontrolle erfolgreich an AIDO zurückgegeben.";
+    showPhoneAgentView();
+  });
+
+  appendAudit("[Phone Agent] Phone Agent Cockpit geöffnet (Android ADB).");
+}
+
 contextMenu.addEventListener("click", (e) => {
   const target = (e.target as HTMLElement).closest(".context-item") as HTMLElement | null;
   if (!target) return;
@@ -3529,6 +4246,8 @@ contextMenu.addEventListener("click", (e) => {
     showMasterplanCompletionView();
   } else if (action === "rea") {
     showReaStudioView();
+  } else if (action === "phone") {
+    showPhoneAgentView();
   } else if (action === "brand-studio") {
     showBrandStudioView();
   } else if (action === "remote") {

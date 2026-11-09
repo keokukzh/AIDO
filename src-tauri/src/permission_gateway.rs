@@ -65,6 +65,12 @@ pub enum ActionKind {
     ElevateAdminBrokerTask,
     /// State-modifying management of WSL2 / RTX 5090 Docker Sandboxes (requires explicit ApprovalToken)
     ManageDockerSandbox,
+    /// Read-only observation of an Android phone via ADB (device listing, UI hierarchy dump, screenshot)
+    PhoneObserve,
+    /// State-modifying action on an Android phone via ADB (tap, swipe, type, key, launch app, open URL)
+    PhoneAct,
+    /// Sensitive state-modifying action on an Android phone via ADB (send SMS, start call, install APK, Wi-Fi pairing/connect)
+    PhoneSensitiveAct,
 }
 
 impl ActionKind {
@@ -83,6 +89,8 @@ impl ActionKind {
                 | ActionKind::RevokeRemoteDevice
                 | ActionKind::ElevateAdminBrokerTask
                 | ActionKind::ManageDockerSandbox
+                | ActionKind::PhoneAct
+                | ActionKind::PhoneSensitiveAct
         )
     }
 }
@@ -110,7 +118,7 @@ pub struct ApprovalToken {
     pub user_note: Option<String>,
 }
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
 pub enum GatewayError {
     #[error("Aktion im ReadOnly-Modus gesperrt: {0}")]
     ReadOnlyBlocked(String),
@@ -165,6 +173,16 @@ impl PermissionGateway {
     /// Returns the number of currently pending approval requests.
     pub fn pending_requests_count(&self) -> usize {
         self.pending_requests.lock().unwrap().len()
+    }
+
+    /// Returns the most recently created pending approval request, optionally filtered by ActionKind.
+    pub fn latest_pending_request(&self, action: Option<&ActionKind>) -> Option<ApprovalRequest> {
+        let pending = self.pending_requests.lock().unwrap();
+        pending
+            .values()
+            .filter(|r| r.approved.is_none() && action.is_none_or(|a| &r.action == a))
+            .max_by_key(|r| r.created_at)
+            .cloned()
     }
 
     /// Verifies that an outgoing endpoint complies with the active PrivacyMode.
@@ -426,6 +444,7 @@ mod tests {
         assert!(!ActionKind::ProbeLocalRuntimes.is_mutating());
         assert!(!ActionKind::SynthesizeAndVerifyAdapter.is_mutating());
         assert!(!ActionKind::CaptureAidoBlickSnapshot.is_mutating());
+        assert!(!ActionKind::PhoneObserve.is_mutating());
 
         assert!(ActionKind::FastCleanupExecute.is_mutating());
         assert!(ActionKind::DeepCleanupExecute.is_mutating());
@@ -437,5 +456,7 @@ mod tests {
         assert!(ActionKind::ExecuteCleanUninstall.is_mutating());
         assert!(ActionKind::PairRemoteDevice.is_mutating());
         assert!(ActionKind::RevokeRemoteDevice.is_mutating());
+        assert!(ActionKind::PhoneAct.is_mutating());
+        assert!(ActionKind::PhoneSensitiveAct.is_mutating());
     }
 }
