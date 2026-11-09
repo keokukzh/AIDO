@@ -39,6 +39,12 @@ pub enum ActionKind {
     ScanProjects,
     /// State-modifying project launch (requires explicit user ApprovalToken)
     LaunchProject,
+    /// Read-only inspection of hardware specs and existing model files
+    InspectHardwareAndModels,
+    /// State-modifying execution of an installer step
+    RunInstallerStep,
+    /// State-modifying rollback of completed installer steps
+    RollbackInstaller,
 }
 
 impl ActionKind {
@@ -49,6 +55,8 @@ impl ActionKind {
                 | ActionKind::UnloadIdleModelSlot
                 | ActionKind::ExecuteAppAction
                 | ActionKind::LaunchProject
+                | ActionKind::RunInstallerStep
+                | ActionKind::RollbackInstaller
         )
     }
 }
@@ -328,10 +336,13 @@ mod tests {
         assert!(!ActionKind::DiscoverApps.is_mutating());
         assert!(!ActionKind::VerifyAppCapability.is_mutating());
         assert!(!ActionKind::ScanProjects.is_mutating());
+        assert!(!ActionKind::InspectHardwareAndModels.is_mutating());
 
         assert!(ActionKind::FastCleanupExecute.is_mutating());
         assert!(ActionKind::UnloadIdleModelSlot.is_mutating());
         assert!(ActionKind::ExecuteAppAction.is_mutating());
         assert!(ActionKind::LaunchProject.is_mutating());
+        assert!(ActionKind::RunInstallerStep.is_mutating());
+        assert!(ActionKind::RollbackInstaller.is_mutating());
     }
 }
