@@ -61,6 +61,10 @@ pub enum ActionKind {
     RevokeRemoteDevice,
     /// Read-only on-demand desktop snapshot and vision summary for paired smartphone
     CaptureAidoBlickSnapshot,
+    /// State-modifying elevation to scoped admin task via AdminBroker (requires explicit ApprovalToken and UAC isolation)
+    ElevateAdminBrokerTask,
+    /// State-modifying management of WSL2 / RTX 5090 Docker Sandboxes (requires explicit ApprovalToken)
+    ManageDockerSandbox,
 }
 
 impl ActionKind {
@@ -77,6 +81,8 @@ impl ActionKind {
                 | ActionKind::ExecuteCleanUninstall
                 | ActionKind::PairRemoteDevice
                 | ActionKind::RevokeRemoteDevice
+                | ActionKind::ElevateAdminBrokerTask
+                | ActionKind::ManageDockerSandbox
         )
     }
 }
@@ -319,6 +325,15 @@ impl PermissionGateway {
             )));
         }
         Ok(())
+    }
+
+    /// Alias for consuming a one-time ApprovalToken right before task execution.
+    pub fn consume_token_for_execution(
+        &self,
+        token: &ApprovalToken,
+        expected_action: &ActionKind,
+    ) -> Result<(), GatewayError> {
+        self.consume_approval_token(token, expected_action)
     }
 }
 

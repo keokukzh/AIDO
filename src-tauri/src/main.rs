@@ -69,6 +69,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cockpit = core.build_remote_cockpit_state(&device.session_token)?;
             println!("{}", serde_json::to_string_pretty(&cockpit)?);
         }
+        "masterplan" => {
+            let report = core.evaluate_masterplan_completion()?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -80,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/10] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/11] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -88,7 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/10] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/11] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -105,14 +109,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/10] Ausführung nach Freigabe:");
+            println!("\n[3/11] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/10] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/11] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -121,7 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/10] App Intelligence & Projektkatalog:");
+            println!("\n[5/11] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -172,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 6: Smart Installer & Modell-Wiederverwendung
-            println!("\n[6/10] Smart Installer & Modell-Wiederverwendung:");
+            println!("\n[6/11] Smart Installer & Modell-Wiederverwendung:");
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             let total_models = plan.models.len();
             let reused_models = plan.eta.reused_models_count;
@@ -209,7 +213,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 7: Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung
-            println!("\n[7/10] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
+            println!("\n[7/11] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
             // Store a second episodic memory so compaction threshold (min_entries = 2) is met
             core.memory.store_memory(
                 "EpisodicMemory",
@@ -271,7 +275,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 8: Proaktive Vordenker-Engine & Deep Cleanup
-            println!("\n[8/10] Proaktive Vordenker-Engine & Deep Cleanup:");
+            println!("\n[8/11] Proaktive Vordenker-Engine & Deep Cleanup:");
             let seeded_deep = core.bridge.seed_demo_deep_cleanup_files()?;
             println!(
                 "  Test-Staging für Tiefenbereinigung vorbereitet: {} KB in '{}'",
@@ -335,7 +339,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    {}", dc_result.human_report);
 
             // Step 9: Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8)
-            println!("\n[9/10] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
+            println!("\n[9/11] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
             let p78_report = core.evaluate_adapter_sandbox_and_release_readiness(
                 "obs-studio",
                 "OBS Studio",
@@ -401,7 +405,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Statusbericht: {}", p78_report.release_readiness.human_summary);
 
             // Step 10: Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität)
-            println!("\n[10/10] Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität):");
+            println!("\n[10/11] Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität):");
             let challenge = core.start_remote_pairing_challenge()?;
             println!("  1. Pairing-Challenge generiert:");
             println!("    • Challenge-ID: {}", challenge.challenge_id);
@@ -429,9 +433,91 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("        - [{}] {} — {} ({})", t.tile_id, t.label_de, t.subtitle_de, req_tag);
             }
             println!("    • Zone 4 (Daumen-Aktionen): Pending Approvals = {}, Reply-Chips: {:?}", cockpit.pending_approvals_count, cockpit.reply_chips_de);
+
+            // Step 11: Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes)
+            println!("\n[11/11] Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes):");
+            let mp_report = core.evaluate_masterplan_completion()?;
+            println!("  1. 7-Ebenen-Gedächtnis & Procedural Skills:");
+            println!(
+                "    • Speicher-Quota: {} / {} Bytes belegt ({:.2} %)",
+                mp_report.memory_quota.db_size_bytes,
+                mp_report.memory_quota.quota_limit_bytes,
+                mp_report.memory_quota.usage_percent
+            );
+            println!(
+                "    • Gelernte prozedurale Fähigkeiten ({} aktiv):",
+                mp_report.procedural_skills.len()
+            );
+            for skill in &mp_report.procedural_skills {
+                println!(
+                    "        - [{}] {} (v{}, Trigger: '{}')",
+                    skill.skill_id, skill.title_de, skill.version, skill.trigger_pattern
+                );
+            }
+
+            println!("  2. Persistente Task Engine & Desktop-Lock-Weiche:");
+            println!(
+                "    • Desktop gesperrt: {} | Weichen-Aktion: {}",
+                mp_report.desktop_lock_report.desktop_locked,
+                mp_report.desktop_lock_report.human_summary_de
+            );
+            println!(
+                "    • Unbeeinflusst weiterlaufende Hintergrund-Tasks (CLI/API): {}",
+                mp_report.desktop_lock_report.continued_background_tasks
+            );
+            println!(
+                "    • Automatisch pausierte UI-Tasks: {}",
+                mp_report.desktop_lock_report.paused_ui_tasks
+            );
+
+            println!("  3. 8 Interne Spezialisten & Admin Broker (DPAPI Vault):");
+            println!(
+                "    • Gerouteter Primär-Spezialist: {:?} ({})",
+                mp_report.specialist_dispatch.selected_specialist,
+                mp_report.specialist_dispatch.specialist_title_de
+            );
+            println!(
+                "    • Begründung: {}",
+                mp_report.specialist_dispatch.coordination_summary_de
+            );
+            println!(
+                "    • Benötigte Gedächtnis-Ebenen: {:?}",
+                mp_report.specialist_dispatch.required_memory_layers
+            );
+            println!(
+                "    • DPAPI-Tresor: {} versiegelte Geheimnisse ohne Klartext-Freilegung:",
+                mp_report.protected_secrets.len()
+            );
+            for sec in &mp_report.protected_secrets {
+                println!(
+                    "        - Key: {} | Backend: {} | Klartext exponiert: {}",
+                    sec.secret_key, sec.storage_backend, sec.plaintext_exposed
+                );
+            }
+
+            println!("  4. Power-User WSL2 & RTX 5090 Docker Sandboxes (Masterplan Section 12):");
+            println!(
+                "    • WSL2 Basis-Pfad: {} (Optional für normale Nutzer: {})",
+                mp_report.docker_audit.wsl2_native_base_path,
+                mp_report.docker_audit.optional_for_normal_users
+            );
+            println!(
+                "    • RTX 5090 GPU-Passthrough bereit: {} | Ubuntu WSL aktiv: {}",
+                mp_report.docker_audit.rtx_5090_gpu_passthrough_ready,
+                mp_report.docker_audit.ubuntu_wsl_integration_enabled
+            );
+            println!("    • Verfügbare Sandbox-Vorlagen ({} Stacks):", mp_report.docker_audit.templates.len());
+            for t in &mp_report.docker_audit.templates {
+                let gpu_tag = if t.requires_rtx_gpu_passthrough { "RTX 5090 GPU" } else { "CPU/Standard" };
+                println!(
+                    "        - [{}] {} ({}, Ports: {:?})",
+                    t.slug, t.title_de, gpu_tag, t.exposed_ports
+                );
+            }
+            println!("    • Hinweis: {}", mp_report.docker_audit.remediation_hint_de);
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check | remote]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check | remote | masterplan]");
         }
     }
 

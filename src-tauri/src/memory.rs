@@ -1,5 +1,5 @@
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -22,6 +22,65 @@ pub struct MemoryEntry {
     pub details: String,
     pub source: String,
     pub validity: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MemoryLayer {
+    SoulMemory,
+    UserMemory,
+    SystemMemory,
+    ProjectMemory,
+    EpisodicMemory,
+    SemanticMemory,
+    ProceduralMemory,
+}
+
+impl MemoryLayer {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MemoryLayer::SoulMemory => "SoulMemory",
+            MemoryLayer::UserMemory => "UserMemory",
+            MemoryLayer::SystemMemory => "SystemMemory",
+            MemoryLayer::ProjectMemory => "ProjectMemory",
+            MemoryLayer::EpisodicMemory => "EpisodicMemory",
+            MemoryLayer::SemanticMemory => "SemanticMemory",
+            MemoryLayer::ProceduralMemory => "ProceduralMemory",
+        }
+    }
+
+    pub fn all() -> [MemoryLayer; 7] {
+        [
+            MemoryLayer::SoulMemory,
+            MemoryLayer::UserMemory,
+            MemoryLayer::SystemMemory,
+            MemoryLayer::ProjectMemory,
+            MemoryLayer::EpisodicMemory,
+            MemoryLayer::SemanticMemory,
+            MemoryLayer::ProceduralMemory,
+        ]
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProceduralSkill {
+    pub skill_id: String,
+    pub title_de: String,
+    pub trigger_pattern: String,
+    pub steps_json: String,
+    pub version: u32,
+    pub validity_status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryQuotaReport {
+    pub db_size_bytes: u64,
+    pub quota_limit_bytes: u64,
+    pub usage_percent: f64,
+    pub counts_by_layer: Vec<(String, usize)>,
+    pub procedural_skills_count: usize,
+    pub quota_healthy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,8 +172,38 @@ impl MemoryEngine {
                 approved INTEGER NOT NULL,
                 summary TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS procedural_skills (
+                skill_id TEXT PRIMARY KEY,
+                title_de TEXT NOT NULL,
+                trigger_pattern TEXT NOT NULL,
+                steps_json TEXT NOT NULL,
+                version INTEGER NOT NULL DEFAULT 1,
+                validity_status TEXT NOT NULL DEFAULT 'active',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             ",
         )?;
+
+        let soul_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM memory_entries WHERE layer = 'SoulMemory'",
+            [],
+            |r| r.get(0),
+        )?;
+        if soul_count == 0 {
+            let now = Utc::now().to_rfc3339();
+            conn.execute(
+                "INSERT INTO memory_entries (created_at, layer, category, summary, details, source, validity)
+                 VALUES (?1, 'SoulMemory', 'CoreIdentity', ?2, ?3, 'Masterplan::SOUL', 'active')",
+                params![
+                    now,
+                    "AIDO (Agentic Intelligent Developing Operator) — Ruhiger, ehrlicher lokaler Begleiter",
+                    "AIDO denkt für dich, nicht du für AIDO. Keine Aktion ohne verständliche Freigabe. Private Daten bleiben lokal.",
+                ],
+            )?;
+        }
+
         Ok(())
     }
 
@@ -422,6 +511,159 @@ impl MemoryEngine {
         }
         Ok(out)
     }
+
+    pub fn store_typed_memory(
+        &self,
+        layer: MemoryLayer,
+        category: &str,
+        summary: &str,
+        details: &str,
+        source: &str,
+    ) -> Result<i64, MemoryError> {
+        self.store_memory(layer.as_str(), category, summary, details, source)
+    }
+
+    pub fn register_or_update_procedural_skill(
+        &self,
+        skill_id: &str,
+        title_de: &str,
+        trigger_pattern: &str,
+        steps_json: &str,
+    ) -> Result<ProceduralSkill, MemoryError> {
+        let conn = self.connect()?;
+        let now = Utc::now().to_rfc3339();
+
+        let existing: Option<(u32, String)> = conn
+            .query_row(
+                "SELECT version, created_at FROM procedural_skills WHERE skill_id = ?1",
+                params![skill_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+
+        let (version, created_at) = match existing {
+            Some((v, c)) => {
+                let next_v = v + 1;
+                conn.execute(
+                    "UPDATE procedural_skills
+                     SET title_de = ?1, trigger_pattern = ?2, steps_json = ?3, version = ?4, validity_status = 'active', updated_at = ?5
+                     WHERE skill_id = ?6",
+                    params![title_de, trigger_pattern, steps_json, next_v, now, skill_id],
+                )?;
+                (next_v, c)
+            }
+            None => {
+                conn.execute(
+                    "INSERT INTO procedural_skills (skill_id, title_de, trigger_pattern, steps_json, version, validity_status, created_at, updated_at)
+                     VALUES (?1, ?2, ?3, ?4, 1, 'active', ?5, ?5)",
+                    params![skill_id, title_de, trigger_pattern, steps_json, now],
+                )?;
+                (1, now.clone())
+            }
+        };
+
+        // Also store corresponding ProceduralMemory entry in memory_entries
+        self.store_typed_memory(
+            MemoryLayer::ProceduralMemory,
+            "ProceduralSkill",
+            &format!("Prozeduraler Skill '{}' (v{}): {}", skill_id, version, title_de),
+            steps_json,
+            "MemoryEngine::register_or_update_procedural_skill",
+        )?;
+
+        Ok(ProceduralSkill {
+            skill_id: skill_id.to_string(),
+            title_de: title_de.to_string(),
+            trigger_pattern: trigger_pattern.to_string(),
+            steps_json: steps_json.to_string(),
+            version,
+            validity_status: "active".to_string(),
+            created_at,
+            updated_at: now,
+        })
+    }
+
+    pub fn mark_skill_validity(&self, skill_id: &str, validity_status: &str) -> Result<bool, MemoryError> {
+        let conn = self.connect()?;
+        let now = Utc::now().to_rfc3339();
+        let affected = conn.execute(
+            "UPDATE procedural_skills SET validity_status = ?1, updated_at = ?2 WHERE skill_id = ?3",
+            params![validity_status, now, skill_id],
+        )?;
+        Ok(affected > 0)
+    }
+
+    pub fn list_procedural_skills(&self, only_active: bool) -> Result<Vec<ProceduralSkill>, MemoryError> {
+        let conn = self.connect()?;
+        let sql = if only_active {
+            "SELECT skill_id, title_de, trigger_pattern, steps_json, version, validity_status, created_at, updated_at
+             FROM procedural_skills
+             WHERE validity_status = 'active'
+             ORDER BY skill_id ASC"
+        } else {
+            "SELECT skill_id, title_de, trigger_pattern, steps_json, version, validity_status, created_at, updated_at
+             FROM procedural_skills
+             ORDER BY skill_id ASC"
+        };
+        let mut stmt = conn.prepare(sql)?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ProceduralSkill {
+                skill_id: row.get(0)?,
+                title_de: row.get(1)?,
+                trigger_pattern: row.get(2)?,
+                steps_json: row.get(3)?,
+                version: row.get(4)?,
+                validity_status: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn inspect_storage_quota(&self, quota_limit_bytes: u64) -> Result<MemoryQuotaReport, MemoryError> {
+        let db_size_bytes = std::fs::metadata(&self.db_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let conn = self.connect()?;
+
+        let mut counts_by_layer = Vec::with_capacity(7);
+        for layer in MemoryLayer::all() {
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM memory_entries WHERE layer = ?1 AND validity = 'active'",
+                params![layer.as_str()],
+                |row| row.get(0),
+            )?;
+            counts_by_layer.push((layer.as_str().to_string(), count as usize));
+        }
+
+        let procedural_skills_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM procedural_skills",
+            [],
+            |row| row.get(0),
+        )?;
+
+        let usage_percent = if quota_limit_bytes > 0 {
+            (db_size_bytes as f64 / quota_limit_bytes as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let quota_healthy = db_size_bytes <= quota_limit_bytes;
+
+        Ok(MemoryQuotaReport {
+            db_size_bytes,
+            quota_limit_bytes,
+            usage_percent,
+            counts_by_layer,
+            procedural_skills_count: procedural_skills_count as usize,
+            quota_healthy,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -565,6 +807,113 @@ mod tests {
         let all = engine.list_memories_by_layer(None, false, 10).unwrap();
         let forgotten = all.iter().find(|e| e.id == id).unwrap();
         assert_eq!(forgotten.validity, "forgotten_by_user");
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn seven_memory_layers_soul_seed_and_storage_quota_report() {
+        let temp_dir = std::env::temp_dir().join(format!("aido_mem_7layers_{}", uuid::Uuid::new_v4()));
+        let db_file = temp_dir.join("aido_memory.db");
+        let engine = MemoryEngine::new(&db_file).unwrap();
+
+        // Verify SoulMemory is seeded on init
+        let soul_entries = engine
+            .list_memories_by_layer(Some("SoulMemory"), true, 10)
+            .unwrap();
+        assert_eq!(soul_entries.len(), 1);
+        assert_eq!(soul_entries[0].category, "CoreIdentity");
+        assert!(soul_entries[0].summary.contains("AIDO"));
+        assert_eq!(soul_entries[0].source, "Masterplan::SOUL");
+
+        // Add entries to other layers using store_typed_memory
+        engine
+            .store_typed_memory(
+                MemoryLayer::UserMemory,
+                "Preference",
+                "Nutzer bevorzugt deutsche Ausgaben",
+                "Spracheinstellung: DE",
+                "UserInput",
+            )
+            .unwrap();
+
+        engine
+            .store_typed_memory(
+                MemoryLayer::ProjectMemory,
+                "Status",
+                "AIDO Projekt in Phase 10",
+                "Enterprise Core Completion",
+                "TaskRunner",
+            )
+            .unwrap();
+
+        let quota_limit = 50 * 1024 * 1024; // 50 MB
+        let report = engine.inspect_storage_quota(quota_limit).unwrap();
+        assert!(report.db_size_bytes > 0);
+        assert_eq!(report.quota_limit_bytes, quota_limit);
+        assert!(report.quota_healthy);
+        assert!(report.usage_percent < 5.0);
+        assert_eq!(report.counts_by_layer.len(), 7);
+
+        // Verify layer counts
+        let soul_tuple = report.counts_by_layer.iter().find(|(l, _)| l == "SoulMemory").unwrap();
+        assert_eq!(soul_tuple.1, 1);
+        let user_tuple = report.counts_by_layer.iter().find(|(l, _)| l == "UserMemory").unwrap();
+        assert_eq!(user_tuple.1, 1);
+        let project_tuple = report.counts_by_layer.iter().find(|(l, _)| l == "ProjectMemory").unwrap();
+        assert_eq!(project_tuple.1, 1);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn procedural_memory_versions_learned_skills_and_tracks_validity() {
+        let temp_dir = std::env::temp_dir().join(format!("aido_mem_procedural_{}", uuid::Uuid::new_v4()));
+        let db_file = temp_dir.join("aido_memory.db");
+        let engine = MemoryEngine::new(&db_file).unwrap();
+
+        let skill_id = "clean_build_artifacts";
+        let skill_v1 = engine
+            .register_or_update_procedural_skill(
+                skill_id,
+                "Build-Artefakte aufräumen",
+                "cleanup build",
+                r#"{"steps":["cargo clean","del target"]}"#,
+            )
+            .unwrap();
+        assert_eq!(skill_v1.version, 1);
+        assert_eq!(skill_v1.validity_status, "active");
+
+        // Check ProceduralMemory layer was populated
+        let proc_memories = engine
+            .list_memories_by_layer(Some("ProceduralMemory"), true, 10)
+            .unwrap();
+        assert_eq!(proc_memories.len(), 1);
+        assert!(proc_memories[0].summary.contains("clean_build_artifacts"));
+
+        // Update skill to v2
+        let skill_v2 = engine
+            .register_or_update_procedural_skill(
+                skill_id,
+                "Build-Artefakte aufräumen v2",
+                "cleanup build",
+                r#"{"steps":["cargo clean --release","del target"]}"#,
+            )
+            .unwrap();
+        assert_eq!(skill_v2.version, 2);
+        assert_eq!(skill_v2.validity_status, "active");
+
+        // Mark outdated
+        let marked = engine.mark_skill_validity(skill_id, "outdated").unwrap();
+        assert!(marked);
+
+        let active_skills = engine.list_procedural_skills(true).unwrap();
+        assert!(active_skills.is_empty());
+
+        let all_skills = engine.list_procedural_skills(false).unwrap();
+        assert_eq!(all_skills.len(), 1);
+        assert_eq!(all_skills[0].validity_status, "outdated");
+        assert_eq!(all_skills[0].version, 2);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
