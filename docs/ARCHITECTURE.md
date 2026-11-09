@@ -36,7 +36,7 @@ Die Capability Registry führt pro App geprüfte Aktionen und Rechte. Bevorzugt 
 
 Der Smart Installer prüft Hardware, Modelle und Apps, zeigt die Funktionen von Standard/Full Access und lässt Online- oder Offline-Einrichtung wählen. Er soll Downloadfortschritt und eine messwertgestützte Zeitprognose anzeigen, fehlgeschlagene Schritte wiederholen und unabhängige Teile weiter einrichten. Vorhandene Modelle und Programme werden wiederverwendet, wenn dies sicher und vom Nutzer gewählt ist. Deinstallation trennt AIDO-Komponenten von fremden Daten.
 
-Als mögliche Speicherorte wurden `%LOCALAPPDATA%\AIDO` für Nutzerdaten und `%PROGRAMDATA%\AIDO` für geschützte Dienstdaten diskutiert. Dies ist noch kein festgelegtes Dateiformat. Docker/WSL2 dürfen für normale Nutzer keine Pflicht sein; eine Docker-Desktop-Integration ist ein mögliches App-Beispiel, keine bestätigte Funktion. Der im Auftrag erwähnte Docker-Anhang liegt in der verfügbaren Chat-Referenz nicht vor und muss vor Docker-spezifischen Entscheidungen gesichtet werden.
+Als mögliche Speicherorte wurden `%LOCALAPPDATA%\AIDO` für Nutzerdaten und `%PROGRAMDATA%\AIDO` für geschützte Dienstdaten diskutiert. Dies ist noch kein festgelegtes Dateiformat. Docker/WSL2 dürfen für normale Nutzer keine Pflicht sein; eine Docker-Desktop-Integration ist ein mögliches App-Beispiel, keine bestätigte Funktion. Der nachgereichte Docker-Masterplan beschreibt eine frühere persönliche Entwicklungsumgebung. Seine Bausteine und der punktuelle Ist-Check sind in [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) eingeordnet. Docker/WSL2 bleiben optionale Entwicklungswerkzeuge; die Windows-Bridge und Freigaben müssen nativ funktionieren.
 
 ## Offene technische Wahl
 
