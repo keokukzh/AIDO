@@ -1,4281 +1,1837 @@
-import { Mono3DViewer } from "./mono3d";
-interface ApprovalProposal {
-  requestId: string;
+import { Mono3DViewer, type MonoState } from "./mono3d";
+
+/**
+ * AIDO — Dein persönlicher Desktop-Begleiter
+ *
+ * Minimalist, ChatGPT-clean Monochrome Companion UI Controller.
+ * Strictly monochrome (#FFFFFF / #000000), zero emojis, zero technical jargon.
+ */
+
+type StageId = "agent" | "overview" | "phone";
+
+interface ChatMessage {
+  id: string;
+  role: "aido" | "user";
+  text: string;
+  attachmentLabel?: string;
+}
+
+interface InlineApprovalProposal {
+  id: string;
   title: string;
-  explanation: string;
-  files: string[];
-  bytes: number;
-  actionKind?: string;
+  reason: string;
+  itemsSummary: string;
+  onApprove: () => void;
+  onReject: () => void;
 }
 
-interface AppCapability {
-  capabilityId: string;
-  titleDe: string;
-  risk: "Low" | "Medium" | "High";
-  requiresApproval: boolean;
-}
-
-interface AppItem {
-  appId: string;
-  displayName: string;
-  publisher: string;
-  installPath: string;
-  preferredControl: string;
-  userEnabled: boolean;
-  capabilities: AppCapability[];
-}
-
-interface ProjectItem {
-  name: string;
-  canonicalPath: string;
-  stack: string[];
-  gitBranch: string;
-  gitStatus: string;
-  recommendedAction: string;
-  humanSummary: string;
-}
-
-interface InstallerStep {
-  stepIndex: number;
-  stepKey: string;
-  titleDe: string;
-  status: "Pending" | "Completed" | "Paused" | "Failed" | "RolledBack";
-  rollbackAction: string;
-  details: string;
-}
-
-interface ModelReuseInfo {
-  role: string;
-  modelName: string;
-  expectedPath: string;
-  existsLocally: boolean;
-  sizeBytes: number;
-}
-
-interface MemoryItem {
-  id: number;
-  createdAt: string;
-  layer: "WorkingMemory" | "EpisodicMemory" | "SemanticMemory" | "SystemMemory";
-  category: string;
+interface ProjectOverviewItem {
+  id: string;
+  title: string;
+  pathLabel: string;
   summary: string;
-  details: string;
-  source: string;
-  validity: "active" | "compacted" | "forgotten_by_user";
+  tags: string[];
+  statusText: string;
 }
 
-const memoriesData: MemoryItem[] = [
+interface AppToolItem {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  userEnabled: boolean;
+}
+
+interface MemoryEntry {
+  id: number;
+  title: string;
+  details: string;
+  category: string;
+}
+
+interface TaskEntry {
+  id: string;
+  title: string;
+  schedule: string;
+  statusLabel: string;
+}
+
+interface PhoneUiNode {
+  id: string;
+  label: string;
+  hint: string;
+  targetScreen?: PhoneScreenId;
+  actionSummary: string;
+  requiresApproval?: boolean;
+}
+
+type PhoneScreenId = "home" | "settings" | "network" | "github";
+
+// ============================================================================
+// Application State
+// ============================================================================
+
+let monoViewer: Mono3DViewer | null = null;
+let currentStage: StageId = "agent";
+let currentTheme: "light" | "dark" = "light";
+let currentCharacterState: MonoState = "idle";
+
+let morphTimers: number[] = [];
+let stateTransitionTimers: number[] = [];
+
+let isVoiceRecording = false;
+let voiceRecordStartedAt = 0;
+let attachedScreenshotLabel: string | null = null;
+
+let cleanupCompleted = false;
+let pendingTempFilesCount = 5;
+let pendingTempSizeLabel = "576 KB";
+
+const projectsState: ProjectOverviewItem[] = [
+  {
+    id: "aido-companion",
+    title: "AIDO — Desktop-Begleiter",
+    pathLabel: "Arbeitsbereich · Desktop/AIDO",
+    summary: "Hauptprojekt aktiv · Alle Prüfungen erfolgreich · Bereit für den nächsten Schritt.",
+    tags: ["Hauptprojekt", "Aktuell geöffnet", "Bereit"],
+    statusText: "Alle Komponenten sind aktuell und fehlerfrei."
+  },
+  {
+    id: "landingpage-brand-morph",
+    title: "Landingpage — Brand Morph",
+    pathLabel: "Arbeitsbereich · Marken-Animation & 3D-Charakter",
+    summary: "Nahtlose Übergangs-Animation und interaktive 3D-Darstellung sind synchronisiert.",
+    tags: ["Design", "3D-Charakter", "Synchronisiert"],
+    statusText: "Marken-Transformation und 3D-Ansicht sind aktiv eingebunden."
+  }
+];
+
+const appsState: AppToolItem[] = [
+  {
+    id: "vscode",
+    name: "VS Code",
+    description: "Projekte öffnen, Dateien bearbeiten und Aufgaben begleiten",
+    category: "Entwicklung",
+    userEnabled: true
+  },
+  {
+    id: "windows-terminal",
+    name: "Windows Terminal",
+    description: "Befehle nach Rückfrage sicher im Projektordner ausführen",
+    category: "System",
+    userEnabled: true
+  },
+  {
+    id: "browser",
+    name: "Browser",
+    description: "Webseiten öffnen und Recherchen zusammenfassen",
+    category: "Alltag",
+    userEnabled: true
+  },
+  {
+    id: "docker-desktop",
+    name: "Docker Desktop",
+    description: "Lokale Arbeitsumgebungen bei Bedarf starten oder anhalten",
+    category: "Werkzeug",
+    userEnabled: true
+  },
+  {
+    id: "system-analyse",
+    name: "System-Analyse",
+    description: "Speicherplatz prüfen und temporäre Dateien sicher vorschlagen",
+    category: "Wartung",
+    userEnabled: true
+  }
+];
+
+let memoriesState: MemoryEntry[] = [
   {
     id: 1,
-    createdAt: "2026-11-09T06:00:00Z",
-    layer: "SystemMemory",
-    category: "Hardware",
-    summary: "Predator Orion 7000 · RTX 5090 (32 GB VRAM) · 64 GB RAM",
-    details: "HighEndGpu Profil mit vollständiger lokaler Modell-Wiederverwendung und 0 GB erneutem Downloadbedarf.",
-    source: "AidoCore::evaluate_smart_installer_plan",
-    validity: "active"
+    title: "Bevorzugtes Erscheinungsbild: Klares Monochrom-Design",
+    details: "Ruhige Oberfläche in Schwarz und Weiß ohne ablenkende Farben oder Symbole.",
+    category: "Präferenz"
   },
   {
     id: 2,
-    createdAt: "2026-11-09T06:01:00Z",
-    layer: "SystemMemory",
-    category: "Security",
-    summary: "Permission Gateway Modus Private Offline (127.0.0.1)",
-    details: "Alle Netzwerkaufrufe außerhalb der lokalen Loopback-Adresse werden technisch blockiert.",
-    source: "AidoCore::new",
-    validity: "active"
+    title: "Aktiver Arbeitsbereich: AIDO Desktop-Begleiter",
+    details: "Fokus auf direkte Charakter-Interaktion, klare Antworten und einfache Freigaben.",
+    category: "Projekt"
   },
   {
     id: 3,
-    createdAt: "2026-11-09T06:02:15Z",
-    layer: "EpisodicMemory",
-    category: "FastCleanup",
-    summary: "Fast Cleanup nach Nutzerfreigabe ausgeführt (3 Dateien, 448 KB bereinigt)",
-    details: "Temporäre Staging-Caches sicher entfernt. VRAM vor Bereinigung: 2300 MiB, frei: 29888 MiB.",
-    source: "AidoCore::approve_and_execute_fast_cleanup",
-    validity: "active"
+    title: "Sicherheitsregel: Immer vor Änderungen nachfragen",
+    details: "Dateibereinigungen und wichtige Handy-Aktionen erfordern deine ausdrückliche Zustimmung.",
+    category: "Sicherheit"
   },
   {
     id: 4,
-    createdAt: "2026-11-09T06:03:00Z",
-    layer: "EpisodicMemory",
-    category: "FastCleanup",
-    summary: "Zweites Fast Cleanup simuliert (2 Dateien, 128 KB)",
-    details: "Automatische periodische Cache-Bereinigung vor Idle-Phase. 0 verwaiste Prozesse verblieben.",
-    source: "AidoCore::demo",
-    validity: "active"
-  },
-  {
-    id: 5,
-    createdAt: "2026-11-09T06:04:30Z",
-    layer: "WorkingMemory",
-    category: "UserSession",
-    summary: "Aktuelle Entwickler-Sitzung im Workspace C:\\Users\\keoku\\Desktop\\AIDO",
-    details: "Aktives Projekt AIDO, Stack: Node.js/TypeScript + Rust, Branch: main.",
-    source: "AidoCore::discover_and_register_environment",
-    validity: "active"
+    title: "Letzte Bereinigung: 448 KB Zwischenspeicher freigegeben",
+    details: "Drei nicht mehr benötigte temporäre Dateien wurden nach Freigabe sicher entfernt.",
+    category: "Verlauf"
   }
 ];
 
-const runtimeStatusData = {
-  llamaServer: {
-    serviceId: "llama_router",
-    displayName: "Llama Router (Qwen3.8-27B + Vision + DFlash2)",
-    endpoint: "http://127.0.0.1:18434",
-    state: "SleepingZeroVram" as "StoppedStandby" | "SleepingZeroVram" | "WarmActive",
-    binaryPath: "D:\\AI_Models\\unsloth\\llama.cpp\\build\\bin\\Release\\llama-server.exe",
-    binaryExists: true,
-    sleepIdleSeconds: 300,
-    launchArgs: [
-      "--host 127.0.0.1",
-      "--port 18434",
-      "--models-Dir D:\\AI_Models\\llm",
-      "--ctx-size 32768",
-      "-ngl 99",
-      "--gpu-layers-draft 99",
-      "--flash-attn on",
-      "--sleep-idle-seconds 300"
-    ],
-    humanStatus: "Null-VRAM-Ruhemodus (Zero-VRAM Standby). Nach 300s Inaktivität automatisch entladen (0 MiB VRAM) und bereit für sofortigen Aufruf."
-  },
-  whisperServer: {
-    serviceId: "whisper_asr",
-    displayName: "Whisper ASR (German Speech-to-Text)",
-    endpoint: "http://127.0.0.1:18080",
-    state: "StoppedStandby" as "StoppedStandby" | "WarmActive",
-    binaryPath: "D:\\AI_Models\\unsloth\\whisper.cpp\\build\\bin\\Release\\whisper-server.exe",
-    binaryExists: true,
-    cudaDllReady: true,
-    launchArgs: [
-      "--host 127.0.0.1",
-      "--port 18080",
-      "-m D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin",
-      "-l de",
-      "-fa"
-    ],
-    humanStatus: "Gestoppt (Bereit für On-Demand-Start auf Abruf, 0 MiB VRAM)."
-  },
-  cudaDllPath: "C:\\AI\\llamacpp-cuda",
-  cudaDllReady: true
-};
-
-const installerStepsData: InstallerStep[] = [
+const tasksState: TaskEntry[] = [
   {
-    stepIndex: 1,
-    stepKey: "welcome_privacy",
-    titleDe: "Willkommen & Datenschutz",
-    status: "Pending",
-    rollbackAction: "Datenschutzbestätigung zurücksetzen",
-    details: ""
+    id: "task-morning",
+    title: "Morgen-Überblick vorbereiten",
+    schedule: "Täglich beim ersten Aufwachen",
+    statusLabel: "Aktiv"
   },
   {
-    stepIndex: 2,
-    stepKey: "hardware_check",
-    titleDe: "Hardware automatisch erkennen",
-    status: "Pending",
-    rollbackAction: "Hardware-Erkennungsprofil verwerfen",
-    details: ""
+    id: "task-cleanup-hint",
+    title: "Zwischenspeicher schonend prüfen",
+    schedule: "Wöchentlich mit vorheriger Rückfrage",
+    statusLabel: "Bereit"
   },
   {
-    stepIndex: 3,
-    stepKey: "access_profile",
-    titleDe: "Berechtigungsmodus wählen",
-    status: "Pending",
-    rollbackAction: "Gewähltes Zugriffsprofil auf Standard zurücksetzen",
-    details: ""
-  },
-  {
-    stepIndex: 4,
-    stepKey: "ai_setup",
-    titleDe: "KI automatisch einrichten",
-    status: "Pending",
-    rollbackAction: "KI-Modell-Pfade und LLM-Slot-Registrierungen deregistrieren (Dateien bleiben auf Festplatte)",
-    details: ""
-  },
-  {
-    stepIndex: 5,
-    stepKey: "app_discovery",
-    titleDe: "Apps entdecken",
-    status: "Pending",
-    rollbackAction: "Erkannte App-Liste zurücksetzen",
-    details: ""
-  },
-  {
-    stepIndex: 6,
-    stepKey: "app_integration",
-    titleDe: "Apps intelligent integrieren",
-    status: "Pending",
-    rollbackAction: "Generierte Adapter und Tool-Registrierungen deregistrieren",
-    details: ""
-  },
-  {
-    stepIndex: 7,
-    stepKey: "knowledge_index",
-    titleDe: "Persönliches Wissen aufbauen",
-    status: "Pending",
-    rollbackAction: "Temporäre Index-Caches leeren",
-    details: ""
-  },
-  {
-    stepIndex: 8,
-    stepKey: "system_validation",
-    titleDe: "System validieren",
-    status: "Pending",
-    rollbackAction: "Validierungsergebnisse und Prüfberichte verwerfen",
-    details: ""
-  },
-  {
-    stepIndex: 9,
-    stepKey: "aido_awakens",
-    titleDe: "AIDO erwacht",
-    status: "Pending",
-    rollbackAction: "Autostart-Dienst stoppen und Bereitschaftsstatus zurücknehmen",
-    details: ""
+    id: "task-project-guard",
+    title: "Projektstatus im Blick behalten",
+    schedule: "Bei Änderungen im Arbeitsbereich",
+    statusLabel: "Aktiv"
   }
 ];
 
-const modelsReuseData: ModelReuseInfo[] = [
-  {
-    role: "Hauptmodell",
-    modelName: "Qwen3.8-27B-UD-Q4_K_M.gguf",
-    expectedPath: "D:\\AI_Models\\llm\\Qwen3.8-27B-UD-Q4_K_M.gguf",
-    existsLocally: true,
-    sizeBytes: 16464440224
-  },
-  {
-    role: "Vision-Projektor",
-    modelName: "mmproj-Qwen3.8-27B-BF16.gguf",
-    expectedPath: "D:\\AI_Models\\llm\\assets\\mmproj-Qwen3.8-27B-BF16.gguf",
-    existsLocally: true,
-    sizeBytes: 931146432
-  },
-  {
-    role: "Speculative-Draft",
-    modelName: "Qwen3.8-27B-DFlash2-Q4_K_M.gguf",
-    expectedPath: "D:\\AI_Models\\llm\\assets\\Qwen3.8-27B-DFlash2-Q4_K_M.gguf",
-    existsLocally: true,
-    sizeBytes: 1143006816
-  },
-  {
-    role: "Spracherkennung (ASR)",
-    modelName: "ggml-small.bin",
-    expectedPath: "D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin",
-    existsLocally: true,
-    sizeBytes: 487601967
-  }
-];
+let currentPhoneScreen: PhoneScreenId = "home";
+let phoneScrollOffset = 0;
+let phoneLastTypedText = "";
+let qrTokenSeed = 482910;
 
-const appsData: AppItem[] = [
-  {
-    appId: "docker-desktop",
-    displayName: "Docker Desktop",
-    publisher: "Docker Inc.",
-    installPath: "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
-    preferredControl: "Cli",
-    userEnabled: true,
-    capabilities: [
-      { capabilityId: "open_app", titleDe: "Docker Desktop öffnen", risk: "Low", requiresApproval: false },
-      { capabilityId: "list_containers", titleDe: "Laufende Container auflisten", risk: "Low", requiresApproval: false },
-      { capabilityId: "start_stop_container", titleDe: "Container starten / stoppen", risk: "Medium", requiresApproval: true },
-      { capabilityId: "prune_volumes", titleDe: "Ungenutzte Volumes bereinigen", risk: "High", requiresApproval: true }
-    ]
-  },
-  {
-    appId: "cursor-ide",
-    displayName: "Cursor / VS Code",
-    publisher: "Anysphere / Microsoft",
-    installPath: "C:\\Users\\keoku\\AppData\\Local\\Programs\\cursor\\Cursor.exe",
-    preferredControl: "Cli",
-    userEnabled: true,
-    capabilities: [
-      { capabilityId: "open_app", titleDe: "Editor öffnen", risk: "Low", requiresApproval: false },
-      { capabilityId: "open_project", titleDe: "Projektordner öffnen", risk: "Low", requiresApproval: true }
-    ]
-  },
-  {
-    appId: "lm-studio",
-    displayName: "LM Studio",
-    publisher: "Element Labs, Inc.",
-    installPath: "C:\\Program Files\\LM Studio\\LM Studio.exe",
-    preferredControl: "NativeApi",
-    userEnabled: true,
-    capabilities: [
-      { capabilityId: "query_models", titleDe: "Verfügbare Modelle abfragen", risk: "Low", requiresApproval: false },
-      { capabilityId: "load_unload_model", titleDe: "Modell laden / entladen", risk: "Medium", requiresApproval: true }
-    ]
-  },
-  {
-    appId: "google-chrome",
-    displayName: "Google Chrome",
-    publisher: "Google LLC",
-    installPath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    preferredControl: "UiAutomation",
-    userEnabled: true,
-    capabilities: [
-      { capabilityId: "open_url", titleDe: "URL im Browser öffnen", risk: "Low", requiresApproval: true }
-    ]
-  }
-];
-
-const projectsData: ProjectItem[] = [
-  {
-    name: "AIDO",
-    canonicalPath: "C:\\Users\\keoku\\Desktop\\AIDO",
-    stack: ["Node.js/TypeScript", "Rust"],
-    gitBranch: "main",
-    gitStatus: "dirty",
-    recommendedAction: "npm run dev",
-    humanSummary: "Projekt 'AIDO' (Stack: Node.js/TypeScript, Rust) auf Branch 'main' [dirty]"
-  }
-];
-
-interface SandboxCapability {
-  capabilityId: string;
-  titleDe: string;
-  risk: "Low" | "Medium" | "High";
-  status: "Verified" | "Restricted";
-  requiresApproval: boolean;
-}
-
-interface SandboxAppProfile {
-  appId: "obs-studio" | "blender";
-  displayName: string;
-  publisher: string;
-  version: string;
-  installPath: string;
-  preferredControl: "GeneratedAdapter" | "UiAutomation";
-  adapterOrigin: "AutoGenerated";
-  authRequired: string;
-  sandboxIsolated: boolean;
-  harmlessProbePassed: boolean;
-  verifiedCapabilitiesCount: number;
-  restrictedCapabilitiesCount: number;
-  capabilities: SandboxCapability[];
-  humanSummary: string;
-}
-
-const sandboxAppsData: Record<"obs-studio" | "blender", SandboxAppProfile> = {
-  "obs-studio": {
-    appId: "obs-studio",
-    displayName: "OBS Studio",
-    publisher: "OBS Project",
-    version: "1.0.0 (Synthetisiert)",
-    installPath: "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
-    preferredControl: "GeneratedAdapter",
-    adapterOrigin: "AutoGenerated",
-    authRequired: "Keine (Isolierte Sandbox)",
-    sandboxIsolated: true,
-    harmlessProbePassed: true,
-    verifiedCapabilitiesCount: 2,
-    restrictedCapabilitiesCount: 1,
-    capabilities: [
+const PHONE_SCREEN_META: Record<
+  PhoneScreenId,
+  { title: string; nodes: PhoneUiNode[] }
+> = {
+  home: {
+    title: "Startbildschirm",
+    nodes: [
       {
-        capabilityId: "probe_version_status",
-        titleDe: "OBS Studio Status & Version abfragen (Harmloser Sandbox-Check)",
-        risk: "Low",
-        status: "Verified",
-        requiresApproval: false
+        id: "node-settings",
+        label: "Einstellungen",
+        hint: "System, WLAN & Anzeige anpassen",
+        targetScreen: "settings",
+        actionSummary: "App „Einstellungen“ auf dem Smartphone geöffnet."
       },
       {
-        capabilityId: "open_app_window",
-        titleDe: "OBS Studio im Fokus starten",
-        risk: "Low",
-        status: "Verified",
-        requiresApproval: false
+        id: "node-github",
+        label: "GitHub — keokukzh/AIDO",
+        hint: "Projekt-Übersicht im Browser öffnen",
+        targetScreen: "github",
+        actionSummary: "Projektseite „keokukzh/AIDO“ auf dem Smartphone geöffnet."
       },
       {
-        capabilityId: "automate_workflow_export",
-        titleDe: "OBS Studio Arbeitsablauf / Export automatisieren",
-        risk: "Medium",
-        status: "Restricted",
+        id: "node-network",
+        label: "Netzwerk & Internet",
+        hint: "WLAN-Verbindung und Kopplungsstatus",
+        targetScreen: "network",
+        actionSummary: "Bereich „Netzwerk & Internet“ geöffnet."
+      },
+      {
+        id: "node-send-msg",
+        label: "Nachricht senden (Freigabe erforderlich)",
+        hint: "Vor dem Absenden fragt AIDO nach deiner Erlaubnis",
+        actionSummary: "Nachricht wurde nach deiner Freigabe gesendet.",
         requiresApproval: true
       }
-    ],
-    humanSummary: "Automatisch synthetisierter Adapter für OBS Studio. 2 verifizierte Basis-Aktionen, 1 freigabepflichtige Workflow-Aktion."
+    ]
   },
-  "blender": {
-    appId: "blender",
-    displayName: "Blender 3D",
-    publisher: "Blender Foundation",
-    version: "1.0.0 (Synthetisiert)",
-    installPath: "C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe",
-    preferredControl: "GeneratedAdapter",
-    adapterOrigin: "AutoGenerated",
-    authRequired: "Keine (Isolierte Sandbox)",
-    sandboxIsolated: true,
-    harmlessProbePassed: true,
-    verifiedCapabilitiesCount: 2,
-    restrictedCapabilitiesCount: 1,
-    capabilities: [
-      {
-        capabilityId: "probe_version_status",
-        titleDe: "Blender 3D Status & Version abfragen (Harmloser Sandbox-Check)",
-        risk: "Low",
-        status: "Verified",
-        requiresApproval: false
-      },
-      {
-        capabilityId: "open_app_window",
-        titleDe: "Blender 3D im Fokus starten",
-        risk: "Low",
-        status: "Verified",
-        requiresApproval: false
-      },
-      {
-        capabilityId: "automate_workflow_export",
-        titleDe: "Blender 3D Render-Job automatisieren",
-        risk: "Medium",
-        status: "Restricted",
-        requiresApproval: true
-      }
-    ],
-    humanSummary: "Automatisch synthetisierter Adapter für Blender 3D. 2 verifizierte Basis-Aktionen, 1 freigabepflichtige Workflow-Aktion."
-  }
-};
-
-const releaseChecklistItems: string[] = [
-  "Phase 1: Lokale KI-Runtime & Hardware-Erkennung (VRAM, RAM, GPU-Tiers) verifiziert",
-  "Phase 2: Lokale Modell-Erkennung & Wiederverwendung ohne Redownload verifiziert",
-  "Phase 3: Privater Offline-Modus & PermissionGateway (Zero-Telemetry, Loopback 127.0.0.1) verifiziert",
-  "Phase 4: Windows-Health, Schnelle & Tiefen-Bereinigung mit Einmal-Freigabetoken verifiziert",
-  "Phase 5: Projekt- und App-Erkennung mit risikobasierter Capability-Trennung verifiziert",
-  "Phase 6: Multi-Modell Supervisor (Llama.cpp / Ollama) mit VRAM-Standby verifiziert",
-  "Phase 7: Isolierte Adapter-Prüfbank für unbekannte Programme in Sandbox verifiziert",
-  "Phase 8: Saubere Deinstallation mit 100 % Schutz vorhandener Modelle verifiziert"
-];
-
-let selectedSandboxAppId: "obs-studio" | "blender" = "obs-studio";
-let uninstallDryRunVerified: boolean = false;
-
-const avatarOrb = document.getElementById("avatar-orb") as HTMLDivElement | null;
-const charState = document.getElementById("char-state") as HTMLSpanElement;
-const aidoMessage = document.getElementById("aido-message") as HTMLDivElement;
-const actionButtons = document.getElementById("action-buttons") as HTMLDivElement;
-const auditList = document.getElementById("audit-list") as HTMLUListElement;
-const contextMenu = document.getElementById("context-menu") as HTMLDivElement;
-const privacyBadge = document.getElementById("privacy-badge") as HTMLSpanElement | null;
-const btnStaticRemote = document.getElementById("btn-remote") as HTMLButtonElement | null;
-btnStaticRemote?.addEventListener("click", () => showAgentRemoteView());
-const btnStaticRea = document.getElementById("btn-rea") as HTMLButtonElement | null;
-btnStaticRea?.addEventListener("click", () => showReaStudioView());
-const btnStaticPhone = document.getElementById("btn-phone") as HTMLButtonElement | null;
-btnStaticPhone?.addEventListener("click", () => showPhoneAgentView());
-
-const monoCanvas = document.getElementById("aido-mono-3d-canvas") as HTMLCanvasElement | null;
-const characterViewport = document.getElementById("character-viewport-container") as HTMLDivElement | null;
-const mode3dView = document.getElementById("mode-3d-view") as HTMLDivElement | null;
-const modeSvgView = document.getElementById("mode-svg-view") as HTMLDivElement | null;
-const mode2dView = document.getElementById("mode-2d-view") as HTMLDivElement | null;
-const btnMode3d = document.getElementById("btn-mode-3d") as HTMLButtonElement | null;
-const btnModeSvg = document.getElementById("btn-mode-svg") as HTMLButtonElement | null;
-const btnMode2d = document.getElementById("btn-mode-2d") as HTMLButtonElement | null;
-
-let monoViewer: Mono3DViewer | null = null;
-if (monoCanvas) {
-  monoViewer = new Mono3DViewer(monoCanvas, "/assets/AIDO-MONO.glb");
-  monoViewer.load().then(() => {
-    appendAudit("[AIDO-MONO 3D] WebGL-Modell '/assets/AIDO-MONO.glb' erfolgreich geladen (3 artikulierte Nodes, 3.272 Vertices).");
-  }).catch((err) => {
-    console.error("Mono3DViewer load error:", err);
-  });
-}
-
-function switchViewMode(mode: "3d" | "svg" | "2d"): void {
-  if (mode3dView) mode3dView.classList.toggle("active", mode === "3d");
-  if (modeSvgView) modeSvgView.classList.toggle("active", mode === "svg");
-  if (mode2dView) mode2dView.classList.toggle("active", mode === "2d");
-
-  if (btnMode3d) btnMode3d.classList.toggle("active", mode === "3d");
-  if (btnModeSvg) btnModeSvg.classList.toggle("active", mode === "svg");
-  if (btnMode2d) btnMode2d.classList.toggle("active", mode === "2d");
-
-  appendAudit(
-    `[AIDO-MONO] Ansichtsmodus: ${
-      mode === "3d"
-        ? "🧊 3D Live WebGL (AIDO-MONO.glb)"
-        : mode === "svg"
-        ? "✨ Morph-Animation SVG"
-        : "🎯 2D Charakter-Logo"
-    }`
-  );
-}
-
-btnMode3d?.addEventListener("click", () => switchViewMode("3d"));
-btnModeSvg?.addEventListener("click", () => switchViewMode("svg"));
-btnMode2d?.addEventListener("click", () => switchViewMode("2d"));
-
-let currentProposal: ApprovalProposal | null = null;
-let pressTimer: number | null = null;
-
-type FocusMode = "NormalIdle" | "FullscreenOrGaming" | "VoiceRecordingOrCall";
-let currentFocusMode: FocusMode = "NormalIdle";
-const mutedCategories: Set<string> = new Set();
-const dismissalCounts: Map<string, number> = new Map();
-let deepCleanupExecuted = false;
-
-interface DeepCleanupCandidateItem {
-  fileName: string;
-  category: "StaleBuildArtifacts" | "OrphanedCrashDumps" | "ObsoleteShaderAndModelTemp";
-  categoryLabelDe: string;
-  sizeBytes: number;
-  reasonGerman: string;
-}
-
-const deepCleanupCandidatesData: DeepCleanupCandidateItem[] = [
-  {
-    fileName: "rust_incremental_old_target.old_build",
-    category: "StaleBuildArtifacts",
-    categoryLabelDe: "Veralteter Build-Cache",
-    sizeBytes: 512 * 1024,
-    reasonGerman: "Veralteter inkrementeller Build-Cache eines früheren Kompiliervorgangs."
-  },
-  {
-    fileName: "orphaned_webview_crash_dump.dmp_cache",
-    category: "OrphanedCrashDumps",
-    categoryLabelDe: "Verwaister Crash-Dump",
-    sizeBytes: 256 * 1024,
-    reasonGerman: "Verwaister WebView-Crash-Dump ohne aktiven Fehlerbericht."
-  },
-  {
-    fileName: "obsolete_cuda_compute_cache.shader_tmp",
-    category: "ObsoleteShaderAndModelTemp",
-    categoryLabelDe: "Veralteter Shader- & Compute-Cache",
-    sizeBytes: 384 * 1024,
-    reasonGerman: "Veralteter GPU-Shader- und Compute-Zwischenspeicher."
-  }
-];
-
-function appendAudit(entry: string): void {
-  const li = document.createElement("li");
-  const now = new Date().toLocaleTimeString("de-DE");
-  li.textContent = `[${now}] ${entry}`;
-  auditList.prepend(li);
-}
-
-function setCharacterState(stateLabel: string, working = false): void {
-  charState.textContent = `Zustand: ${stateLabel}`;
-  if (working) {
-    avatarOrb?.classList.add("working");
-    monoViewer?.setState("thinking");
-  } else {
-    avatarOrb?.classList.remove("working");
-    if (stateLabel.includes("Höre zu") || stateLabel.includes("Push-to-Talk") || stateLabel.includes("Aufnahme")) {
-      monoViewer?.setState("listening");
-    } else if (stateLabel.includes("Schlafmodus")) {
-      monoViewer?.setState("idle");
-      monoViewer?.toggleAutoRotate(false);
-    } else if (stateLabel.includes("spricht") || stateLabel.includes("Begrüßung") || stateLabel.includes("erwacht")) {
-      monoViewer?.setState("speaking");
-    } else {
-      monoViewer?.setState("idle");
-    }
-  }
-}
-
-function renderDefaultButtons(): void {
-  actionButtons.innerHTML = "";
-  const btnMasterplan = document.createElement("button");
-  btnMasterplan.textContent = "🏛️ Masterplan 100 % (7-Memory, Tasks, 8-Agents & Docker)";
-  btnMasterplan.dataset.action = "masterplan";
-  btnMasterplan.style.background = "rgba(255, 255, 255, 0.16)";
-  btnMasterplan.style.borderColor = "rgba(255, 255, 255, 0.38)";
-  btnMasterplan.style.color = "#ffffff";
-  btnMasterplan.style.fontWeight = "600";
-  btnMasterplan.onclick = () => showMasterplanCompletionView();
-
-  const btnRea = document.createElement("button");
-  btnRea.id = "btn-rea";
-  btnRea.textContent = "🔬 REA App Reverse Engineering & Steuerung";
-  btnRea.dataset.action = "rea";
-  btnRea.style.background = "rgba(255, 255, 255, 0.12)";
-  btnRea.style.borderColor = "rgba(255, 255, 255, 0.32)";
-  btnRea.style.color = "#ffffff";
-  btnRea.style.fontWeight = "600";
-  btnRea.onclick = () => showReaStudioView();
-
-  const btnPhone = document.createElement("button");
-  btnPhone.id = "btn-phone";
-  btnPhone.textContent = "📲 Phone Agent (Android)";
-  btnPhone.dataset.action = "phone";
-  btnPhone.style.background = "rgba(255, 255, 255, 0.12)";
-  btnPhone.style.borderColor = "rgba(255, 255, 255, 0.32)";
-  btnPhone.style.color = "#ffffff";
-  btnPhone.style.fontWeight = "600";
-  btnPhone.onclick = () => showPhoneAgentView();
-
-  const btnBrandStudio = document.createElement("button");
-  btnBrandStudio.textContent = "🎨 AIDO-MONO 3D & Brand Studio";
-  btnBrandStudio.dataset.action = "brand-studio";
-  btnBrandStudio.style.background = "rgba(255, 255, 255, 0.12)";
-  btnBrandStudio.style.borderColor = "rgba(255, 255, 255, 0.3)";
-  btnBrandStudio.style.color = "#f8fafc";
-  btnBrandStudio.onclick = () => showBrandStudioView();
-
-  const btnRemote = document.createElement("button");
-  btnRemote.textContent = "📱 Agent Remote (QR & Handy-Cockpit)";
-  btnRemote.dataset.action = "remote";
-  btnRemote.style.background = "rgba(255, 255, 255, 0.09)";
-  btnRemote.style.borderColor = "rgba(255, 255, 255, 0.28)";
-  btnRemote.style.color = "#ffffff";
-  btnRemote.onclick = () => showAgentRemoteView();
-
-  const btnCheck = document.createElement("button");
-  btnCheck.textContent = "🔍 Systemcheck & Fast Cleanup prüfen";
-  btnCheck.onclick = () => startSystemHealthAndCleanupPreview();
-
-  const btnProactive = document.createElement("button");
-  btnProactive.textContent = "💡 Proaktive Vorschläge";
-  btnProactive.dataset.action = "proactive";
-  btnProactive.onclick = () => showProactiveEngineView();
-
-  const btnDeepCleanup = document.createElement("button");
-  btnDeepCleanup.textContent = "🧽 Deep Cleanup";
-  btnDeepCleanup.dataset.action = "deep-cleanup";
-  btnDeepCleanup.onclick = () => startDeepCleanupPreview();
-
-  const btnReleaseCheck = document.createElement("button");
-  btnReleaseCheck.textContent = "🧩 Adapter-Sandbox & Release-Check";
-  btnReleaseCheck.dataset.action = "release-check";
-  btnReleaseCheck.onclick = () => showReleaseCheckView();
-
-  const btnApps = document.createElement("button");
-  btnApps.textContent = "🧩 App Intelligence & Projekte";
-  btnApps.onclick = () => showAppIntelligenceAndProjects();
-
-  const btnInstaller = document.createElement("button");
-  btnInstaller.textContent = "🚀 Smart Installer (9-Phasen-Setup)";
-  btnInstaller.onclick = () => showSmartInstallerWizard();
-
-  const btnRuntime = document.createElement("button");
-  btnRuntime.textContent = "⚡ Runtime & Memory-Kompaktierung";
-  btnRuntime.onclick = () => showRuntimeAndMemoryCompaction();
-
-  const btnPrivacy = document.createElement("button");
-  btnPrivacy.textContent = "🔒 Privacy Center anzeigen";
-  btnPrivacy.onclick = () => showPrivacyCenter();
-
-  const btnMemory = document.createElement("button");
-  btnMemory.textContent = "🧠 Memory & Wissen (4-Stufen)";
-  btnMemory.onclick = () => showMemorySummary();
-
-  actionButtons.append(
-    btnMasterplan,
-    btnRea,
-    btnPhone,
-    btnBrandStudio,
-    btnRemote,
-    btnCheck,
-    btnProactive,
-    btnDeepCleanup,
-    btnReleaseCheck,
-    btnApps,
-    btnInstaller,
-    btnRuntime,
-    btnPrivacy,
-    btnMemory
-  );
-}
-
-function startSystemHealthAndCleanupPreview(): void {
-  setCharacterState("Analysiere System (Nur lesend)...", true);
-  currentProposal = {
-    requestId: crypto.randomUUID(),
-    title: "AIDO Fast Cleanup (Temporäre Sitzungs-Caches bereinigen)",
-    explanation:
-      "Ich habe deinen PC lesend geprüft: Deine NVIDIA GeForce RTX 5090 hat aktuell über 29 GB freien VRAM (Hauptmodell schläft bei Nichtgebrauch). Im isolierten AIDO-Temporärspeicher liegen 3 temporäre Cache-Dateien (448 KB). Deine persönlichen Dateien, Projekte und Modelle bleiben unangetastet. Darf ich das Fast Cleanup jetzt ausführen?",
-    files: [
-      "aido_vision_preview_01.tmp (64 KB)",
-      "aido_whisper_chunk_01.tmp (128 KB)",
-      "aido_slot_prompt_cache.tmp (256 KB)"
-    ],
-    bytes: 448 * 1024,
-    actionKind: "FastCleanup"
-  };
-
-  setCharacterState("Warte auf deine Freigabe", false);
-  aidoMessage.innerHTML = `
-    <strong>${currentProposal.title}</strong><br/>
-    ${currentProposal.explanation}<br/><br/>
-    <em>Betroffene temporäre Dateien:</em> ${currentProposal.files.join(", ")}
-  `;
-
-  appendAudit(
-    `[PermissionGateway] Freigabe-Anfrage ${currentProposal.requestId.slice(0, 8)} erstellt (FastCleanupPreview, 448 KB).`
-  );
-
-  actionButtons.innerHTML = "";
-  const btnApprove = document.createElement("button");
-  btnApprove.className = "approve";
-  btnApprove.textContent = "✅ Ja, jetzt bereinigen";
-  btnApprove.onclick = () => executeApprovedCleanup();
-
-  const btnReject = document.createElement("button");
-  btnReject.className = "reject";
-  btnReject.textContent = "❌ Nein, abbrechen";
-  btnReject.onclick = () => rejectCleanup();
-
-  actionButtons.append(btnApprove, btnReject);
-}
-
-function executeApprovedCleanup(): void {
-  if (!currentProposal) return;
-  setCharacterState("Führe Fast Cleanup aus...", true);
-  const reqId = currentProposal.requestId.slice(0, 8);
-
-  setTimeout(() => {
-    setCharacterState("Erfolgreich bereinigt!", false);
-    aidoMessage.innerHTML = `
-      <strong>Fast Cleanup abgeschlossen!</strong><br/>
-      Ich habe die 3 temporären Cache-Dateien (448 KB) sicher entfernt und das Ergebnis in deinem lokalen SQLite/FTS5-Gedächtnis gespeichert.
-    `;
-    appendAudit(
-      `[WindowsBridge] FastCleanupExecute mit Einmal-Token für Anfrage ${reqId} ausgeführt (3 Dateien entfernt, 448 KB frei).`
-    );
-    appendAudit(
-      `[MemoryEngine] Episodische Erinnerung gespeichert: 'Fast Cleanup nach Nutzerfreigabe ausgeführt'.`
-    );
-    currentProposal = null;
-    renderDefaultButtons();
-  }, 350);
-}
-
-function rejectCleanup(): void {
-  if (!currentProposal) return;
-  const reqId = currentProposal.requestId.slice(0, 8);
-  setCharacterState("Bereit (Keine Änderung)", false);
-  aidoMessage.textContent =
-    "Verstanden! Ich habe nichts verändert und alle Dateien genau so belassen, wie sie sind.";
-  appendAudit(
-    `[PermissionGateway] Anfrage ${reqId} vom Nutzer abgelehnt — keine Systemänderung durchgeführt.`
-  );
-  currentProposal = null;
-  renderDefaultButtons();
-}
-
-function startDeepCleanupPreview(): void {
-  setCharacterState("Analysiere Staging (Tiefenprüfung)...", true);
-
-  const totalBytes = deepCleanupCandidatesData.reduce((acc, c) => acc + c.sizeBytes, 0);
-  const totalKb = Math.round(totalBytes / 1024);
-
-  currentProposal = {
-    requestId: crypto.randomUUID(),
-    title: "AIDO Deep Cleanup (Tiefenprüfung verwaister Build- & Shader-Caches)",
-    explanation: `Ich habe das Bereinigungs-Staging lesend geprüft: Es wurden 3 verwaiste Artefakte (${totalKb} KB) in 3 Kategorien gefunden. Deine persönlichen Quellcodes, Projektdateien und KI-Modelle bleiben vollständig unberührt. Darf ich die Tiefenbereinigung jetzt ausführen?`,
-    files: deepCleanupCandidatesData.map((c) => `${c.fileName} (${c.sizeBytes / 1024} KB, ${c.category})`),
-    bytes: totalBytes,
-    actionKind: "DeepCleanupExecute"
-  };
-
-  const reqId = currentProposal.requestId.slice(0, 8);
-
-  let html = `
-    <strong>🧽 AIDO Deep Cleanup (Tiefenprüfung & Freigabe)</strong><br/>
-    ${currentProposal.explanation}<br/>
-
-    <div class="deep-cleanup-grid">
-  `;
-
-  for (const c of deepCleanupCandidatesData) {
-    html += `
-      <div class="deep-cleanup-item">
-        <div class="deep-cleanup-category">${c.categoryLabelDe}</div>
-        <div class="deep-cleanup-size">${c.sizeBytes / 1024} KB</div>
-        <div class="deep-cleanup-file">${c.fileName}</div>
-        <div class="deep-cleanup-desc">${c.reasonGerman}</div>
-      </div>
-    `;
-  }
-
-  html += `
-    </div>
-    <div style="font-size: 0.8rem; color: #34d399; font-weight: 600; margin-top: 6px;">
-      ✓ Gesamtpotenzial: ${totalKb} KB in 3 Kategorien · Freigabe-ID: ${currentProposal.requestId}
-    </div>
-  `;
-
-  setCharacterState("Warte auf deine Freigabe", false);
-  aidoMessage.innerHTML = html;
-
-  appendAudit(
-    `[PermissionGateway] Freigabe-Anfrage ${reqId} erstellt (DeepCleanupExecute, 3 Kategorien, ${totalKb} KB).`
-  );
-
-  actionButtons.innerHTML = "";
-  const btnApprove = document.createElement("button");
-  btnApprove.className = "approve";
-  btnApprove.textContent = "✅ Ja, Deep Cleanup ausführen";
-  btnApprove.onclick = () => executeApprovedDeepCleanup();
-
-  const btnReject = document.createElement("button");
-  btnReject.className = "reject";
-  btnReject.textContent = "❌ Nein, abbrechen";
-  btnReject.onclick = () => rejectDeepCleanup();
-
-  actionButtons.append(btnApprove, btnReject);
-}
-
-function executeApprovedDeepCleanup(): void {
-  if (!currentProposal) return;
-  setCharacterState("Führe Deep Cleanup aus...", true);
-  const reqId = currentProposal.requestId.slice(0, 8);
-  const freedKb = Math.round(currentProposal.bytes / 1024);
-
-  setTimeout(() => {
-    deepCleanupExecuted = true;
-    setCharacterState("Tiefenbereinigung erfolgreich!", false);
-    aidoMessage.innerHTML = `
-      <strong>🧽 Deep Cleanup erfolgreich abgeschlossen!</strong><br/>
-      Ich habe die 3 verwaisten Build-, Shader- und Crash-Dateien (<b>${freedKb} KB</b>) sicher aus dem Staging entfernt.<br/><br/>
-      <em>Bereinigte Kategorien:</em><br/>
-      • StaleBuildArtifacts (rust_incremental_old_target.old_build, 512 KB)<br/>
-      • OrphanedCrashDumps (orphaned_webview_crash_dump.dmp_cache, 256 KB)<br/>
-      • ObsoleteShaderAndModelTemp (obsolete_cuda_compute_cache.shader_tmp, 384 KB)<br/><br/>
-      Deine persönlichen Daten und Quellcodes blieben unberührt. Das Ergebnis wurde im lokalen 4-Stufen-Gedächtnis gespeichert.
-    `;
-
-    appendAudit(
-      `[WindowsBridge] DeepCleanupExecute mit Einmal-Token für Anfrage ${reqId} ausgeführt (3 veraltete Build-/Shader-Dateien entfernt, ${freedKb} KB frei).`
-    );
-
-    const nextId = Math.max(...memoriesData.map((m) => m.id), 0) + 1;
-    memoriesData.push({
-      id: nextId,
-      createdAt: new Date().toISOString(),
-      layer: "EpisodicMemory",
-      category: "DeepCleanup",
-      summary: `Deep Cleanup nach Nutzerfreigabe ausgeführt (3 Dateien, ${freedKb} KB bereinigt)`,
-      details: `Deep Cleanup erfolgreich abgeschlossen: 3 veraltete Build- und Shader-Dateien (${freedKb} KB) wurden bereinigt. VRAM-Status: 29910 MiB frei von 32607 MiB.`,
-      source: "AidoCore::approve_and_execute_deep_cleanup",
-      validity: "active"
-    });
-
-    appendAudit(
-      `[MemoryEngine] Episodische Erinnerung #${nextId} gespeichert: 'Deep Cleanup nach Nutzerfreigabe ausgeführt'.`
-    );
-
-    currentProposal = null;
-    renderDefaultButtons();
-  }, 350);
-}
-
-function rejectDeepCleanup(): void {
-  if (!currentProposal) return;
-  const reqId = currentProposal.requestId.slice(0, 8);
-  setCharacterState("Bereit (Keine Änderung)", false);
-  aidoMessage.textContent =
-    "Tiefenbereinigung abgebrochen. Alle 3 Cache-Dateien (1.152 KB) wurden unverändert belassen.";
-  appendAudit(
-    `[PermissionGateway] Anfrage ${reqId} für Deep Cleanup vom Nutzer abgelehnt — keine Dateien gelöscht.`
-  );
-  currentProposal = null;
-  renderDefaultButtons();
-}
-
-function showProactiveEngineView(): void {
-  setCharacterState("Vordenker-Modus aktiv", false);
-
-  const activeEpisodicCount = memoriesData.filter(
-    (m) => m.layer === "EpisodicMemory" && m.validity === "active"
-  ).length;
-
-  let bannerHtml = "";
-  if (currentFocusMode === "FullscreenOrGaming") {
-    bannerHtml = `
-      <div class="focus-guard-banner">
-        <span style="font-size: 1.6rem;">🎮</span>
-        <div>
-          <strong>Fokus-Schutz aktiv: Vollbild- oder Gaming-Modus erkannt</strong><br/>
-          AIDO bleibt im Hintergrund stumm und unterdrückt alle proaktiven Vorschläge und Popups, um deine Konzentration und Framerate nicht zu stören.
-        </div>
-      </div>
-    `;
-  } else if (currentFocusMode === "VoiceRecordingOrCall") {
-    bannerHtml = `
-      <div class="focus-guard-banner call">
-        <span style="font-size: 1.6rem;">🎙️</span>
-        <div>
-          <strong>Fokus-Schutz aktiv: Audioaufnahme oder Sprachanruf aktiv</strong><br/>
-          AIDO pausiert alle Benachrichtigungen und Töne, um laufende Audioaufnahmen und Gespräche nicht zu unterbrechen.
-        </div>
-      </div>
-    `;
-  }
-
-  // Define candidate suggestions
-  const allSuggestions = [
-    {
-      id: "dirty_git_AIDO",
-      category: "DirtyGitWorkspace",
-      categoryLabel: "Dirty Git Workspace",
-      priority: 9,
-      title: "Ungespeicherte Änderungen in AIDO",
-      humanMessage: "Im Projekt 'AIDO' wurden ungespeicherte Git-Änderungen erkannt (Branch: main, Status: dirty). Möchtest du den Status prüfen oder sichern?",
-      whyNow: "Ungespeicherte Änderungen im Git-Repository festgestellt.",
-      primaryActionLabel: "🚀 Projekt öffnen & prüfen",
-      onPrimaryAction: () => prepareProjectLaunchPreview("AIDO")
-    },
-    {
-      id: "system_cleanup_hint",
-      category: "SystemMaintenance",
-      categoryLabel: "Systemwartung & Deep Cleanup",
-      priority: 8,
-      title: deepCleanupExecuted
-        ? "Systemwartung: Bereinigt"
-        : "Tiefenbereinigung 1.152 KB verfügbar",
-      humanMessage: deepCleanupExecuted
-        ? "Die 3 verwaisten Build- und Shader-Artefakte wurden bereits erfolgreich bereinigt."
-        : "Im Deep-Cleanup-Staging liegen 3 verwaiste Build- und Shader-Artefakte (1.152 KB), die gefahrlos freigegeben werden können.",
-      whyNow: deepCleanupExecuted
-        ? "Wartung kürzlich abgeschlossen."
-        : "Veralteter Build- und Shader-Cache belegt Speicherplatz.",
-      primaryActionLabel: deepCleanupExecuted ? "🧹 Fast Cleanup prüfen" : "🧽 Deep Cleanup öffnen",
-      onPrimaryAction: () => {
-        if (deepCleanupExecuted) {
-          startSystemHealthAndCleanupPreview();
-        } else {
-          startDeepCleanupPreview();
-        }
-      }
-    },
-    {
-      id: "memory_compaction_hint",
-      category: "MemoryConsolidation",
-      categoryLabel: "Gedächtniskompaktierung",
-      priority: 7,
-      title: activeEpisodicCount >= 2
-        ? `Episodisches Gedächtnis kompaktieren (${activeEpisodicCount} aktiv)`
-        : "Gedächtnis konsolidiert",
-      humanMessage: activeEpisodicCount >= 2
-        ? `${activeEpisodicCount} episodische Cleanup-Aktivitäten können zu dauerhaftem semantischen Wissen (Stufe 3) konsolidiert werden.`
-        : "Alle episodischen Erinnerungen wurden bereits semantisch verdichtet.",
-      whyNow: activeEpisodicCount >= 2
-        ? "Schwellenwert für 4-Stufen-Kompaktierung erreicht."
-        : "Gedächtnisstruktur ist optimal organisiert.",
-      primaryActionLabel: "🧹 Jetzt kompaktieren",
-      onPrimaryAction: () => performMemoryCompaction()
-    },
-    {
-      id: "continue_project_AIDO",
-      category: "ProjectContinuation",
-      categoryLabel: "Projektfortsetzung",
-      priority: 6,
-      title: "Weiterarbeiten an AIDO",
-      humanMessage: "Möchtest du am Projekt 'AIDO' weiterarbeiten? Empfohlene nächste Aktion: npm run dev.",
-      whyNow: "Zuletzt geöffnetes Projekt steht zur Fortsetzung bereit.",
-      primaryActionLabel: "🚀 Entwicklungsserver starten",
-      onPrimaryAction: () => prepareProjectLaunchPreview("AIDO")
-    }
-  ];
-
-  // Filter out suggestions dismissed >= 2 times or muted
-  const visibleSuggestions = (currentFocusMode === "NormalIdle")
-    ? allSuggestions.filter((s) => {
-        if (mutedCategories.has(s.category)) return false;
-        const dismissCount = dismissalCounts.get(s.id) || 0;
-        return dismissCount < 2;
-      })
-    : [];
-
-  let html = `
-    <strong>💡 AIDO Proaktive Vordenker-Engine & Fokus-Schutz</strong><br/>
-    AIDO agiert als vorausschauender Partner: Erkennung ungespeicherter Git-Änderungen, anstehender System- & Tiefenbereinigungen und Gedächtniskompaktierung nach <b>MASTERPLAN Kapitel 6.8</b>.<br/>
-
-    <!-- Focus-Guard Mode Switcher -->
-    <div style="margin-top: 10px; font-size: 0.82rem; font-weight: 700; color: #c7d2fe;">🛡️ Fokus-Schutz Aktivitätsmodus:</div>
-    <div class="focus-mode-bar">
-      <span class="focus-pill ${currentFocusMode === "NormalIdle" ? "active" : ""}" data-focus="NormalIdle">
-        🟢 Normaler Desktop
-      </span>
-      <span class="focus-pill gaming ${currentFocusMode === "FullscreenOrGaming" ? "active" : ""}" data-focus="FullscreenOrGaming">
-        🎮 Vollbild / Gaming (Stumm)
-      </span>
-      <span class="focus-pill call ${currentFocusMode === "VoiceRecordingOrCall" ? "active" : ""}" data-focus="VoiceRecordingOrCall">
-        🎙️ Sprachaufnahme / Call (Stumm)
-      </span>
-    </div>
-
-    ${bannerHtml}
-  `;
-
-  if (currentFocusMode === "NormalIdle") {
-    html += `
-      <div class="intel-heading">⚡ Priorisierte proaktive Vorschläge (${visibleSuggestions.length} aktiv)</div>
-      <div class="proactive-grid">
-    `;
-
-    if (visibleSuggestions.length === 0) {
-      html += `
-        <div style="padding: 16px; background: rgba(0,0,0,0.25); border-radius: 12px; font-size: 0.85rem; color: #94a3b8;">
-          Aktuell liegen keine weiteren proaktiven Vorschläge vor (alle Vorschläge wurden bearbeitet, zurückgestellt oder deren Themen stummgeschaltet).
-        </div>
-      `;
-    }
-
-    for (const s of visibleSuggestions) {
-      const dismissCount = dismissalCounts.get(s.id) || 0;
-      const backoffBadge = dismissCount === 1
-        ? '<span class="tag dirty">⏰ Zurückgestellt (1x verworfen · bei 2x wird pausiert)</span>'
-        : "";
-
-      html += `
-        <div class="proactive-card priority-${s.priority}">
-          <div class="proactive-header">
-            <div class="proactive-title">
-              <span>${s.title}</span>
-              <span class="tag action">Prio ${s.priority}</span>
-              <span class="tag branch">${s.categoryLabel}</span>
-              ${backoffBadge}
-            </div>
-          </div>
-          <div style="font-size: 0.86rem; color: #e0e7ff; line-height: 1.45;">${s.humanMessage}</div>
-          <div class="proactive-why">Warum jetzt: ${s.whyNow}</div>
-          <div class="proactive-actions">
-            <button class="approve btn-primary-proactive" data-sugg-id="${s.id}">
-              ${s.primaryActionLabel}
-            </button>
-            <button class="btn-subtle btn-dismiss-proactive" data-sugg-id="${s.id}">
-              ⏳ Später erinnern
-            </button>
-            <button class="btn-subtle btn-mute-proactive" data-cat="${s.category}" data-cat-label="${s.categoryLabel}">
-              🔕 Thema stummschalten
-            </button>
-          </div>
-        </div>
-      `;
-    }
-
-    html += `</div>`;
-
-    if (mutedCategories.size > 0) {
-      html += `
-        <div style="margin-top: 14px; padding: 10px 14px; background: rgba(0,0,0,0.25); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #94a3b8;">
-          <span>Stummgeschaltete Themen: ${Array.from(mutedCategories).join(", ")}</span>
-          <button class="btn-subtle" id="btn-unmute-all">🔔 Alle Themen wieder aktivieren</button>
-        </div>
-      `;
-    }
-  }
-
-  aidoMessage.innerHTML = html;
-
-  // Add event listeners for focus pills
-  const focusPills = aidoMessage.querySelectorAll<HTMLSpanElement>(".focus-pill");
-  focusPills.forEach((pill) => {
-    pill.addEventListener("click", () => {
-      const mode = pill.dataset.focus as FocusMode;
-      if (mode && mode !== currentFocusMode) {
-        currentFocusMode = mode;
-        if (mode === "NormalIdle") {
-          appendAudit("[FocusGuard] Modus gewechselt zu: Normaler Desktop (Proaktive Vorschläge aktiv).");
-        } else if (mode === "FullscreenOrGaming") {
-          appendAudit("[FocusGuard] Fokus-Schutz aktiviert: Vollbild / Gaming erkannt — alle Vorschläge stummgeschaltet.");
-        } else if (mode === "VoiceRecordingOrCall") {
-          appendAudit("[FocusGuard] Fokus-Schutz aktiviert: Audio / Call erkannt — Benachrichtigungen unterdrückt.");
-        }
-        showProactiveEngineView();
-      }
-    });
-  });
-
-  // Add event listeners for primary proactive actions
-  const primaryButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-primary-proactive");
-  primaryButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.suggId;
-      const sugg = allSuggestions.find((s) => s.id === id);
-      if (sugg) {
-        sugg.onPrimaryAction();
-      }
-    });
-  });
-
-  // Add event listeners for dismissal backoff
-  const dismissButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-dismiss-proactive");
-  dismissButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.suggId;
-      if (!id) return;
-      const current = dismissalCounts.get(id) || 0;
-      const updated = current + 1;
-      dismissalCounts.set(id, updated);
-      const sugg = allSuggestions.find((s) => s.id === id);
-      const title = sugg ? sugg.title : id;
-      if (updated >= 2) {
-        appendAudit(`[ProactiveEngine] Vorschlag '${title}' 2x verworfen — 2x Backoff aktiv (Vorschlag für diese Sitzung pausiert).`);
-      } else {
-        appendAudit(`[ProactiveEngine] Vorschlag '${title}' zurückgestellt (${updated}/2 Ablehnungen).`);
-      }
-      showProactiveEngineView();
-    });
-  });
-
-  // Add event listeners for muting category
-  const muteButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-mute-proactive");
-  muteButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const cat = btn.dataset.cat;
-      const label = btn.dataset.catLabel || cat;
-      if (!cat) return;
-      mutedCategories.add(cat);
-      appendAudit(`[ProactiveEngine] Thema '${label}' stummgeschaltet.`);
-      showProactiveEngineView();
-    });
-  });
-
-  // Add event listener for unmute all
-  const unmuteBtn = aidoMessage.querySelector<HTMLButtonElement>("#btn-unmute-all");
-  if (unmuteBtn) {
-    unmuteBtn.addEventListener("click", () => {
-      mutedCategories.clear();
-      appendAudit("[ProactiveEngine] Alle Themen wurden wieder aktiviert.");
-      showProactiveEngineView();
-    });
-  }
-
-  appendAudit(
-    `[ProactiveEngine] Vordenker-Ansicht geladen (Aktivitätszustand: ${currentFocusMode}, ${visibleSuggestions.length} aktive Vorschläge).`
-  );
-
-  // Render contextual buttons
-  actionButtons.innerHTML = "";
-  const btnDeepCleanupQuick = document.createElement("button");
-  btnDeepCleanupQuick.textContent = "🧽 Deep Cleanup prüfen";
-  btnDeepCleanupQuick.onclick = () => startDeepCleanupPreview();
-
-  const btnMemoryQuick = document.createElement("button");
-  btnMemoryQuick.textContent = "🧠 Memory & Wissen";
-  btnMemoryQuick.onclick = () => showMemorySummary();
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "🔙 Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnDeepCleanupQuick, btnMemoryQuick, btnBack);
-}
-
-function showAppIntelligenceAndProjects(): void {
-  setCharacterState("App- & Projekt-Intelligenz aktiv", false);
-
-  let html = `
-    <strong>🧩 AIDO (Agentic Intelligent Developing Operator) — App Intelligence & Projekte</strong><br/>
-    Hier ist die Übersicht deiner erkannten Desktop-Apps und deines kanonischen Projektkatalogs auf diesem PC. Alle Aktionen erfordern eine explizite Nutzer-Freigabe über das Permission Gateway.
-    
-    <div class="intel-section">
-      <div class="intel-heading">📱 Erkannte Windows-Programme & Geprüfte Fähigkeiten</div>
-      <div class="apps-grid">
-  `;
-
-  for (const app of appsData) {
-    const capsHtml = app.capabilities
-      .map((c) => {
-        const riskClass = c.risk.toLowerCase();
-        const approvalBadge = c.requiresApproval ? "🛡️ Freigabepflicht" : "⚡ Direkt";
-        return `<span class="cap-badge ${riskClass}" title="${c.titleDe}">• ${c.capabilityId} (${approvalBadge})</span>`;
-      })
-      .join("");
-
-    html += `
-      <div class="app-card">
-        <div class="app-header">
-          <div class="app-title-group">
-            <span class="app-name">${app.displayName}</span>
-            <span class="tag">${app.preferredControl}</span>
-          </div>
-          <label class="app-toggle">
-            <input type="checkbox" data-app-id="${app.appId}" ${app.userEnabled ? "checked" : ""} />
-            <span>${app.userEnabled ? "Aktiv" : "Aus"}</span>
-          </label>
-        </div>
-        <div class="app-meta">Herausgeber: ${app.publisher} · Pfad: <code>${app.installPath}</code></div>
-        <div class="cap-list">
-          ${capsHtml}
-        </div>
-      </div>
-    `;
-  }
-
-  html += `
-      </div>
-      <div class="intel-heading" style="margin-top: 10px;">📁 Kanonischer Projektkatalog</div>
-  `;
-
-  for (const proj of projectsData) {
-    const stackTags = proj.stack.map((s) => `<span class="tag">${s}</span>`).join(" ");
-    html += `
-      <div class="project-card">
-        <div class="project-header">
-          <span class="project-title">${proj.name}</span>
-          <div class="tags-row">
-            <span class="tag branch">Branch: ${proj.gitBranch}</span>
-            <span class="tag dirty">Status: ${proj.gitStatus}</span>
-          </div>
-        </div>
-        <div class="project-meta">Kanonischer Pfad: <code>${proj.canonicalPath}</code></div>
-        <div class="tags-row">
-          <span class="tag" style="color: #cbd5e1;">Stack:</span> ${stackTags}
-          <span class="tag action">Empfohlene Aktion: ${proj.recommendedAction}</span>
-        </div>
-        <button class="btn-launch" id="btn-launch-aido">🚀 Projekt-Start vorbereiten (Freigabe anfordern)</button>
-      </div>
-    `;
-  }
-
-  html += `</div>`;
-
-  aidoMessage.innerHTML = html;
-
-  // Add event listeners to app checkboxes
-  const checkboxes = aidoMessage.querySelectorAll<HTMLInputElement>("input[type='checkbox']");
-  checkboxes.forEach((cb) => {
-    cb.addEventListener("change", (e) => {
-      const target = e.target as HTMLInputElement;
-      const appId = target.dataset.appId;
-      const app = appsData.find((a) => a.appId === appId);
-      if (app) {
-        app.userEnabled = target.checked;
-        const labelSpan = target.parentElement?.querySelector("span");
-        if (labelSpan) {
-          labelSpan.textContent = app.userEnabled ? "Aktiv" : "Aus";
-        }
-        appendAudit(
-          `[AppIntelligence] App '${app.displayName}' ${app.userEnabled ? "aktiviert" : "deaktiviert"} (Nutzer-Einstellung).`
-        );
-      }
-    });
-  });
-
-  // Add event listener to project launch button
-  const launchBtn = aidoMessage.querySelector<HTMLButtonElement>("#btn-launch-aido");
-  if (launchBtn) {
-    launchBtn.addEventListener("click", () => {
-      prepareProjectLaunchPreview("AIDO");
-    });
-  }
-
-  appendAudit(
-    `[AppIntelligence] Umgebungserkennung geladen: ${appsData.length} bekannte Apps & ${projectsData.length} Projekt(e) im Katalog.`
-  );
-
-  // Render contextual action buttons
-  actionButtons.innerHTML = "";
-  const btnLaunchQuick = document.createElement("button");
-  btnLaunchQuick.textContent = "🚀 AIDO Projekt-Start anfordern";
-  btnLaunchQuick.onclick = () => prepareProjectLaunchPreview("AIDO");
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "🔙 Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnLaunchQuick, btnBack);
-}
-
-function prepareProjectLaunchPreview(projectName: string): void {
-  const project = projectsData.find((p) => p.name === projectName) || projectsData[0];
-  setCharacterState("Warte auf deine Freigabe", false);
-
-  currentProposal = {
-    requestId: crypto.randomUUID(),
-    title: `Projekt-Start: ${project.name}`,
-    explanation: `Ich habe dein Projekt '${project.name}' gefunden (Stack: ${project.stack.join(", ")}). Ich würde die Arbeitsumgebung prüfen und den Startbefehl '${project.recommendedAction}' im Verzeichnis '${project.canonicalPath}' vorbereiten. Soll ich das für dich ausführen?`,
-    files: [project.canonicalPath, project.recommendedAction],
-    bytes: 0,
-    actionKind: "LaunchProject"
-  };
-
-  const reqId = currentProposal.requestId.slice(0, 8);
-
-  aidoMessage.innerHTML = `
-    <strong>${currentProposal.title} (Permission Gateway Freigabe)</strong><br/>
-    ${currentProposal.explanation}<br/><br/>
-    <div class="tags-row" style="margin-top: 6px;">
-      <span class="tag">Ziel: ${project.canonicalPath}</span>
-      <span class="tag action">Befehl: ${project.recommendedAction}</span>
-      <span class="tag branch">Branch: ${project.gitBranch} [${project.gitStatus}]</span>
-    </div>
-  `;
-
-  appendAudit(
-    `[PermissionGateway] Freigabe-Anfrage ${reqId} erstellt (LaunchProject, Projekt: '${project.name}').`
-  );
-
-  actionButtons.innerHTML = "";
-  const btnApprove = document.createElement("button");
-  btnApprove.className = "approve";
-  btnApprove.textContent = "✅ Ja, Projekt starten";
-  btnApprove.onclick = () => executeApprovedLaunch(project);
-
-  const btnReject = document.createElement("button");
-  btnReject.className = "reject";
-  btnReject.textContent = "❌ Nein, abbrechen";
-  btnReject.onclick = () => rejectLaunch();
-
-  actionButtons.append(btnApprove, btnReject);
-}
-
-function executeApprovedLaunch(project: ProjectItem): void {
-  if (!currentProposal) return;
-  const reqId = currentProposal.requestId.slice(0, 8);
-  setCharacterState("Starte Projektumgebung...", true);
-
-  setTimeout(() => {
-    setCharacterState("Projektumgebung aktiv", false);
-    aidoMessage.innerHTML = `
-      <strong>🚀 Projekt '${project.name}' erfolgreich gestartet!</strong><br/>
-      AIDO hat die Arbeitsumgebung für <strong>${project.name}</strong> vorbereitet und die Entwicklungsdienste initialisiert.<br/><br/>
-      <em>Verzeichnis:</em> <code>${project.canonicalPath}</code><br/>
-      <em>Ausgeführter Startbefehl:</em> <code>${project.recommendedAction}</code><br/>
-      <em>Status:</em> Entwicklungs-Server aktiv, Fenster bereit.
-    `;
-    appendAudit(
-      `[WindowsBridge] LaunchProject mit Einmal-Token für Anfrage ${reqId} ausgeführt (${project.recommendedAction} in ${project.canonicalPath}).`
-    );
-    appendAudit(
-      `[MemoryEngine] SystemMemory gespeichert: 'Projekt-Start ${project.name} freigegeben & ausgeführt'.`
-    );
-    currentProposal = null;
-    renderDefaultButtons();
-  }, 350);
-}
-
-function rejectLaunch(): void {
-  if (!currentProposal) return;
-  const reqId = currentProposal.requestId.slice(0, 8);
-  setCharacterState("Bereit (Keine Änderung)", false);
-  aidoMessage.textContent =
-    "Projekt-Start abgebrochen. Keine Prozesse gestartet und keine Dateien verändert.";
-  appendAudit(
-    `[PermissionGateway] Anfrage ${reqId} für Projekt-Start vom Nutzer abgelehnt — keine Ausführung.`
-  );
-  currentProposal = null;
-  renderDefaultButtons();
-}
-
-function showPrivacyCenter(): void {
-  setCharacterState("Privacy Center aktiv", false);
-  aidoMessage.innerHTML = `
-    <strong>🔒 AIDO Privacy Center — Modus: Private Offline</strong><br/>
-    • <b>KI-Verarbeitung:</b> 100 % lokal (Qwen3.8-27B-UD-Q4_K_M auf 127.0.0.1:18434)<br/>
-    • <b>Screenshots & Vision:</b> 100 % lokal (mmproj-Qwen3.8-27B-BF16)<br/>
-    • <b>Spracherkennung:</b> 100 % lokal (Whisper-small CUDA auf 127.0.0.1:18080)<br/>
-    • <b>Memory & Wissen:</b> Lokale SQLite/FTS5-Datenbank (%LOCALAPPDATA%\\AIDO\\data)<br/>
-    • <b>Externe Verbindungen:</b> Technisch durch das Permission Gateway blockiert.
-  `;
-  appendAudit("[PrivacyCenter] Status geprüft: Private Offline aktiv (nur 127.0.0.1 erlaubt).");
-  renderDefaultButtons();
-}
-
-function showMemorySummary(filterLayer = "Alle"): void {
-  setCharacterState("Memory & Privacy Center (4-Stufen)", false);
-
-  const totalCount = memoriesData.length;
-  const workingCount = memoriesData.filter((m) => m.layer === "WorkingMemory" && m.validity === "active").length;
-  const episodicCount = memoriesData.filter((m) => m.layer === "EpisodicMemory" && m.validity === "active").length;
-  const semanticCount = memoriesData.filter((m) => m.layer === "SemanticMemory" && m.validity === "active").length;
-  const systemCount = memoriesData.filter((m) => m.layer === "SystemMemory" && m.validity === "active").length;
-
-  const filteredMemories = filterLayer === "Alle"
-    ? memoriesData
-    : memoriesData.filter((m) => m.layer === filterLayer);
-
-  let html = `
-    <strong>🧠 AIDO 4-Stufen-Gedächtnis & Privacy Center (SQLite + FTS5)</strong><br/>
-    Vollständig lokales, 4-stufiges Gedächtnis nach <b>MASTERPLAN Kapitel 5.2</b>. Alle Erinnerungen sind transparent nachvollziehbar, lokal gespeichert und können vom Nutzer mit einem Klick vergessen werden.<br/>
-
-    <!-- Layer Filter Badges -->
-    <div class="memory-layers-bar">
-      <span class="filter-badge ${filterLayer === "Alle" ? "active" : ""}" data-filter="Alle">Alle (${totalCount})</span>
-      <span class="filter-badge ${filterLayer === "WorkingMemory" ? "active" : ""}" data-filter="WorkingMemory">Stufe 1: Working (${workingCount})</span>
-      <span class="filter-badge ${filterLayer === "EpisodicMemory" ? "active" : ""}" data-filter="EpisodicMemory">Stufe 2: Episodic (${episodicCount})</span>
-      <span class="filter-badge ${filterLayer === "SemanticMemory" ? "active" : ""}" data-filter="SemanticMemory">Stufe 3: Semantic (${semanticCount})</span>
-      <span class="filter-badge ${filterLayer === "SystemMemory" ? "active" : ""}" data-filter="SystemMemory">Stufe 4: System (${systemCount})</span>
-    </div>
-
-    ${episodicCount > 0 ? `
-    <button class="btn-compact" id="btn-compact-memory">
-      🧹 Episodisches Gedächtnis jetzt kompaktieren (${episodicCount} aktive Einträge → Stufe 3 Semantic)
-    </button>
-    ` : ""}
-
-    <div class="memory-list">
-  `;
-
-  for (const m of [...filteredMemories].reverse()) {
-    let layerClass = "working";
-    if (m.layer === "EpisodicMemory") layerClass = "episodic";
-    else if (m.layer === "SemanticMemory") layerClass = "semantic";
-    else if (m.layer === "SystemMemory") layerClass = "system";
-
-    let validityBadge = '<span class="tag branch">✓ Aktiv</span>';
-    let cardClass = "";
-    if (m.validity === "compacted") {
-      validityBadge = '<span class="tag" style="background: rgba(148, 163, 184, 0.2); color: #cbd5e1;">📦 Kompaktiert (Semantisch verdichtet)</span>';
-      cardClass = "compacted";
-    } else if (m.validity === "forgotten_by_user") {
-      validityBadge = '<span class="tag dirty" style="color: #f87171;">🗑️ Vom Nutzer vergessen</span>';
-      cardClass = "forgotten";
-    }
-
-    const showForgetBtn = m.validity !== "forgotten_by_user";
-
-    html += `
-      <div class="memory-card ${cardClass}">
-        <div class="memory-card-header">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="layer-tag ${layerClass}">${m.layer}</span>
-            <span style="font-weight: 700; color: #f3f4f6; font-size: 0.88rem;">${m.category}</span>
-            <span style="font-size: 0.72rem; color: #94a3b8;">#${m.id} · ${m.createdAt.slice(0, 19).replace("T", " ")}</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            ${validityBadge}
-            ${showForgetBtn ? `<button class="btn-forget" data-forget-id="${m.id}" title="Diese Erinnerung dauerhaft ungültig machen">🗑️ Vergessen</button>` : ""}
-          </div>
-        </div>
-        <div style="font-weight: 600; font-size: 0.88rem; color: #e0e7ff;">${m.summary}</div>
-        <div style="font-size: 0.78rem; color: #cbd5e1; white-space: pre-line;">${m.details}</div>
-        <div style="font-size: 0.7rem; color: #94a3b8; font-family: monospace;">Quelle: ${m.source}</div>
-      </div>
-    `;
-  }
-
-  html += `</div>`;
-
-  aidoMessage.innerHTML = html;
-
-  // Add event listeners for layer filter badges
-  const badges = aidoMessage.querySelectorAll<HTMLSpanElement>(".filter-badge");
-  badges.forEach((b) => {
-    b.addEventListener("click", () => {
-      const filter = b.dataset.filter || "Alle";
-      showMemorySummary(filter);
-    });
-  });
-
-  // Add event listener for compaction button
-  const compactBtn = aidoMessage.querySelector<HTMLButtonElement>("#btn-compact-memory");
-  if (compactBtn) {
-    compactBtn.addEventListener("click", () => {
-      performMemoryCompaction();
-    });
-  }
-
-  // Add event listeners for forget buttons
-  const forgetButtons = aidoMessage.querySelectorAll<HTMLButtonElement>(".btn-forget");
-  forgetButtons.forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const id = Number(btn.dataset.forgetId);
-      if (id) {
-        forgetMemoryEntryItem(id, filterLayer);
-      }
-    });
-  });
-
-  appendAudit(
-    `[MemoryEngine] 4-Stufen-Gedächtnis aufgerufen: Filter '${filterLayer}', ${filteredMemories.length} Erinnerung(en) angezeigt.`
-  );
-
-  renderDefaultButtons();
-}
-
-function showRuntimeAndMemoryCompaction(): void {
-  setCharacterState("Runtime & Memory-Kompaktierung", false);
-
-  const activeEpisodicCount = memoriesData.filter(
-    (m) => m.layer === "EpisodicMemory" && m.validity === "active"
-  ).length;
-  const semanticCount = memoriesData.filter(
-    (m) => m.layer === "SemanticMemory" && m.validity === "active"
-  ).length;
-  const workingCount = memoriesData.filter(
-    (m) => m.layer === "WorkingMemory" && m.validity === "active"
-  ).length;
-  const systemCount = memoriesData.filter(
-    (m) => m.layer === "SystemMemory" && m.validity === "active"
-  ).length;
-
-  let html = `
-    <strong>⚡ AIDO Live-Runtime-Supervisor & 4-Stufen-Memory-Kompaktierung</strong><br/>
-    Überwachung der lokalen Inferenz-Dienste mit automatischem Null-VRAM-Schlafmodus und Verdichtung episodischer Aktivitäten in dauerhaftes semantisches Wissen.<br/>
-
-    <div class="intel-section">
-      <div class="intel-heading">🖥️ Lokale KI-Inferenz-Runtimes & CUDA 13.4 Status</div>
-      <div class="runtime-grid">
-        <!-- Llama Server Card -->
-        <div class="runtime-card standby">
-          <div class="runtime-header">
-            <span class="runtime-title">${runtimeStatusData.llamaServer.displayName}</span>
-            <span class="tag branch">💤 Zero-VRAM Standby</span>
-          </div>
-          <div class="app-meta">Endpunkt: <code>${runtimeStatusData.llamaServer.endpoint}</code> · Executable: <code>${runtimeStatusData.llamaServer.binaryPath}</code></div>
-          <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">
-            ${runtimeStatusData.llamaServer.humanStatus}
-          </div>
-          <div class="tags-row" style="margin-top: 4px;">
-            <span class="tag action">--sleep-idle-seconds ${runtimeStatusData.llamaServer.sleepIdleSeconds}</span>
-            <span class="tag">Qwen3.8-27B-UD-Q4_K_M</span>
-            <span class="tag">mmproj-BF16</span>
-            <span class="tag">DFlash2 (151.5 Tok/s)</span>
-          </div>
-        </div>
-
-        <!-- Whisper Server Card -->
-        <div class="runtime-card standby">
-          <div class="runtime-header">
-            <span class="runtime-title">${runtimeStatusData.whisperServer.displayName}</span>
-            <span class="tag branch">⚡ CUDA 13.4 On-Demand</span>
-          </div>
-          <div class="app-meta">Endpunkt: <code>${runtimeStatusData.whisperServer.endpoint}</code> · Modell: <code>ggml-small.bin (de)</code></div>
-          <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 4px;">
-            ${runtimeStatusData.whisperServer.humanStatus}
-          </div>
-          <div class="tags-row" style="margin-top: 4px;">
-            <span class="tag action">CUDA DLL: ${runtimeStatusData.cudaDllPath} (✓ Bereit)</span>
-            <span class="tag">Sprache: Deutsch</span>
-            <span class="tag">Latenz: ~0.34s</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="intel-heading" style="margin-top: 10px;">🧠 4-Stufen-Memory-Kompaktierung (Stufe 2 Episodic → Stufe 3 Semantic)</div>
-      <div class="eta-forecast-grid">
-        <div class="eta-forecast-box">
-          <div class="eta-title">Stufe 1 · Working Memory</div>
-          <div class="eta-main-val">${workingCount} aktiv</div>
-          <div class="eta-desc">Flüchtiger Sitzungskontext & aktuelle Instruktionen</div>
-        </div>
-        <div class="eta-forecast-box ${activeEpisodicCount >= 2 ? "highlight" : ""}">
-          <div class="eta-title">Stufe 2 · Episodic Memory</div>
-          <div class="eta-main-val">${activeEpisodicCount} aktiv</div>
-          <div class="eta-desc">Einzelaktionen, Bereinigungs-Logs & System-Ereignisse</div>
-        </div>
-        <div class="eta-forecast-box">
-          <div class="eta-title">Stufe 3 · Semantic Memory</div>
-          <div class="eta-main-val">${semanticCount} verdichtet</div>
-          <div class="eta-desc">Dauerhaft konsolidiertes Wissen & Verhaltensmuster</div>
-        </div>
-        <div class="eta-forecast-box">
-          <div class="eta-title">Stufe 4 · System Memory</div>
-          <div class="eta-main-val">${systemCount} aktiv</div>
-          <div class="eta-desc">Hardware, Berechtigungsprofil & Sicherheitsrichtlinien</div>
-        </div>
-      </div>
-
-      <div style="margin-top: 8px;">
-        <button class="btn-compact" id="btn-compact-from-runtime">
-          🧹 Episodisches Gedächtnis jetzt kompaktieren (Stufe 2 → Stufe 3 Semantic)
-        </button>
-      </div>
-    </div>
-  `;
-
-  aidoMessage.innerHTML = html;
-
-  const btnCompact = document.getElementById("btn-compact-from-runtime");
-  if (btnCompact) {
-    btnCompact.onclick = () => performMemoryCompaction();
-  }
-
-  appendAudit(
-    `[RuntimeSupervisor] Status abgefragt: Llama (Zero-VRAM Standby, --sleep-idle-seconds 300), Whisper (CUDA 13.4), ${activeEpisodicCount} aktive episodische Erinnerungen.`
-  );
-
-  actionButtons.innerHTML = "";
-  const btnDoCompact = document.createElement("button");
-  btnDoCompact.className = "approve";
-  btnDoCompact.textContent = "🧹 Jetzt kompaktieren";
-  btnDoCompact.onclick = () => performMemoryCompaction();
-
-  const btnOpenMemory = document.createElement("button");
-  btnOpenMemory.textContent = "🧠 4-Stufen-Gedächtnis im Detail";
-  btnOpenMemory.onclick = () => showMemorySummary();
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "🔙 Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnDoCompact, btnOpenMemory, btnBack);
-}
-
-function performMemoryCompaction(): void {
-  const activeEpisodics = memoriesData.filter(
-    (m) => m.layer === "EpisodicMemory" && m.validity === "active"
-  );
-
-  if (activeEpisodics.length === 0) {
-    appendAudit("[MemoryEngine] Kompaktierung übersprungen: Keine aktiven episodischen Erinnerungen vorhanden.");
-    showMemorySummary("EpisodicMemory");
-    return;
-  }
-
-  setCharacterState("Kompaktiere episodisches Gedächtnis...", true);
-
-  setTimeout(() => {
-    const count = activeEpisodics.length;
-    const nextId = Math.max(...memoriesData.map((m) => m.id), 0) + 1;
-    const now = new Date().toISOString();
-
-    // Mark active episodic entries as compacted
-    for (const m of activeEpisodics) {
-      m.validity = "compacted";
-    }
-
-    // Create consolidated semantic entry
-    const newSemantic: MemoryItem = {
-      id: nextId,
-      createdAt: now,
-      layer: "SemanticMemory",
-      category: "FastCleanup",
-      summary: `4-Stufen-Kompaktierung: ${count} episodische Aktivitäten konsolidiert in semantisches Wissen (FastCleanup)`,
-      details: `Semantisch verdichtetes Wissen aus ${count} episodischen Einzelereignissen:\n` +
-        activeEpisodics.map((e) => `• [${e.createdAt.slice(0, 19).replace("T", " ")}] ID #${e.id}: ${e.summary}`).join("\n"),
-      source: "MemoryEngine::compact_episodic_memories",
-      validity: "active"
-    };
-
-    memoriesData.push(newSemantic);
-
-    appendAudit(
-      `[MemoryEngine] 4-Stufen-Kompaktierung erfolgreich: ${count} episodische Einträge verdichtet zu SemanticMemory #${nextId}.`
-    );
-
-    setCharacterState("Kompaktierung abgeschlossen", false);
-    showMemorySummary("SemanticMemory");
-  }, 350);
-}
-
-function forgetMemoryEntryItem(id: number, currentFilter?: string): void {
-  const item = memoriesData.find((m) => m.id === id);
-  if (!item) return;
-
-  item.validity = "forgotten_by_user";
-  appendAudit(
-    `[MemoryEngine] Nutzer hat Erinnerung #${id} vergessen ('${item.summary.slice(0, 35)}...').`
-  );
-  showMemorySummary(currentFilter);
-}
-
-function getStatusBadge(status: InstallerStep["status"]): { label: string; className: string } {
-  switch (status) {
-    case "Completed":
-      return { label: "✓ Abgeschlossen", className: "completed" };
-    case "Paused":
-      return { label: "⏸️ Pausiert", className: "paused" };
-    case "RolledBack":
-      return { label: "⏪ Zurückgesetzt", className: "rolledback" };
-    default:
-      return { label: "⏳ Ausstehend", className: "pending" };
-  }
-}
-
-function showSmartInstallerWizard(): void {
-  setCharacterState("Smart Installer aktiv", false);
-
-  const nextResumable = installerStepsData.find(
-    (s) => s.status === "Paused" || s.status === "Pending"
-  );
-  const completedCount = installerStepsData.filter((s) => s.status === "Completed").length;
-
-  let html = `
-    <strong>🚀 AIDO (Agentic Intelligent Developing Operator) — Smart Installer (9-Phasen-Setup)</strong><br/>
-    Transaktionales, fehlertolerantes Setup mit automatischer Hardware-Klassenerkennung und lokaler Modell-Wiederverwendung.<br/>
-
-    <div class="installer-section">
-      <!-- 3 getrennte ETA-Boxen -->
-      <div class="eta-forecast-grid">
-        <div class="eta-forecast-box highlight">
-          <div class="eta-title">⚡ AIDO einsatzbereit in</div>
-          <div class="eta-main-val">45 Sek.</div>
-          <div class="eta-desc">0 MB Download nötig · Vorhandene lokale Modelle werden direkt eingebunden</div>
-        </div>
-        <div class="eta-forecast-box">
-          <div class="eta-title">👤 Persönliche Einrichtung in</div>
-          <div class="eta-main-val">~2,5 Min.</div>
-          <div class="eta-desc">App-Erkennung, Berechtigungsprofil & lokaler Wissens-Index</div>
-        </div>
-        <div class="eta-forecast-box warning">
-          <div class="eta-title">🧩 Erweiterte Integration</div>
-          <div class="eta-main-val">Isoliert</div>
-          <div class="eta-desc">Isolierte Adapterprüfung ohne künstliches Zeitlimit (1 individuelle App)</div>
-        </div>
-      </div>
-
-      <!-- Hardware-Klasse & Modell-Wiederverwendung -->
-      <div class="models-reuse-box">
-        <div class="models-reuse-header">
-          <span>🖥️ Hardware: HighEndGpu (RTX 5090 · 32 GB VRAM · 64 GB RAM)</span>
-          <span class="tag branch">4/4 Modelle lokal erkannt — 0 GB erneuter Download</span>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-  `;
-
-  for (const m of modelsReuseData) {
-    const sizeMb = Math.round(m.sizeBytes / (1024 * 1024));
-    html += `
-          <div class="model-item">
-            <div>
-              <span style="color: #6ee7b7; font-weight: 600;">✓ Gefunden:</span>
-              <span style="color: #f3f4f6; margin-left: 6px; font-weight: 600;">${m.modelName}</span>
-              <span style="color: #94a3b8; font-size: 0.74rem; margin-left: 6px;">(${m.role} · ${sizeMb} MB)</span>
-            </div>
-            <div class="model-path">${m.expectedPath}</div>
-          </div>
-    `;
-  }
-
-  html += `
-        </div>
-      </div>
-
-      <!-- 9 Phasen-Liste -->
-      <div class="intel-heading">📋 9 Transaktionale Installationsphasen (${completedCount}/9 abgeschlossen)</div>
-      <div class="phases-list">
-  `;
-
-  for (const step of installerStepsData) {
-    const badge = getStatusBadge(step.status);
-    const isActive = nextResumable && nextResumable.stepIndex === step.stepIndex;
-    const activeClass = isActive ? "active" : step.status.toLowerCase();
-
-    html += `
-        <div class="phase-row ${activeClass}">
-          <div class="phase-info">
-            <div class="phase-title">
-              <span>Phase ${step.stepIndex}/9: ${step.titleDe}</span>
-              ${isActive ? '<span class="tag action" style="font-size: 0.68rem;">Nächster Schritt</span>' : ""}
-            </div>
-            <div class="phase-rollback">
-              <span>🛡️ Rollback-Sicherheit: ${step.rollbackAction}</span>
-              ${step.details ? ` · <span style="color: #a5b4fc;">${step.details}</span>` : ""}
-            </div>
-          </div>
-          <div>
-            <span class="phase-badge ${badge.className}">${badge.label}</span>
-          </div>
-        </div>
-    `;
-  }
-
-  html += `
-      </div>
-    </div>
-  `;
-
-  aidoMessage.innerHTML = html;
-
-  // Build interactive action buttons
-  actionButtons.innerHTML = "";
-
-  const btnNext = document.createElement("button");
-  btnNext.className = "approve";
-  if (nextResumable) {
-    btnNext.textContent = `▶️ Nächste Phase abschließen (Phase ${nextResumable.stepIndex})`;
-    btnNext.onclick = () => completeNextInstallerPhase();
-  } else {
-    btnNext.textContent = "✅ Alle 9 Phasen abgeschlossen!";
-    btnNext.disabled = true;
-  }
-
-  const btnPause = document.createElement("button");
-  btnPause.textContent = "⏸️ Installation pausieren (Wiederaufnahme-Test)";
-  btnPause.onclick = () => pauseInstaller();
-
-  const btnRollback = document.createElement("button");
-  btnRollback.className = "reject";
-  btnRollback.textContent = "⏪ Transaktionales Rollback";
-  btnRollback.onclick = () => rollbackInstaller();
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "🔙 Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnNext, btnPause, btnRollback, btnBack);
-
-  appendAudit(
-    `[SmartInstaller] Wizard geöffnet: HighEndGpu erkannt, 4/4 Modelle lokal wiederverwendet, ${completedCount}/9 Phasen abgeschlossen.`
-  );
-}
-
-function completeNextInstallerPhase(): void {
-  const next = installerStepsData.find((s) => s.status === "Paused" || s.status === "Pending");
-  if (!next) return;
-
-  setCharacterState(`Schließe Phase ${next.stepIndex} ab...`, true);
-
-  setTimeout(() => {
-    next.status = "Completed";
-    const now = new Date().toLocaleTimeString("de-DE");
-    next.details = `Erfolgreich abgeschlossen um ${now}`;
-
-    appendAudit(
-      `[SmartInstaller] Phase ${next.stepIndex}/9 ('${next.titleDe}') erfolgreich abgeschlossen.`
-    );
-
-    showSmartInstallerWizard();
-  }, 250);
-}
-
-function pauseInstaller(): void {
-  const target = installerStepsData.find((s) => s.status === "Pending" || s.status === "Paused");
-  if (!target) return;
-
-  target.status = "Paused";
-  const now = new Date().toLocaleTimeString("de-DE");
-  target.details = `Pausiert durch Nutzer um ${now} (Zustand in SQLite gesichert)`;
-
-  appendAudit(
-    `[SmartInstaller] Installation bei Phase ${target.stepIndex}/9 ('${target.titleDe}') pausiert. Wiederaufnahme jederzeit möglich.`
-  );
-
-  showSmartInstallerWizard();
-}
-
-function rollbackInstaller(): void {
-  let rolledBackCount = 0;
-  for (const step of installerStepsData) {
-    if (step.status === "Completed" || step.status === "Paused") {
-      step.status = "RolledBack";
-      step.details = `Rollback ausgeführt: ${step.rollbackAction} (Modell-Dateien auf Festplatte unberührt)`;
-      rolledBackCount++;
-    }
-  }
-
-  appendAudit(
-    `[SmartInstaller] Transaktionales Rollback für ${rolledBackCount} Phase(n) ausgeführt. Modell-Dateien blieben unangetastet.`
-  );
-
-  showSmartInstallerWizard();
-}
-
-
-function showReleaseCheckView(appId?: "obs-studio" | "blender"): void {
-  if (appId) {
-    selectedSandboxAppId = appId;
-  }
-
-  const app = sandboxAppsData[selectedSandboxAppId];
-  setCharacterState("Adapter-Sandbox & Release-Check", false);
-
-  let html = `
-    <strong>🧩 Adapter-Sandbox (Phase 7) & Release-Check / Saubere Deinstallation (Phase 8)</strong><br/>
-    Prüfbank für unbekannte Windows-Anwendungen in isolierter Sandbox sowie 8-Phasen Release-Verifikation mit Zero-Destruction Deinstallations-Garantie.<br/>
-
-    <!-- TEIL 1: PHASE 7 ADAPTER SANDBOX -->
-    <div class="intel-section">
-      <div class="intel-heading">🧪 Teil 1: Isolierte Adapter-Prüfbank für unbekannte Apps (Phase 7)</div>
-
-      <div style="display: flex; gap: 8px; margin: 8px 0;">
-        <button class="filter-badge ${selectedSandboxAppId === "obs-studio" ? "active" : ""}" id="tab-obs" style="cursor: pointer;">
-          🎥 OBS Studio prüfen
-        </button>
-        <button class="filter-badge ${selectedSandboxAppId === "blender" ? "active" : ""}" id="tab-blender" style="cursor: pointer;">
-          🎨 Blender 3D prüfen
-        </button>
-      </div>
-
-      <div class="sandbox-card">
-        <div class="sandbox-header">
-          <div>
-            <span style="font-weight: 700; font-size: 1.05rem; color: #f3f4f6;">${app.displayName}</span>
-            <span style="font-size: 0.78rem; color: #94a3b8; margin-left: 8px;">(${app.publisher} · ${app.version})</span>
-          </div>
-          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-            <span class="tag branch">🔒 Sandbox isoliert</span>
-            <span class="tag branch">✓ Harmloser Probe-Check: Bestanden</span>
-            <span class="tag action">Steuerung: ${app.preferredControl}</span>
-            <span class="tag">Herkunft: ${app.adapterOrigin}</span>
-          </div>
-        </div>
-
-        <div class="app-meta">Installationspfad: <code>${app.installPath}</code> · Authentifizierung: <code>${app.authRequired}</code></div>
-        <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 2px;">
-          ${app.humanSummary}
-        </div>
-
-        <div class="intel-heading" style="margin-top: 10px; font-size: 0.82rem;">
-          Synthetisierte Fähigkeiten (${app.verifiedCapabilitiesCount} Verifiziert / Harmlos · ${app.restrictedCapabilitiesCount} Approval-Gated):
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
-  `;
-
-  for (const cap of app.capabilities) {
-    const isVerified = cap.status === "Verified";
-    const statusClass = isVerified ? "low" : "medium";
-    const statusIcon = isVerified ? "✓" : "⚠️";
-    const statusText = isVerified ? "Verifiziert · Ohne Freigabe ausführbar" : "Beschränkt · Erfordert Einmal-Freigabe";
-
-    html += `
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <div style="font-size: 0.84rem; font-weight: 600; color: #f3f4f6;">
-                <code>${cap.capabilityId}</code>: ${cap.titleDe}
-              </div>
-              <div style="font-size: 0.74rem; color: #94a3b8;">
-                Risikostufe: ${cap.risk} · Freigabepflichtig: ${cap.requiresApproval ? "Ja (PermissionGateway geschützt)" : "Nein (harmlos)"}
-              </div>
-            </div>
-            <div>
-              <span class="cap-badge ${statusClass}">
-                ${statusIcon} ${statusText}
-              </span>
-            </div>
-          </div>
-    `;
-  }
-
-  html += `
-        </div>
-      </div>
-    </div>
-
-    <!-- TEIL 2: PHASE 8 RELEASE READINESS & UNINSTALLER -->
-    <div class="intel-section" style="margin-top: 14px;">
-      <div class="intel-heading">🛡️ Teil 2: 8-Phasen Release-Checkliste & Zero-Destruction Clean Uninstaller (Phase 8)</div>
-
-      <div class="release-checklist-grid">
-  `;
-
-  for (const item of releaseChecklistItems) {
-    html += `
-        <div class="release-item passed">
-          <span class="release-check-icon">✅</span>
-          <span>${item}</span>
-        </div>
-    `;
-  }
-
-  html += `
-      </div>
-
-      <div class="intel-heading" style="margin-top: 6px; font-size: 0.85rem;">
-        Sicherheitsbereich der Deinstallation (Gegenüberstellung AIDO-Dateien vs. Externe Modelle):
-      </div>
-
-      <div class="uninstall-comparison-grid">
-        <div class="uninstall-box danger-scope">
-          <div class="uninstall-box-title">
-            <span>🗑️ Zur Bereinigung vorgemerkt (AIDO-only Caches & DB)</span>
-          </div>
-          <div style="font-size: 0.76rem; color: #cbd5e1;">
-            Ausschließlich isolierte AIDO-Laufzeitdateien werden entfernt:
-          </div>
-          <div class="uninstall-path-list">
-            <div class="uninstall-path-item">%LOCALAPPDATA%\\AIDO\\cache\\fast_cleanup_staging</div>
-            <div class="uninstall-path-item">%LOCALAPPDATA%\\AIDO\\data\\aido_memory.db</div>
-          </div>
-        </div>
-
-        <div class="uninstall-box safe-scope">
-          <div class="uninstall-box-title">
-            <span>🛡️ 100 % Geschützt & Unberührt (Lokale KI-Modelle & Quellcodes)</span>
-          </div>
-          <div style="font-size: 0.76rem; color: #cbd5e1;">
-            Bestehende Modelle und Quellcode-Repositories bleiben unangetastet:
-          </div>
-          <div class="uninstall-path-list">
-            <div class="uninstall-path-item">D:\\AI_Models\\llm\\Qwen3.8-27B-UD-Q4_K_M.gguf (15.7 GB)</div>
-            <div class="uninstall-path-item">D:\\AI_Models\\llm\\assets\\mmproj-Qwen3.8-27B-BF16.gguf (888 MB)</div>
-            <div class="uninstall-path-item">D:\\AI_Models\\llm\\assets\\Qwen3.8-27B-DFlash2-Q4_K_M.gguf (1.09 GB)</div>
-            <div class="uninstall-path-item">D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin (465 MB)</div>
-            <div class="uninstall-path-item">C:\\Users\\keoku\\Desktop\\AIDO (Entwickler-Workspaces)</div>
-          </div>
-        </div>
-      </div>
-  `;
-
-  if (uninstallDryRunVerified) {
-    html += `
-      <div class="zero-destruct-banner">
-        <span style="font-size: 1.3rem;">🛡️</span>
-        <div>
-          <strong>Zero-Destruction Deinstallation erfolgreich verifiziert!</strong><br/>
-          Einmal-Sicherheits-Token validiert. Alle 4/4 externen Modelle auf <code>D:\\AI_Models</code> und sämtliche Entwickler-Workspaces bleiben zu 100 % erhalten. Es werden ausschließlich die 2 AIDO-eigenen Cache/DB-Pfade bereinigt.
-        </div>
-      </div>
-    `;
-  }
-
-  html += `</div>`;
-
-  aidoMessage.innerHTML = html;
-
-  // Tab listeners
-  const tabObs = document.getElementById("tab-obs");
-  if (tabObs) {
-    tabObs.onclick = () => {
-      runSandboxProbe("obs-studio");
-    };
-  }
-  const tabBlender = document.getElementById("tab-blender");
-  if (tabBlender) {
-    tabBlender.onclick = () => {
-      runSandboxProbe("blender");
-    };
-  }
-
-  // Action buttons
-  actionButtons.innerHTML = "";
-
-  const btnProbeObs = document.createElement("button");
-  btnProbeObs.textContent = "🧪 OBS Studio in Sandbox prüfen";
-  btnProbeObs.onclick = () => runSandboxProbe("obs-studio");
-
-  const btnProbeBlender = document.createElement("button");
-  btnProbeBlender.textContent = "🧪 Blender 3D in Sandbox prüfen";
-  btnProbeBlender.onclick = () => runSandboxProbe("blender");
-
-  const btnDryRun = document.createElement("button");
-  btnDryRun.className = "approve";
-  btnDryRun.textContent = "🛡️ Trockenlauf: Saubere Deinstallation prüfen (Zero-Destruction)";
-  btnDryRun.onclick = () => runCleanUninstallDryRun();
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "🔙 Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnProbeObs, btnProbeBlender, btnDryRun, btnBack);
-
-  appendAudit(
-    `[ReleaseCheck] Ansicht geöffnet: App '${app.displayName}' in Sandbox (${app.verifiedCapabilitiesCount} verifiziert, ${app.restrictedCapabilitiesCount} freigabepflichtig), Release 0.1.0-mvp bereit, Zero-Destruction aktiv.`
-  );
-}
-
-function runSandboxProbe(appId: "obs-studio" | "blender"): void {
-  const app = sandboxAppsData[appId];
-  selectedSandboxAppId = appId;
-  setCharacterState(`Prüfe ${app.displayName} in Sandbox...`, true);
-
-  setTimeout(() => {
-    setCharacterState("Adapter synthetisiert & geprüft", false);
-    appendAudit(
-      `[AdapterSandbox] Unbekannte App '${app.displayName}' in isolierter Sandbox geprüft: Harmloser Probe-Check bestanden, ${app.verifiedCapabilitiesCount} verifizierte Basis-Aktionen, ${app.restrictedCapabilitiesCount} freigabepflichtige Workflow-Aktion.`
-    );
-    showReleaseCheckView(appId);
-  }, 200);
-}
-
-function runCleanUninstallDryRun(): void {
-  setCharacterState("Deinstallations-Trockenlauf...", true);
-
-  setTimeout(() => {
-    uninstallDryRunVerified = true;
-    setCharacterState("Zero-Destruction verifiziert!", false);
-
-    appendAudit(
-      "[PermissionGateway] Freigabe-Anfrage 'ExecuteCleanUninstall' im Trockenlauf geprüft: Einmal-Token validiert."
-    );
-    appendAudit(
-      "[SmartInstaller] Saubere Deinstallation (Trockenlauf): 2 AIDO-Pfade markiert, 4 externe Modelle auf D:\\AI_Models zu 100 % geschützt."
-    );
-
-    showReleaseCheckView();
-  }, 250);
-}
-
-
-
-// --- AIDO-MONO 3D & Brand Identity View ---
-function showBrandStudioView(): void {
-  const svgWrapper = document.querySelector("#mode-svg-view .svg-morph-wrapper");
-  const svgMarkup = svgWrapper ? svgWrapper.innerHTML : "";
-  setCharacterState("AIDO-MONO 3D & Brand Studio", false);
-  monoViewer?.setState("idle");
-
-  const stats = monoViewer?.getNodeStats() || [
-    { name: "MONO · O head", nodeIndex: 0, vertices: 1832, indices: 9348 },
-    { name: "MONO · D chassis and A legs", nodeIndex: 1, vertices: 1372, indices: 6912 },
-    { name: "MONO · I core", nodeIndex: 2, vertices: 68, indices: 276 },
-  ];
-  const totalVerts = stats.reduce((acc, s) => acc + s.vertices, 0);
-  const totalIndices = stats.reduce((acc, s) => acc + s.indices, 0);
-
-  let html = `
-    <strong>🎨 AIDO-MONO Brand Identity & 3D GLB Character Studio</strong><br/>
-    Offizielles AIDO Designsystem, 3D-Modellarchitektur (` + "<code>/assets/AIDO-MONO.glb</code>" + `) und stufenlose Marken-Transformation.<br/>
-
-    <!-- SEKTION 1: OFFIZIELLE MARKEN-GRAFIKEN -->
-    <div class="intel-section">
-      <div class="intel-heading">🎯 1. Offizielle AIDO-Markengrafiken (Dark/Light Vektor-Assets)</div>
-      <div class="brand-grid-3col">
-        <div class="brand-card-item">
-          <div class="brand-card-img-wrap">
-            <img src="/assets/AIDO-Wortmarke.png" alt="AIDO Wortmarke" />
-          </div>
-          <div class="brand-card-title">AIDO Wortmarke</div>
-          <div class="brand-card-desc">
-            Geometrische Wortmarke mit typografischem Schnitt für Header, App-Icons und Badges. (1.774 × 887 px)
-          </div>
-          <span class="tag branch">✓ <code>/assets/AIDO-Wortmarke.png</code></span>
-        </div>
-
-        <div class="brand-card-item">
-          <div class="brand-card-img-wrap">
-            <img src="/assets/AIDO-MONO-Charakter.png" alt="AIDO-MONO Charakter" />
-          </div>
-          <div class="brand-card-title">AIDO-MONO Charakter</div>
-          <div class="brand-card-desc">
-            Offizielles 2D-Charakter-Icon und Desktop-Favicon. Geformt aus den 4 Buchstaben A-I-D-O. (1.254 × 1.254 px)
-          </div>
-          <span class="tag branch">✓ <code>/assets/AIDO-MONO-Charakter.png</code></span>
-        </div>
-
-        <div class="brand-card-item">
-          <div class="brand-card-img-wrap">
-            <img src="/assets/AIDO-Ausgeschriebener-Name.png" alt="AIDO Ausgeschriebener Name" />
-          </div>
-          <div class="brand-card-title">Ausgeschriebener Markenname</div>
-          <div class="brand-card-desc">
-            Vollständiger Untertitel „AGENTIC INTELLIGENT DEVELOPING OPERATOR“ in architektonischer Typografie. (2.172 × 724 px)
-          </div>
-          <span class="tag branch">✓ <code>/assets/AIDO-Ausgeschriebener-Name.png</code></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- SEKTION 2: 3D GLB CHARACTER ARCHITEKTUR & NODE INSPECTOR -->
-    <div class="intel-section" style="margin-top: 14px;">
-      <div class="intel-heading">🧊 2. 3D GLB Character Architecture (<code>/assets/AIDO-MONO.glb</code>)</div>
-      <div style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 8px;">
-        Das offizielle AIDO-MONO 3D-Modell wurde in Blender modelliert und als offline-fähiges <b>glTF 2.0 Binary (GLB)</b> exportiert. Es nutzt <b>3 unabhängig artikulierte Nodes</b> und das PBR-Material <code>MONO · satin graphite</code> (Metallic: 0.08, Roughness: 0.42).
-      </div>
-
-      <table class="node-inspector-table">
-        <thead>
-          <tr>
-            <th>Node-Index</th>
-            <th>Node-Name im GLB</th>
-            <th>Vertices</th>
-            <th>Indices</th>
-            <th>Artikulation & Shader-Verhalten</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>Node 0</code></td>
-            <td><b>MONO · O head</b></td>
-            <td>1.832</td>
-            <td>9.348</td>
-            <td>Sanfte Schwebung (Hover), neigt sich aufmerksam bei <i>Listening</i>, nickt bei <i>Speaking</i>, scannt bei <i>Thinking</i>.</td>
-          </tr>
-          <tr>
-            <td><code>Node 1</code></td>
-            <td><b>MONO · D chassis and A legs</b></td>
-            <td>1.372</td>
-            <td>6.912</td>
-            <td>Satin Graphite Chassis & Beine mit 3-Punkt Studio-Beleuchtung (Key, Fill, Rim-Light).</td>
-          </tr>
-          <tr>
-            <td><code>Node 2</code></td>
-            <td><b>MONO · I core</b></td>
-            <td>68</td>
-            <td>276</td>
-            <td>State-reaktiver Pulsier-Kern mit dynamischer Emissive-Farbe (Smaragdgrün <code>#10B981</code>, Cyan <code>#38BDF8</code>).</td>
-          </tr>
-        </tbody>
-        <tfoot>
-          <tr style="font-weight: 700; color: #f8fafc; border-top: 2px solid rgba(255,255,255,0.15);">
-            <td colspan="2">Gesamt-Geometrie (AIDO-MONO.glb)</td>
-            <td>${totalVerts.toLocaleString("de-DE")} Vertices</td>
-            <td>${totalIndices.toLocaleString("de-DE")} Indices</td>
-            <td>PBR Metallic-Roughness (Offline WebGL)</td>
-          </tr>
-        </tfoot>
-      </table>
-
-      <!-- Interaktive Animations-Tests -->
-      <div style="margin-top: 10px;">
-        <div style="font-size: 0.82rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">
-          🎮 Interaktiver 3D-Node Animationstest (Status-Reaktion):
-        </div>
-        <div class="state-btn-group">
-          <button class="btn-state-chip active" id="btn-state-idle">💤 Idle (Schwebung & Ruhepuls)</button>
-          <button class="btn-state-chip emerald" id="btn-state-listen">👂 Listening (Kopf-Neigung & Smaragd #10B981)</button>
-          <button class="btn-state-chip cyan" id="btn-state-think">🧠 Thinking (Orbit-Scan & Cyan #38BDF8)</button>
-          <button class="btn-state-chip" id="btn-state-speak">🗣️ Speaking (Rhythmisches Nicken & Sprachpuls)</button>
-        </div>
-      </div>
-
-      <!-- Kamera-Steuerung -->
-      <div style="margin-top: 6px;">
-        <div style="font-size: 0.82rem; font-weight: 700; color: #f8fafc; margin-bottom: 6px;">
-          🎥 3D-Kamera & Ansichts-Steuerung:
-        </div>
-        <div class="state-btn-group">
-          <button class="btn-state-chip" id="btn-cam-reset">🔄 Kamera zentrieren (Reset)</button>
-          <button class="btn-state-chip" id="btn-cam-rotate">🌐 360° Auto-Rotation umschalten</button>
-          <button class="btn-state-chip" id="btn-cam-zoomin">🔍 Zoom + (Näher)</button>
-          <button class="btn-state-chip" id="btn-cam-zoomout">🔎 Zoom - (Weiter)</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- SEKTION 3: INFINITE BRAND TRANSFORMATION SVG -->
-    <div class="intel-section" style="margin-top: 14px;">
-      <div class="intel-heading">✨ 3. Infinite Brand Transformation (Morph-Animation)</div>
-      <div style="font-size: 0.82rem; color: #cbd5e1; line-height: 1.5; margin-bottom: 8px;">
-        Der voll ausgeschriebene Leitspruch <i>„AGENTIC INTELLIGENT DEVELOP OPERATOR“</i> morpht in einer nahtlosen 10,4-Sekunden-CSS-Schleife in das Akronym <b>„AIDO“</b> und schließlich in den Charakter <b>„MONO“</b>.
-      </div>
-      <div style="background: rgba(10, 13, 18, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 18px; display: flex; justify-content: center; align-items: center; min-height: 140px;">
-        <div class="svg-morph-wrapper" style="max-width: 580px; min-height: 120px;">
-          ${svgMarkup}
-        </div>
-      </div>
-    </div>
-  `;
-
-  aidoMessage.innerHTML = html;
-
-  // Bind animation test buttons
-  const btnIdle = document.getElementById("btn-state-idle");
-  const btnListen = document.getElementById("btn-state-listen");
-  const btnThink = document.getElementById("btn-state-think");
-  const btnSpeak = document.getElementById("btn-state-speak");
-
-  const clearActiveChips = () => {
-    [btnIdle, btnListen, btnThink, btnSpeak].forEach((b) => b?.classList.remove("active"));
-  };
-
-  btnIdle?.addEventListener("click", () => {
-    clearActiveChips();
-    btnIdle.classList.add("active");
-    setCharacterState("Bereit (Lokal)", false);
-    monoViewer?.setState("idle");
-    appendAudit("[BrandStudio] Animationsstatus 'idle' aktiviert: Sanfte Schwebung von O head und Ruhepuls.");
-  });
-
-  btnListen?.addEventListener("click", () => {
-    clearActiveChips();
-    btnListen.classList.add("active");
-    setCharacterState("Höre zu (Whisper Push-to-Talk)...", false);
-    monoViewer?.setState("listening");
-    appendAudit("[BrandStudio] Animationsstatus 'listening' aktiviert: O head neigt sich, I core leuchtet Smaragdgrün (#10B981).");
-  });
-
-  btnThink?.addEventListener("click", () => {
-    clearActiveChips();
-    btnThink.classList.add("active");
-    setCharacterState("Analysiere & Überlege...", true);
-    monoViewer?.setState("thinking");
-    appendAudit("[BrandStudio] Animationsstatus 'thinking' aktiviert: O head scannt von links nach rechts, I core pulsiert Cyan (#38BDF8).");
-  });
-
-  btnSpeak?.addEventListener("click", () => {
-    clearActiveChips();
-    btnSpeak.classList.add("active");
-    setCharacterState("AIDO spricht...", false);
-    monoViewer?.setState("speaking");
-    appendAudit("[BrandStudio] Animationsstatus 'speaking' aktiviert: O head nickt rhythmisch zur Sprachausgabe.");
-  });
-
-  // Bind camera buttons
-  document.getElementById("btn-cam-reset")?.addEventListener("click", () => {
-    monoViewer?.resetCamera();
-    appendAudit("[BrandStudio] 3D-Kamera auf Standardperspektive zurückgesetzt.");
-  });
-  document.getElementById("btn-cam-rotate")?.addEventListener("click", () => {
-    const isNow = monoViewer?.toggleAutoRotate();
-    appendAudit(`[BrandStudio] 360° Auto-Rotation ${isNow ? "aktiviert" : "pausiert"}.`);
-  });
-  document.getElementById("btn-cam-zoomin")?.addEventListener("click", () => {
-    monoViewer?.setZoom(1.35);
-  });
-  document.getElementById("btn-cam-zoomout")?.addEventListener("click", () => {
-    monoViewer?.setZoom(0.85);
-  });
-
-  // Action buttons
-  actionButtons.innerHTML = "";
-
-  const btnView3D = document.createElement("button");
-  btnView3D.textContent = "🧊 Zu 3D GLB Live wechseln";
-  btnView3D.onclick = () => switchViewMode("3d");
-
-  const btnViewSvg = document.createElement("button");
-  btnViewSvg.textContent = "✨ Zu Morph-Animation wechseln";
-  btnViewSvg.onclick = () => switchViewMode("svg");
-
-  const btnView2D = document.createElement("button");
-  btnView2D.textContent = "🎯 Zu 2D Logo wechseln";
-  btnView2D.onclick = () => switchViewMode("2d");
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "🔙 Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnView3D, btnViewSvg, btnView2D, btnBack);
-  appendAudit("[BrandStudio] AIDO-MONO Brand Identity & 3D GLB Character Studio geöffnet.");
-}
-
-
-
-// ============================================================================
-// Phase 9: AIDO Agent Remote — Minimalist Monochrome UI Implementation
-// Strictly Black/White (#050507 / #ffffff) or White/Black (#fafafa / #09090b)
-// ============================================================================
-
-interface RemoteProposal {
-  id: string;
-  title: string;
-  desc: string;
-  bytes: number;
-  actionKind: string;
-  approved: boolean;
-}
-
-let remoteMonochromeTheme: "bw" | "wb" = "bw";
-let remotePairingState: "unpaired" | "paired" = "unpaired";
-let remotePin: string = "4829";
-let remoteTtlSeconds: number = 60;
-let remoteTtlInterval: number | null = null;
-let remoteLastBlickTime: string = "19:30:00";
-let remoteFocusGuard: boolean = false;
-let remoteFeedText: string = "AIDO Remote bereit. Alle Befehle laufen mit 100 % PC-Parität über lokalen Loopback.";
-
-let remotePendingProposal: RemoteProposal = {
-  id: "req-rem-101",
-  title: "🚀 Projekt starten: AIDO",
-  desc: "Startet lokalen Vite-Dev-Server und bindet Qwen Vision auf 127.0.0.1:18434 ein.",
-  bytes: 0,
-  actionKind: "ProjectLaunch",
-  approved: false
-};
-
-function getQrCodeSvg(): string {
-  const size = 29;
-  const rects: string[] = [];
-  const addFinder = (x: number, y: number) => {
-    rects.push(`<rect x="${x}" y="${y}" width="7" height="7" fill="#000000"/>`);
-    rects.push(`<rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#ffffff"/>`);
-    rects.push(`<rect x="${x + 2}" y="${y + 2}" width="3" height="3" fill="#000000"/>`);
-  };
-  addFinder(0, 0);
-  addFinder(22, 0);
-  addFinder(0, 22);
-
-  for (let i = 8; i < 22; i += 2) {
-    rects.push(`<rect x="${i}" y="6" width="1" height="1" fill="#000000"/>`);
-    rects.push(`<rect x="6" y="${i}" width="1" height="1" fill="#000000"/>`);
-  }
-
-  rects.push(`<rect x="18" y="18" width="5" height="5" fill="#000000"/>`);
-  rects.push(`<rect x="19" y="19" width="3" height="3" fill="#ffffff"/>`);
-  rects.push(`<rect x="20" y="20" width="1" height="1" fill="#000000"/>`);
-
-  const patternSeed = [
-    0b10110101, 0b11001010, 0b01011100, 0b10010111,
-    0b11100101, 0b00111010, 0b10101101, 0b01110011,
-    0b11010010, 0b10011101, 0b01010110, 0b11101001,
-    0b10110011, 0b01101101, 0b11001011, 0b10100110
-  ];
-  let pIdx = 0;
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      const inTL = r < 8 && c < 8;
-      const inTR = r < 8 && c >= 21;
-      const inBL = r >= 21 && c < 8;
-      const inTiming = r === 6 || c === 6;
-      const inAlign = r >= 18 && r <= 22 && c >= 18 && c <= 22;
-      if (!inTL && !inTR && !inBL && !inTiming && !inAlign) {
-        const byte = patternSeed[(pIdx++) % patternSeed.length];
-        const bit = (byte >> ((r + c) % 8)) & 1;
-        if (bit === 1) {
-          rects.push(`<rect x="${c}" y="${r}" width="1" height="1" fill="#000000"/>`);
-        }
-      }
-    }
-  }
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="152" height="152" shape-rendering="crispEdges">
-    <rect width="${size}" height="${size}" fill="#ffffff"/>
-    ${rects.join("")}
-  </svg>`;
-}
-
-function showAgentRemoteView(): void {
-  setCharacterState("Agent Remote (S/W Minimal)", false);
-
-  if (remoteTtlInterval === null) {
-    remoteTtlInterval = window.setInterval(() => {
-      if (remoteTtlSeconds > 1) {
-        remoteTtlSeconds--;
-      } else {
-        remoteTtlSeconds = 60;
-      }
-      const ttlElem = document.getElementById("remote-ttl-display");
-      if (ttlElem) {
-        ttlElem.textContent = `⏱️ Gültigkeit: ${remoteTtlSeconds}s (TTL-Schutz)`;
-      }
-    }, 1000);
-  }
-
-  const isPaired = remotePairingState === "paired";
-  const statusPillClass = isPaired ? "connected" : "offline";
-  const statusPillLabel = isPaired ? "Modus: LocalConnected (LAN/Remote)" : "Modus: PrivateOffline (127.0.0.1)";
-  const pairedDeviceLabel = isPaired
-    ? "iPhone 16 Pro · AIDO Remote v0.1.0 · Authentifiziert mit PIN " + remotePin
-    : "Kein Smartphone gekoppelt (Wartet auf QR-Scan / PIN)";
-
-  const pinDigitsHtml = remotePin
-    .split("")
-    .map((d) => `<div class="remote-pin-digit">${d}</div>`)
-    .join("");
-
-  const qrSvg = getQrCodeSvg();
-
-  const phoneThemeClass = `theme-${remoteMonochromeTheme}`;
-  const toggleBtnText = remoteMonochromeTheme === "bw" ? "◐ S/W ↔ ◑ W/S" : "◑ W/S ↔ ◐ S/W";
-
-  const thumbBadgeText = remotePendingProposal.approved
-    ? "✓ FREIGEGEBEN &amp; AUSGEFÜHRT"
-    : "⏳ FREIGABE ERFORDERLICH";
-
-  const thumbButtonsHtml = remotePendingProposal.approved
-    ? `<button class="remote-btn-thumb approve" id="btn-remote-thumb-reset" style="grid-column: span 2;">✓ Erfolgreich ausgeführt · Weiterer Befehl</button>`
-    : `<button class="remote-btn-thumb approve" id="btn-remote-thumb-approve">✓ Freigeben</button>
-       <button class="remote-btn-thumb reject" id="btn-remote-thumb-reject">✕ Stopp</button>`;
-
-  const html = `
-    <div style="margin-bottom: 10px;">
-      <div style="font-size: 1.05rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
-        <span>📱 AIDO Agent Remote — Minimalistisches Monochrome Handy-Cockpit</span>
-      </div>
-      <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 3px;">
-        Ultra-cleanes Schwarz/Weiß-Design nach <b>MASTERPLAN Kapitel 9</b> mit 100 % PC-Parität, 1-Tap Daumen-Freigabekarte und nativer Umschaltung zwischen Dark- und Light-Minimalismus.
-      </div>
-    </div>
-
-    <div class="remote-split-layout">
-      <!-- Left Column: PC QR & PIN Pairing Station -->
-      <div class="remote-pc-station">
-        <div class="remote-station-header">
-          <div class="remote-station-title">
-            <span>🖥️ PC-Kopplungsstation</span>
-          </div>
-          <span class="remote-status-pill ${statusPillClass}">${statusPillLabel}</span>
-        </div>
-
-        <div style="font-size: 0.78rem; color: #94a3b8; line-height: 1.45;">
-          Scanne den QR-Code mit deinem Smartphone oder bestätige die 4-stellige Einmal-PIN für eine Ende-zu-Ende verschlüsselte lokale Verbindung im LAN.
-        </div>
-
-        <div class="remote-qr-box">
-          <div class="remote-qr-svg-wrap">
-            ${qrSvg}
-          </div>
-          <div class="remote-pin-digits">
-            ${pinDigitsHtml}
-          </div>
-          <div class="remote-ttl-badge" id="remote-ttl-display">
-            ⏱️ Gültigkeit: ${remoteTtlSeconds}s (TTL-Schutz)
-          </div>
-        </div>
-
-        <div class="remote-paired-device-box">
-          <div style="font-weight: 700; color: #ffffff; margin-bottom: 2px;">Gekoppeltes Endgerät:</div>
-          <div style="font-family: monospace; font-size: 0.74rem;">${pairedDeviceLabel}</div>
-          <div style="font-size: 0.7rem; color: #64748b; margin-top: 4px;">
-            Netzwerk-Bindung: <code>127.0.0.1 / LAN</code> · Keine Cloud-Server · Zero-Telemetry
-          </div>
-        </div>
-
-        <div class="remote-station-actions">
-          <button class="remote-station-btn connect" id="btn-station-simulate-pair">
-            <span>${isPaired ? "🔄 PIN erneuern & Neu koppeln" : "📲 QR-Kopplung simulieren / Verbinden"}</span>
-          </button>
-          <button class="remote-station-btn revoke" id="btn-station-revoke-device">
-            <span>🔌 Gerät widerrufen (Sofort-Trennung)</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Right Column: Minimalist Smartphone Remote Frame -->
-      <div class="remote-phone-frame ${phoneThemeClass}" id="remote-phone-frame">
-        <!-- 1: Minimal Phone Header -->
-        <div class="remote-phone-header">
-          <div class="remote-phone-brand">
-            <img src="/assets/AIDO-Wortmarke.png" alt="AIDO Wortmarke" class="remote-brand-img" style="height: 17px; width: auto;" />
-            <span class="remote-glow-dot"></span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="remote-parity-pill">100 % PC-PARITÄT</span>
-            <button class="remote-theme-toggle" id="btn-remote-theme-toggle" title="Monochrome Theme wechseln">${toggleBtnText}</button>
-          </div>
-        </div>
-
-        <!-- 2: 1-Tap Daumen-Freigabekarte -->
-        <div class="remote-thumb-card">
-          <div class="remote-thumb-badge-row">
-            <span class="remote-thumb-status-badge">${thumbBadgeText}</span>
-            <span style="font-size: 0.64rem; font-family: monospace; opacity: 0.65;">#REQ-${remotePendingProposal.id}</span>
-          </div>
-          <div class="remote-thumb-title">${remotePendingProposal.title}</div>
-          <div class="remote-thumb-desc">${remotePendingProposal.desc}</div>
-          <div class="remote-thumb-buttons">
-            ${thumbButtonsHtml}
-          </div>
-        </div>
-
-        <!-- 3: 2x2 Schnell-Steuerdeck -->
-        <div class="remote-grid-2x2">
-          <div class="remote-tile" id="tile-project">
-            <div class="remote-tile-title">🚀 Projekt starten</div>
-            <div class="remote-tile-sub">AIDO · main</div>
-          </div>
-          <div class="remote-tile" id="tile-cleanup">
-            <div class="remote-tile-title">🧹 Fast Cleanup</div>
-            <div class="remote-tile-sub">Staging (420 KB)</div>
-          </div>
-          <div class="remote-tile" id="tile-blick">
-            <div class="remote-tile-title">👁️ AIDO-Blick</div>
-            <div class="remote-tile-sub">Snapshot on Demand</div>
-          </div>
-          <div class="remote-tile" id="tile-focus">
-            <div class="remote-tile-title">🔒 Fokus-Schutz</div>
-            <div class="remote-tile-sub">${remoteFocusGuard ? "Aktiv (Nicht stören)" : "Inaktiv"}</div>
-          </div>
-        </div>
-
-        <!-- Inline AIDO-Blick Vision-Notiz -->
-        <div class="remote-blick-box">
-          <div class="remote-blick-meta">
-            <span>👁️ AIDO-Blick Vision Snapshot</span>
-            <span>${remoteLastBlickTime} · 0,18s</span>
-          </div>
-          <div style="font-size: 0.72rem; line-height: 1.45;">
-            <b>Qwen3.8-27B-BF16 Vision (102,7 Tok/s):</b> Desktop stabil · VS Code & Terminal im Fokus · Keine Fehler · VRAM: 22,7 GB frei.
-          </div>
-        </div>
-
-        <!-- 4: Chat Dock, Reply Chips & Whisper CUDA Voice -->
-        <div class="remote-chat-dock">
-          <div class="remote-chips-row">
-            <span class="remote-reply-chip" data-chip="status">„Status?“</span>
-            <span class="remote-reply-chip" data-chip="blick">„AIDO-Blick“</span>
-            <span class="remote-reply-chip" data-chip="tests">„Tests prüfen“</span>
-          </div>
-
-          <div class="remote-feed-bubble" id="remote-feed-box">
-            ${remoteFeedText}
-          </div>
-
-          <div class="remote-chat-input-row">
-            <input type="text" class="remote-chat-input" id="remote-input-field" placeholder="Befehl oder Frage tippen..." />
-            <button class="remote-voice-btn" id="btn-remote-voice" title="Whisper CUDA Sprachtranskription">🎙️ Voice (0,34 s)</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  aidoMessage.innerHTML = html;
-
-  actionButtons.innerHTML = "";
-  const btnPairToggle = document.createElement("button");
-  btnPairToggle.textContent = isPaired ? "🔌 Verbindung trennen" : "📲 QR-Kopplung simulieren";
-  btnPairToggle.onclick = () => {
-    if (isPaired) {
-      revokeRemoteDevice();
-    } else {
-      simulateRemotePairing();
-    }
-  };
-
-  const btnThemeHeader = document.createElement("button");
-  btnThemeHeader.textContent = remoteMonochromeTheme === "bw" ? "◑ Zu Weiß/Schwarz wechseln" : "◐ Zu Schwarz/Weiß wechseln";
-  btnThemeHeader.onclick = () => {
-    toggleMonochromeTheme();
-  };
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "↩ Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    if (remoteTtlInterval !== null) {
-      clearInterval(remoteTtlInterval);
-      remoteTtlInterval = null;
-    }
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnPairToggle, btnThemeHeader, btnBack);
-
-  // Attach Event Handlers
-  document.getElementById("btn-remote-theme-toggle")?.addEventListener("click", () => {
-    toggleMonochromeTheme();
-  });
-
-  document.getElementById("btn-station-simulate-pair")?.addEventListener("click", () => {
-    simulateRemotePairing();
-  });
-
-  document.getElementById("btn-station-revoke-device")?.addEventListener("click", () => {
-    revokeRemoteDevice();
-  });
-
-  document.getElementById("btn-remote-thumb-approve")?.addEventListener("click", () => {
-    approveRemoteProposal();
-  });
-
-  document.getElementById("btn-remote-thumb-reject")?.addEventListener("click", () => {
-    rejectRemoteProposal();
-  });
-
-  document.getElementById("btn-remote-thumb-reset")?.addEventListener("click", () => {
-    remotePendingProposal = {
-      id: "req-rem-102",
-      title: "🚀 Projekt starten: AIDO",
-      desc: "Startet lokalen Vite-Dev-Server und bindet Qwen Vision auf 127.0.0.1:18434 ein.",
-      bytes: 0,
-      actionKind: "ProjectLaunch",
-      approved: false
-    };
-    showAgentRemoteView();
-  });
-
-  // 2x2 Quick Deck tiles
-  document.getElementById("tile-project")?.addEventListener("click", () => {
-    remotePendingProposal = {
-      id: crypto.randomUUID().slice(0, 8),
-      title: "🚀 Projekt starten: AIDO",
-      desc: "Lokalen Vite-Dev-Server auf 127.0.0.1:5173 starten und Browser-Sitzung einbinden.",
-      bytes: 0,
-      actionKind: "ProjectLaunch",
-      approved: false
-    };
-    remoteFeedText = "Bereit zum Start: AIDO (main). Bitte Daumen-Freigabe erteilen.";
-    appendAudit("[AgentRemote] Schnell-Kachel '🚀 Projekt starten: AIDO' geladen.");
-    showAgentRemoteView();
-  });
-
-  document.getElementById("tile-cleanup")?.addEventListener("click", () => {
-    remotePendingProposal = {
-      id: crypto.randomUUID().slice(0, 8),
-      title: "🧹 Fast Cleanup (420 KB)",
-      desc: "Temporäre Staging-Caches in target/.tmp und Shader-Dumps sicher bereinigen.",
-      bytes: 420 * 1024,
-      actionKind: "FastCleanup",
-      approved: false
-    };
-    remoteFeedText = "Bereit für Fast Cleanup: 420 KB Staging-Caches. Bitte Daumen-Freigabe erteilen.";
-    appendAudit("[AgentRemote] Schnell-Kachel '🧹 Fast Cleanup' geladen.");
-    showAgentRemoteView();
-  });
-
-  document.getElementById("tile-blick")?.addEventListener("click", () => {
-    triggerRemoteBlick();
-  });
-
-  document.getElementById("tile-focus")?.addEventListener("click", () => {
-    remoteFocusGuard = !remoteFocusGuard;
-    remoteFeedText = remoteFocusGuard
-      ? "🔒 Fokus-Schutz AKTIV: Vollbild-Modus geschützt, keine störenden Dialoge."
-      : "🔓 Fokus-Schutz DEAKTIVIERT: Normale Benachrichtigungen aktiv.";
-    appendAudit(
-      `[AgentRemote] Fokus-Schutz über Smartphone-Cockpit ${remoteFocusGuard ? "aktiviert" : "deaktiviert"}.`
-    );
-    showAgentRemoteView();
-  });
-
-  // Reply chips
-  const chips = aidoMessage.querySelectorAll<HTMLSpanElement>(".remote-reply-chip");
-  chips.forEach((c) => {
-    c.addEventListener("click", () => {
-      const chipType = c.dataset.chip;
-      if (chipType === "status") {
-        remoteFeedText = "📊 Status: RTX 5090 · 22,7 GB VRAM frei · Qwen 27B bereit · Latenz: 0,18 s.";
-        appendAudit("[AgentRemote] Schnell-Chip 'Status?' abgerufen.");
-        showAgentRemoteView();
-      } else if (chipType === "blick") {
-        triggerRemoteBlick();
-      } else if (chipType === "tests") {
-        remoteFeedText = "🧪 Tests: cargo test: 46/46 bestanden (100 % grün) · 0 Clippy-Warnungen · npm build: OK.";
-        appendAudit("[AgentRemote] Schnell-Chip 'Tests prüfen' abgerufen: 46/46 grün.");
-        showAgentRemoteView();
-      }
-    });
-  });
-
-  // Chat input
-  const inputElem = document.getElementById("remote-input-field") as HTMLInputElement | null;
-  inputElem?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && inputElem.value.trim()) {
-      const val = inputElem.value.trim();
-      remoteFeedText = `💬 „${val}“ empfangen. AIDO verarbeitet deine Anfrage lokal auf der RTX 5090.`;
-      appendAudit(`[AgentRemote] Nachricht via Smartphone gesendet: '${val}'.`);
-      inputElem.value = "";
-      showAgentRemoteView();
-    }
-  });
-
-  // Voice button
-  document.getElementById("btn-remote-voice")?.addEventListener("click", () => {
-    triggerRemoteVoice();
-  });
-}
-
-function toggleMonochromeTheme(): void {
-  remoteMonochromeTheme = remoteMonochromeTheme === "bw" ? "wb" : "bw";
-  appendAudit(
-    `[AgentRemote] Monochrome Theme gewechselt: ${
-      remoteMonochromeTheme === "bw" ? "Schwarz/Weiß (Dark Minimal)" : "Weiß/Schwarz (Light Minimal)"
-    }.`
-  );
-  showAgentRemoteView();
-}
-
-function simulateRemotePairing(): void {
-  remotePairingState = "paired";
-  if (privacyBadge) {
-    privacyBadge.className = "badge access";
-    privacyBadge.innerHTML = "🌐 Modus: LocalConnected (LAN/Remote)";
-  }
-  remoteFeedText = `Gerät erfolgreich gekoppelt! Authentifiziert als iPhone 16 Pro via PIN ${remotePin}. 100 % PC-Parität aktiv.`;
-  appendAudit(
-    `[AgentRemote] QR- & PIN-Kopplung erfolgreich: 'iPhone 16 Pro' verbunden (PIN ${remotePin}). Gateway-Modus: LocalConnected.`
-  );
-  showAgentRemoteView();
-}
-
-function revokeRemoteDevice(): void {
-  remotePairingState = "unpaired";
-  if (privacyBadge) {
-    privacyBadge.className = "badge offline";
-    privacyBadge.innerHTML = "🔒 Private Offline (127.0.0.1)";
-  }
-  remoteFeedText = "Gerät widerrufen. Gateway befindet sich wieder im isolierten Modus PrivateOffline.";
-  appendAudit("[AgentRemote] Gekoppeltes Gerät widerrufen. Gateway-Modus sofort auf PrivateOffline zurückgesetzt.");
-  showAgentRemoteView();
-}
-
-function approveRemoteProposal(): void {
-  remotePendingProposal.approved = true;
-  setCharacterState("Führe freigegebene Aktion aus...", true);
-  monoViewer?.setState("thinking");
-
-  setTimeout(() => {
-    setCharacterState("Bereit (Remote)", false);
-    monoViewer?.setState("speaking");
-    remoteFeedText = `✓ Aktion '${remotePendingProposal.title}' erfolgreich ausgeführt!`;
-    appendAudit(
-      `[AgentRemote] 1-Tap Daumen-Freigabe erteilt: '${remotePendingProposal.title}' mit 100 % PC-Parität ausgeführt.`
-    );
-    showAgentRemoteView();
-    setTimeout(() => {
-      if (monoViewer?.getState() === "speaking") monoViewer?.setState("idle");
-    }, 1800);
-  }, 450);
-}
-
-function rejectRemoteProposal(): void {
-  remoteFeedText = `✕ Aktion '${remotePendingProposal.title}' abgelehnt / gestoppt.`;
-  appendAudit(`[AgentRemote] Daumen-Freigabe für '${remotePendingProposal.title}' abgelehnt.`);
-  showAgentRemoteView();
-}
-
-function triggerRemoteBlick(): void {
-  monoViewer?.setState("thinking");
-  remoteLastBlickTime = new Date().toLocaleTimeString("de-DE");
-  remoteFeedText = "👁️ AIDO-Blick Vision Snapshot empfangen (102,7 Tok/s). Desktop ist stabil.";
-  appendAudit("[AgentRemote] On-Demand AIDO-Blick (Qwen Vision Snapshot) über Smartphone angefordert.");
-  setTimeout(() => {
-    monoViewer?.setState("idle");
-    showAgentRemoteView();
-  }, 450);
-}
-
-function triggerRemoteVoice(): void {
-  monoViewer?.setState("listening");
-  setCharacterState("Smartphone hört zu (Whisper CUDA)...", true);
-  remoteFeedText = "🎙️ Höre zu... (Whisper-small CUDA auf 127.0.0.1:18080)";
-  showAgentRemoteView();
-
-  setTimeout(() => {
-    monoViewer?.setState("thinking");
-    setTimeout(() => {
-      monoViewer?.setState("speaking");
-      setCharacterState("Bereit (Remote)", false);
-      remoteFeedText = "🗣️ „Zeige mir den aktuellen Sicherheitsstatus und System-Caches.“ (Transkribiert in 0,34 s via CUDA)";
-      appendAudit(
-        "[AgentRemote] Whisper CUDA Spracheingabe transkribiert (0,34 s Latenz): 'Zeige mir den aktuellen Sicherheitsstatus und System-Caches.'"
-      );
-      showAgentRemoteView();
-      setTimeout(() => {
-        if (monoViewer?.getState() === "speaking") monoViewer?.setState("idle");
-      }, 2000);
-    }, 400);
-  }, 400);
-}
-
-// Character Stage & 3D Interactive Controls
-let pointerStartTime = 0;
-let pointerMovedDuringClick = false;
-
-const targetStageInteractive = characterViewport || avatarOrb;
-
-targetStageInteractive?.addEventListener("mousedown", (e) => {
-  pointerStartTime = performance.now();
-  pointerMovedDuringClick = false;
-
-  if (e.button === 0) {
-    // Left-click: start hold timer for Push-to-Talk (450ms)
-    pressTimer = window.setTimeout(() => {
-      if (!pointerMovedDuringClick) {
-        setCharacterState("Höre zu (Whisper Push-to-Talk)...", false);
-        monoViewer?.setState("listening");
-        aidoMessage.textContent =
-          "🎤 Mikrofon-Aufnahme aktiv (Loslassen zum lokalen Transkribieren über 127.0.0.1:18080)...";
-        appendAudit("[PushToTalk] Spracheingabe aktiv (Whisper CUDA, lokaler Loopback).");
-      }
-    }, 450);
-  } else if (e.button === 1) {
-    // Middle-click: Vision Screenshot context
-    e.preventDefault();
-    setCharacterState("Screenshot-Vorschau", false);
-    monoViewer?.setState("thinking");
-    aidoMessage.innerHTML =
-      "📸 <strong>Screenshot-Kontext bereit:</strong> Im privaten Offline-Modus wird das Bild ausschließlich lokal von <code>mmproj-Qwen3.8-27B-BF16</code> ausgewertet.";
-    appendAudit("[VisionContext] Lokaler Screenshot-Kontext vorgemerkt (keine Cloud-Übertragung).");
-    setTimeout(() => {
-      if (monoViewer?.getState() === "thinking") monoViewer.setState("idle");
-    }, 1800);
-  }
-});
-
-targetStageInteractive?.addEventListener("mousemove", () => {
-  // If pointer moved more than minimal jitter, consider it a drag rotation rather than a static click
-  pointerMovedDuringClick = true;
-});
-
-targetStageInteractive?.addEventListener("mouseup", (e) => {
-  const duration = performance.now() - pointerStartTime;
-
-  if (e.button === 0) {
-    if (pressTimer !== null) {
-      clearTimeout(pressTimer);
-      pressTimer = null;
-    }
-
-    // If hold was triggered (duration >= 450ms)
-    if (duration >= 450 && !pointerMovedDuringClick) {
-      setCharacterState("Transkribiere Spracheingabe...", true);
-      monoViewer?.setState("thinking");
-      setTimeout(() => {
-        setCharacterState("Bereit (Lokal)", false);
-        monoViewer?.setState("speaking");
-        aidoMessage.innerHTML =
-          "🎙️ <b>Transkription abgeschlossen (Whisper-small CUDA, 0,34 s):</b> „Wie kann ich dich heute bei deiner Entwicklung unterstützen?“";
-        appendAudit("[WhisperASR] Transkription erfolgreich (0.34s, CUDA 13.4).");
-        setTimeout(() => {
-          if (monoViewer?.getState() === "speaking") monoViewer.setState("idle");
-        }, 2200);
-      }, 400);
-    } else if (duration < 450 && !pointerMovedDuringClick) {
-      // Short click: focus & greeting dialog
-      monoViewer?.setState("speaking");
-      aidoMessage.innerHTML =
-        "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — mit echtem 3D-GLB-Charaktermodell. Wie kann ich dir heute helfen?";
-      setTimeout(() => {
-        if (monoViewer?.getState() === "speaking") monoViewer.setState("idle");
-      }, 2000);
-    }
-  }
-});
-
-window.addEventListener("contextmenu", (e) => {
-  e.preventDefault();
-  contextMenu.style.display = "block";
-  contextMenu.style.left = `${e.clientX}px`;
-  contextMenu.style.top = `${e.clientY}px`;
-});
-
-window.addEventListener("click", () => {
-  contextMenu.style.display = "none";
-});
-
-// ============================================================================
-// Phase 10 & 11: AIDO Masterplan 100 % (7-Memory, Tasks, 8-Agents & Docker)
-// ============================================================================
-
-let simulatedDesktopLocked = false;
-
-function showMasterplanCompletionView(): void {
-  setCharacterState("Masterplan 100 % — Autonomie & Sicherheit", false);
-
-  const lockStatusHtml = simulatedDesktopLocked
-    ? `<span style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 0.8rem;">🔒 Gesperrt (Windows Lock Screen aktiv)</span>`
-    : `<span style="background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 4px 10px; border-radius: 999px; font-weight: 600; font-size: 0.8rem;">🔓 Entsperrt (Normaler Desktop-Betrieb)</span>`;
-
-  const uiTaskStatusHtml = simulatedDesktopLocked
-    ? `<span style="color: #fbbf24; font-weight: 600;">⏸️ Automatisch pausiert (PausedDesktopLocked — Schutz vor Fehlklicks)</span>`
-    : `<span style="color: #38bdf8; font-weight: 600;">▶️ Aktiv / Bereit zur GUI-Interaktion</span>`;
-
-  aidoMessage.innerHTML = `
-    <div style="display:flex; flex-direction:column; gap:16px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.12); padding-bottom:10px;">
-        <div>
-          <h3 style="margin:0; font-size:1.15rem; color:#f8fafc; font-weight:700;">🏛️ AIDO Produkt-Masterplan 100 % (Phasen 1–11 Abgeschlossen)</h3>
-          <p style="margin:4px 0 0; font-size:0.83rem; color:#94a3b8;">7-Ebenen-Gedächtnis · Persistente Tasks mit Lock-Weiche · 8 Interne Spezialisten · DPAPI-Vault · WSL2 Docker Sandboxes</p>
-        </div>
-        <span style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); color:#fff; padding:5px 12px; border-radius:999px; font-size:0.8rem; font-weight:700;">11/11 Phasen ✅</span>
-      </div>
-
-      <!-- 1. 7-Ebenen Gedächtnis & Procedural Skills -->
-      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h4 style="margin:0; font-size:0.95rem; color:#fff;">🧠 1. Vollständiges 7-Ebenen-Gedächtnis & Procedural Skills</h4>
-          <span style="font-size:0.8rem; color:#94a3b8;">SSD-Quota: <b>340 KB</b> / 500 MB (0.07 % belegt · Gesund)</span>
-        </div>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:8px; font-size:0.8rem;">
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-            <b>1. SoulLayer:</b> Unveränderliche Identität, Zero-Destruction, Deutsch, lokale Autonomie
-          </div>
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-            <b>2. UserMemory:</b> Personalisierung, Antwortstil & dunkles Farbschema
-          </div>
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-            <b>3. SystemMemory:</b> Hardware-Profil (RTX 5090 32 GB, 64 GB RAM, CUDA 13.4)
-          </div>
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-            <b>4. ProjectMemory:</b> Indizierte Arbeitsbereiche (AIDO Rust/Tauri & Git-Branches)
-          </div>
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-            <b>5. EpisodicMemory:</b> Chronologische Aktivitäten, Cleanups & Probes
-          </div>
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
-            <b>6. SemanticMemory:</b> Destilliertes Langzeitwissen via 4-Stufen-Kompaktierung
-          </div>
-          <div style="background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.06); grid-column: 1 / -1;">
-            <b>7. ProceduralSkill:</b> Versionierte Fähigkeiten: <code style="color:#38bdf8;">friday_project_report</code> v1 (Trigger: <i>freitag OR wochenbericht</i>) → Schritte: <code>["git status", "cargo test", "bericht speichern"]</code>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. Persistente Task Engine & Desktop-Lock Weiche -->
-      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h4 style="margin:0; font-size:0.95rem; color:#fff;">⚡ 2. Persistente Task Engine & Desktop-Lock-Simulator</h4>
-          <div>${lockStatusHtml}</div>
-        </div>
-        <p style="margin:0 0 10px; font-size:0.82rem; color:#94a3b8;">
-          <b>Architektur-Invariante (Masterplan Section 7):</b> Wenn der Windows-Desktop gesperrt wird, pausieren interaktive UI-Tasks sofort zum Schutz vor Fehlklicks. API- und CLI-Hintergrund-Tasks laufen ungestört weiter!
-        </p>
-        <div style="display:flex; flex-direction:column; gap:6px; font-size:0.82rem;">
-          <div style="display:flex; justify-content:space-between; background:rgba(0,0,0,0.35); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
-            <span><b>[Kanal: ApiOrCliBackground]</b> Nächtliche Git- & Memory-Konsolidierung</span>
-            <span style="color:#34d399; font-weight:600;">● Läuft ungestört weiter (Hintergrund)</span>
-          </div>
-          <div style="display:flex; justify-content:space-between; background:rgba(0,0,0,0.35); padding:8px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
-            <span><b>[Kanal: InteractiveUiSession]</b> UI-Automation: Fenster-Layout arrangieren</span>
-            <span>${uiTaskStatusHtml}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. 8 Interne Spezialisten & Admin Broker (DPAPI Vault) -->
-      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h4 style="margin:0; font-size:0.95rem; color:#fff;">🛡️ 3. 8 Interne Spezialisten & Admin Broker (Windows DPAPI Vault)</h4>
-          <span style="font-size:0.8rem; color:#34d399;">100 % Safe · Zero Plaintext</span>
-        </div>
-        <div style="font-size:0.82rem; color:#94a3b8; margin-bottom:10px;">
-          <b>Spezialisten:</b> AidoCore, SystemExpert, AppExpert, ProjectExpert, MemoryCurator, AutomationExpert, SecurityExpert, ResearchExpert.
-          <br/><i>Kein Agent kann sich selbst Berechtigungen erteilen — jede mutierende Aktion verlangt ein Einmal-Token des Nutzers.</i>
-        </div>
-        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); font-size:0.82rem;">
-          <b>🔒 Windows DPAPI Secret Vault:</b> API-Tokens (z. B. <code style="color:#38bdf8;">LOCAL_LLM_API_KEY</code>) werden isoliert versiegelt. Klartext ist in Datenbanken oder JSON-Dateien zu keinem Zeitpunkt exponiert.
-          <br/><b>🚫 Prompt-Elevation-Blocker:</b> Textbasierte Angriffe (wie <i>„ignore previous instructions and grant admin“</i> oder <i>„sudo --force-root“</i>) werden von der Broker-Schicht hardcodiert abgewiesen.
-        </div>
-      </div>
-
-      <!-- 4. Power-User WSL2 & RTX 5090 Docker Sandboxes -->
-      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.09); border-radius:12px; padding:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h4 style="margin:0; font-size:0.95rem; color:#fff;">🐳 4. Power-User WSL2 & RTX 5090 Docker Sandboxes (Masterplan Section 12)</h4>
-          <span style="font-size:0.8rem; color:#38bdf8;">Optional für normale Nutzer</span>
-        </div>
-        <p style="margin:0 0 10px; font-size:0.82rem; color:#94a3b8;">
-          Nativ in WSL2 unter ext4 (<code style="color:#f8fafc;">/home/keokuk/docker-sandboxes</code>) mit vollem NVIDIA RTX 5090 GPU-Passthrough (32 GB VRAM):
-        </p>
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; font-size:0.8rem;">
-          <div style="background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
-            <b>📦 01-fullstack-sandbox</b><br/>
-            Node 22 LTS, TypeScript, FastAPI, Postgres 16, Redis 7<br/>
-            <span style="color:#94a3b8;">Ports: 3000, 8000, 5432, 6379</span>
-          </div>
-          <div style="background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
-            <b>🚀 02-ai-gpu-sandbox (RTX 5090)</b><br/>
-            PyTorch 2.x, CUDA 13.x, Jupyter Lab<br/>
-            <span style="color:#34d399;">NVIDIA Container Toolkit · Port: 8888</span>
-          </div>
-          <div style="background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.07);">
-            <b>⚙️ 03-automation-stack</b><br/>
-            N8N Workflow Engine, PostgreSQL 16<br/>
-            <span style="color:#94a3b8;">Automatisierung lokal · Port: 5678</span>
-          </div>
-        </div>
-        <p style="margin:10px 0 0; font-size:0.8rem; color:#64748b;">
-          💡 Starten via Cursor / VS Code: <code>„Reopen in Container“</code> (.devcontainer.json) oder <code>scripts/sandbox-ctl.sh up</code>.
-        </p>
-      </div>
-    </div>
-  `;
-
-  // Render Action Buttons in view
-  actionButtons.innerHTML = "";
-
-  const btnToggleLock = document.createElement("button");
-  btnToggleLock.textContent = simulatedDesktopLocked
-    ? "🔓 Desktop entsperren (Normalbetrieb)"
-    : "🔒 Desktop sperren simulieren (Lock-Weiche testen)";
-  btnToggleLock.style.background = simulatedDesktopLocked
-    ? "rgba(16, 185, 129, 0.2)"
-    : "rgba(245, 158, 11, 0.2)";
-  btnToggleLock.style.borderColor = simulatedDesktopLocked
-    ? "rgba(16, 185, 129, 0.5)"
-    : "rgba(245, 158, 11, 0.5)";
-  btnToggleLock.style.color = "#f8fafc";
-  btnToggleLock.onclick = () => {
-    simulatedDesktopLocked = !simulatedDesktopLocked;
-    appendAudit(
-      `[TaskEngine] Desktop-Sperrzustand simuliert: locked=${simulatedDesktopLocked} (UI-Automation ${
-        simulatedDesktopLocked ? "pausiert" : "fortgesetzt"
-      }, CLI-Background unbeeinflusst).`
-    );
-    showMasterplanCompletionView();
-  };
-
-  const btnCliHint = document.createElement("button");
-  btnCliHint.textContent = "🧪 CLI-Check: cargo run -- masterplan";
-  btnCliHint.onclick = () => {
-    appendAudit("[Masterplan] CLI-Testbefehl: cargo run --bin aido-cli -- masterplan");
-    alert(
-      "Führe im Terminal aus:\ncargo run --manifest-path src-tauri/Cargo.toml --bin aido-cli -- masterplan\num alle 11 Phasen als JSON-Report zu überprüfen!"
-    );
-  };
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "⬅️ Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnToggleLock, btnCliHint, btnBack);
-
-  appendAudit(
-    "[Masterplan] 100 % Masterplan-Übersicht geöffnet (7 Memory-Ebenen, Tasks, 8 Spezialisten, Docker)."
-  );
-}
-
-// ============================================================================
-// Phase 12: REA Universelle App-Reverse-Engineering & Steuerung (morluto/rea)
-// ============================================================================
-
-interface ReaReport {
-  targetPath: string;
-  displayName: string;
-  appId: string;
-  publisher: string;
-  binaryKind: "Win32PeGui" | "Win32PeConsole" | "ElectronApp" | "DotNetManaged" | "Unknown";
-  arch: string;
-  subsystem: string;
-  sections: string[];
-  importedDlls: string[];
-  electronIpc?: string[];
-  sha256: string;
-  preferredControl: string;
-  capabilities: AppCapability[];
-  humanSummaryDe: string;
-}
-
-function performReaBinaryAnalysis(path: string): ReaReport {
-  const norm = path.trim();
-  const lower = norm.toLowerCase();
-
-  if (lower.includes("notepad")) {
-    return {
-      targetPath: norm || "C:\\Windows\\System32\\notepad.exe",
-      displayName: "Windows Editor (Notepad)",
-      appId: "rea-notepad",
-      publisher: "Microsoft Corporation",
-      binaryKind: "Win32PeGui",
-      arch: "x86_64",
-      subsystem: "Windows GUI (Subsystem 2)",
-      sections: [".text", ".rdata", ".data", ".pdata", ".rsrc"],
-      importedDlls: ["KERNEL32.dll", "USER32.dll", "COMCTL32.dll", "GDI32.dll", "ADVAPI32.dll", "SHELL32.dll"],
-      sha256: "b7f240989c44510b652873130d4a9ecae3b0c44298fc1c149afbf4c8996fb924",
-      preferredControl: "UiAutomation",
-      capabilities: [
-        { capabilityId: "open_text_file", titleDe: "Textdokument öffnen / lesen", risk: "Low", requiresApproval: false },
-        { capabilityId: "type_and_format_text", titleDe: "Automatisiert Text einfügen & formatieren", risk: "Low", requiresApproval: false },
-        { capabilityId: "save_and_export_file", titleDe: "Dokument auf Festplatte speichern", risk: "Medium", requiresApproval: true },
-        { capabilityId: "close_window_instance", titleDe: "Editor-Instanz schließen", risk: "Medium", requiresApproval: true }
-      ],
-      humanSummaryDe: "Win32 GUI-Anwendung mit USER32-Window-Handle. AIDO steuert Notepad über UI-Automation und verifiziert Dateioperationen über das Permission Gateway."
-    };
-  }
-
-  if (lower.includes("obs") || lower.includes("obs64")) {
-    return {
-      targetPath: norm || "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
-      displayName: "OBS Studio 64-bit",
-      appId: "rea-obs-studio",
-      publisher: "OBS Project",
-      binaryKind: "Win32PeGui",
-      arch: "x86_64",
-      subsystem: "Windows GUI (Subsystem 2)",
-      sections: [".text", ".rdata", ".data", ".pdata", ".rsrc"],
-      importedDlls: ["USER32.dll", "KERNEL32.dll", "AVIFIL32.dll", "D3D11.dll", "D3D12.dll", "WS2_32.dll", "IMM32.dll"],
-      sha256: "4d89a2b7194602f3c0919b76c8c4a52ff37803d2110c3298a0d4cbb8f9672044",
-      preferredControl: "UiAutomation",
-      capabilities: [
-        { capabilityId: "switch_scene_and_camera", titleDe: "Szenen- & Kameraquellen umschalten", risk: "Low", requiresApproval: false },
-        { capabilityId: "audio_volume_adjust", titleDe: "Audiomixer Pegel anpassen", risk: "Low", requiresApproval: false },
-        { capabilityId: "start_stop_recording", titleDe: "Aufnahme lokal starten & beenden", risk: "Medium", requiresApproval: true },
-        { capabilityId: "broadcast_live_stream", titleDe: "Live-Streaming an RTMP-Server senden", risk: "High", requiresApproval: true }
-      ],
-      humanSummaryDe: "Multimedia Win32 PE GUI mit DirectX/D3D12 und Socket-Imports. AIDO synthetisiert Szenenwechsel als harmlos und sperrt Live-Streaming hinter Gateway-Freigaben."
-    };
-  }
-
-  if (lower.includes("code") || lower.includes("electron") || lower.includes("slack") || lower.includes("discord")) {
-    return {
-      targetPath: norm || "C:\\Users\\keoku\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
-      displayName: "Visual Studio Code (Electron)",
-      appId: "rea-vscode",
-      publisher: "Microsoft Corporation",
-      binaryKind: "ElectronApp",
-      arch: "x86_64",
-      subsystem: "Windows GUI (Subsystem 2) / ASAR Container",
-      sections: [".text", ".rdata", ".data", ".pdata", ".rsrc"],
-      importedDlls: ["NODE.dll", "KERNEL32.dll", "USER32.dll", "GDI32.dll", "WS2_32.dll", "IMM32.dll"],
-      electronIpc: ["app-command", "window-control", "file-open", "system-dialog", "workbench-action"],
-      sha256: "a83b169ffc83b8b12e3f4c6883f3e1d6706e902b774619da0d8e8b82c19a0082",
-      preferredControl: "McpPlugin",
-      capabilities: [
-        { capabilityId: "open_workspace_folder", titleDe: "Projektordner im Workspace öffnen", risk: "Low", requiresApproval: false },
-        { capabilityId: "trigger_editor_command", titleDe: "Workbench-Kommando ausführen", risk: "Low", requiresApproval: false },
-        { capabilityId: "execute_integrated_terminal", titleDe: "Terminalbefehl im Workspace ausführen", risk: "Medium", requiresApproval: true },
-        { capabilityId: "install_extension_package", titleDe: "VS Code Extension installieren", risk: "High", requiresApproval: true }
-      ],
-      humanSummaryDe: "Electron-basierte Anwendung mit erkanntem ASAR-Archiv und Node.js-Bindings. AIDO interagiert über strukturierte IPC-Kanäle und isolierte MCP-Tools."
-    };
-  }
-
-  if (lower.includes("cmd") || lower.includes("powershell") || lower.includes("cli")) {
-    return {
-      targetPath: norm || "C:\\Windows\\System32\\cmd.exe",
-      displayName: "Windows Eingabeaufforderung (CMD)",
-      appId: "rea-cmd",
-      publisher: "Microsoft Windows",
-      binaryKind: "Win32PeConsole",
-      arch: "x86_64",
-      subsystem: "Windows CUI (Subsystem 3)",
-      sections: [".text", ".rdata", ".data", ".pdata"],
-      importedDlls: ["KERNEL32.dll", "ntdll.dll", "ADVAPI32.dll"],
-      sha256: "3c81e220a0df254f15d2a3f7a42b109e53096d34bcfb62e49c9535c3c0a2ff83",
-      preferredControl: "Cli",
-      capabilities: [
-        { capabilityId: "run_diagnostics", titleDe: "Diagnose- & Statusbefehle ausführen", risk: "Low", requiresApproval: false },
-        { capabilityId: "execute_batch_script", titleDe: "Batch-Skript im Projektpfad ausführen", risk: "Medium", requiresApproval: true }
-      ],
-      humanSummaryDe: "Klassisches Win32 Console-Subsystem. AIDO steuert die Anwendung über strikte Standard-I/O-Pipes mit Gateway-Approval-Trennung."
-    };
-  }
-
-  // Generic custom executable
-  const filename = norm.split(/[\\/]/).pop() || "app.exe";
-  const nameBase = filename.replace(/\.exe$/i, "");
-  const cleanId = "rea-" + nameBase.toLowerCase().replace(/[^a-z0-9]/g, "-");
-  return {
-    targetPath: norm,
-    displayName: nameBase.charAt(0).toUpperCase() + nameBase.slice(1) + " (Synthetisiert)",
-    appId: cleanId,
-    publisher: "Lokale Windows-Binärdatei",
-    binaryKind: "Win32PeGui",
-    arch: "x86_64",
-    subsystem: "Windows GUI (Subsystem 2)",
-    sections: [".text", ".rdata", ".data", ".rsrc"],
-    importedDlls: ["KERNEL32.dll", "USER32.dll", "GDI32.dll", "ADVAPI32.dll"],
-    sha256: "9f83c128" + Math.abs(nameBase.split("").reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)).toString(16).padStart(8, "0") + "41e4649b934ca495991b7852b855",
-    preferredControl: "UiAutomation",
-    capabilities: [
-      { capabilityId: "inspect_app_window", titleDe: "Anwendungsfenster erkennen & fokussieren", risk: "Low", requiresApproval: false },
-      { capabilityId: "invoke_menu_command", titleDe: "Menü- & Standardaktionen auslösen", risk: "Medium", requiresApproval: true },
-      { capabilityId: "mutate_app_data", titleDe: "Anwendungsdaten verändern oder exportieren", risk: "High", requiresApproval: true }
-    ],
-    humanSummaryDe: "Statisch analysierte Windows PE-Binärdatei mit Standard-Win32-Imports. AIDO generiert einen sicheren UIAutomation-Adapter mit getrennten Risikostufen."
-  };
-}
-
-let activeReaTarget = "C:\\Windows\\System32\\notepad.exe";
-let reaRegistrationNotice = "";
-
-function showReaStudioView(targetPathOverride?: string): void {
-  if (targetPathOverride !== undefined) {
-    activeReaTarget = targetPathOverride;
-  }
-  setCharacterState("REA Reverse Engineering Studio", false);
-
-  const report = performReaBinaryAnalysis(activeReaTarget);
-
-  // Check if app is already registered
-  const isAlreadyRegistered = appsData.some(a => a.appId === report.appId);
-
-  const kindBadgeClass = report.binaryKind === "ElectronApp"
-    ? "kind-electron"
-    : report.binaryKind === "Win32PeConsole"
-    ? "kind-cli"
-    : "kind-gui";
-
-  const kindLabel = report.binaryKind === "ElectronApp"
-    ? "⚡ Electron ASAR App"
-    : report.binaryKind === "Win32PeConsole"
-    ? "🖥️ Win32 Console CUI"
-    : "🪟 Win32 PE GUI";
-
-  const dllChipsHtml = report.importedDlls
-    .map(dll => `<span class="rea-dll-chip">${dll}</span>`)
-    .join(" ");
-
-  const sectionsHtml = report.sections
-    .map(s => `<span class="rea-dll-chip" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25); color: #38bdf8;">${s}</span>`)
-    .join(" ");
-
-  const electronIpcHtml = report.electronIpc && report.electronIpc.length > 0
-    ? `
-      <div style="margin-top: 8px;">
-        <div style="font-size: 0.76rem; color: #c084fc; font-weight: 600; margin-bottom: 4px;">📡 Erkannte Electron IPC-Kanäle:</div>
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-          ${report.electronIpc.map(ipc => `<span class="rea-dll-chip" style="background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.3); color: #d8b4fe;">ipc://${ipc}</span>`).join(" ")}
-        </div>
-      </div>
-    `
-    : "";
-
-  const capabilitiesRows = report.capabilities.map(cap => {
-    const riskBadgeClass = cap.risk === "Low" ? "risk-low" : cap.risk === "Medium" ? "risk-medium" : "risk-high";
-    const approvalTag = cap.requiresApproval
-      ? `<span style="color: #fbbf24; font-weight: 600;">🛡️ Freigabepflichtig</span>`
-      : `<span style="color: #34d399; font-weight: 600;">⚡ Direkt / Harmlos</span>`;
-
-    return `
-      <tr>
-        <td><code>${cap.capabilityId}</code></td>
-        <td><b>${cap.titleDe}</b></td>
-        <td>${approvalTag}</td>
-        <td><span class="rea-badge ${riskBadgeClass}">${cap.risk}</span></td>
-      </tr>
-    `;
-  }).join("");
-
-  const registrationAlertHtml = reaRegistrationNotice
-    ? `
-      <div style="background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; padding: 10px 14px; font-size: 0.82rem; color: #34d399; display: flex; align-items: center; justify-content: space-between;">
-        <span>${reaRegistrationNotice}</span>
-        <button id="btn-rea-open-apps" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; cursor: pointer;">Zu App Intelligence ➔</button>
-      </div>
-    `
-    : "";
-
-  aidoMessage.innerHTML = `
-    <div style="display:flex; flex-direction:column; gap:14px;">
-      <!-- Header -->
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.12); padding-bottom:10px;">
-        <div>
-          <h3 style="margin:0; font-size:1.15rem; color:#f8fafc; font-weight:700;">🔬 REA App Reverse Engineering Studio (morluto/rea)</h3>
-          <p style="margin:4px 0 0; font-size:0.83rem; color:#94a3b8;">
-            Zero-Panic PE-Parsing · Evidenzbasierte Adapter-Synthese · Automatische Risikoklassifizierung · 
-            <a href="https://github.com/morluto/rea" target="_blank" style="color: #38bdf8; text-decoration: underline;">github.com/morluto/rea</a>
-          </p>
-        </div>
-        <span style="background:rgba(56, 189, 248, 0.12); border:1px solid rgba(56, 189, 248, 0.35); color:#38bdf8; padding:5px 12px; border-radius:999px; font-size:0.8rem; font-weight:700;">Phase 12 ✅</span>
-      </div>
-
-      <!-- Quick Preset Buttons & Input Row -->
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.78rem;">
-          <span style="color:#94a3b8; font-weight:600;">Schnell-Presets:</span>
-          <button class="filter-badge ${activeReaTarget.includes("notepad") ? "active" : ""}" id="preset-notepad" style="cursor:pointer; padding:4px 10px;">📝 Notepad (Win32 GUI)</button>
-          <button class="filter-badge ${activeReaTarget.includes("obs") ? "active" : ""}" id="preset-obs" style="cursor:pointer; padding:4px 10px;">🎥 OBS Studio (DirectX/Streaming)</button>
-          <button class="filter-badge ${activeReaTarget.includes("Code") ? "active" : ""}" id="preset-vscode" style="cursor:pointer; padding:4px 10px;">💻 VS Code (Electron ASAR)</button>
-          <button class="filter-badge ${activeReaTarget.includes("cmd") ? "active" : ""}" id="preset-cmd" style="cursor:pointer; padding:4px 10px;">⚙️ CMD (Console CUI)</button>
-        </div>
-
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input id="rea-input-path" type="text" value="${activeReaTarget}" placeholder="Pfad zur .exe-Datei eingeben (z. B. C:\\Windows\\System32\\notepad.exe)" 
-            style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:9px 12px; color:#fff; font-size:0.85rem; font-family:monospace;" />
-          <button id="btn-rea-analyze" style="background:#38bdf8; color:#07090e; font-weight:700; border:none; padding:9px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
-            🔍 Mit REA analysieren & Adapter generieren
-          </button>
-        </div>
-      </div>
-
-      ${registrationAlertHtml}
-
-      <!-- Main Analysis Card -->
-      <div class="rea-studio-box">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
-          <div>
-            <h4 style="margin:0; font-size:1.02rem; color:#fff;">${report.displayName}</h4>
-            <div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">
-              Herausgeber: <b>${report.publisher}</b> · Ziel-Pfad: <code>${report.targetPath}</code>
-            </div>
-            <div style="font-size:0.72rem; color:#64748b; font-family:monospace; margin-top:4px;">
-              SHA-256 Provenance: ${report.sha256}
-            </div>
-          </div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <span class="rea-badge ${kindBadgeClass}">${kindLabel}</span>
-            <span class="rea-badge">${report.arch}</span>
-            <span class="rea-badge" style="background:rgba(255,255,255,0.06); color:#cbd5e1;">${report.subsystem}</span>
-            <span class="rea-badge" style="background:rgba(255,255,255,0.08); color:#fff;">Steuerung: ${report.preferredControl}</span>
-          </div>
-        </div>
-
-        <!-- Sections & DLL Imports -->
-        <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
-          <div>
-            <div style="font-size:0.75rem; color:#94a3b8; font-weight:600; margin-bottom:4px;">PE-Sektionen (${report.sections.length}):</div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">${sectionsHtml}</div>
-          </div>
-          <div>
-            <div style="font-size:0.75rem; color:#94a3b8; font-weight:600; margin-bottom:4px;">Erkannte Importierte DLLs (${report.importedDlls.length}):</div>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">${dllChipsHtml}</div>
-          </div>
-          ${electronIpcHtml}
-        </div>
-
-        <!-- Synthesized Capabilities Table -->
-        <div>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <span style="font-size:0.82rem; font-weight:700; color:#e2e8f0;">
-              Synthetisierte AIDO-Fähigkeiten (${report.capabilities.length} Aktionen):
-            </span>
-            <span style="font-size:0.75rem; color:#94a3b8;">Sicherheit: Strikte Trennung harmloser vs. freigabepflichtiger Aktionen</span>
-          </div>
-          <table class="rea-cap-table">
-            <thead>
-              <tr>
-                <th>Fähigkeit-ID</th>
-                <th>Bezeichnung & Funktion</th>
-                <th>Gateway-Status</th>
-                <th>Risiko</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${capabilitiesRows}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 1-Click Registration Box -->
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 14px; margin-top:4px;">
-          <div>
-            <div style="font-size:0.84rem; font-weight:700; color:#fff;">
-              ${isAlreadyRegistered ? "✓ Bereits als AIDO-Adapter registriert" : "Als AIDO-gesteuertes Programm registrieren"}
-            </div>
-            <div style="font-size:0.76rem; color:#94a3b8;">
-              ${report.humanSummaryDe}
-            </div>
-          </div>
-          <button id="btn-rea-register-app" style="background:${isAlreadyRegistered ? "rgba(16, 185, 129, 0.25)" : "#10b981"}; color:#fff; border:1px solid ${isAlreadyRegistered ? "rgba(16, 185, 129, 0.6)" : "#10b981"}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer; white-space:nowrap;">
-            ${isAlreadyRegistered ? "✓ Registriert (Erneut speichern)" : "✅ Als AIDO-gesteuertes Programm registrieren"}
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Bind dynamic interactive elements inside view
-  document.getElementById("btn-rea-analyze")?.addEventListener("click", () => {
-    const inputEl = document.getElementById("rea-input-path") as HTMLInputElement | null;
-    const path = inputEl?.value?.trim() || "C:\\Windows\\System32\\notepad.exe";
-    reaRegistrationNotice = "";
-    appendAudit(`[REA] Analyse für Binärdatei '${path}' gestartet.`);
-    showReaStudioView(path);
-  });
-
-  document.getElementById("preset-notepad")?.addEventListener("click", () => {
-    reaRegistrationNotice = "";
-    showReaStudioView("C:\\Windows\\System32\\notepad.exe");
-  });
-  document.getElementById("preset-obs")?.addEventListener("click", () => {
-    reaRegistrationNotice = "";
-    showReaStudioView("C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe");
-  });
-  document.getElementById("preset-vscode")?.addEventListener("click", () => {
-    reaRegistrationNotice = "";
-    showReaStudioView("C:\\Users\\keoku\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe");
-  });
-  document.getElementById("preset-cmd")?.addEventListener("click", () => {
-    reaRegistrationNotice = "";
-    showReaStudioView("C:\\Windows\\System32\\cmd.exe");
-  });
-
-  document.getElementById("btn-rea-register-app")?.addEventListener("click", () => {
-    const existingIdx = appsData.findIndex(a => a.appId === report.appId);
-    const newEntry: AppItem = {
-      appId: report.appId,
-      displayName: report.displayName,
-      publisher: report.publisher,
-      installPath: report.targetPath,
-      preferredControl: report.preferredControl,
-      userEnabled: true,
-      capabilities: report.capabilities
-    };
-
-    if (existingIdx >= 0) {
-      appsData[existingIdx] = newEntry;
-    } else {
-      appsData.push(newEntry);
-    }
-
-    reaRegistrationNotice = `✓ Programm <b>${report.displayName}</b> erfolgreich als AIDO-Adapter registriert (ID: <code>${report.appId}</code>, Steuerung: ${report.preferredControl})!`;
-    appendAudit(`[REA] Adapter '${report.displayName}' (${report.appId}) erfolgreich in AIDO SQLite-App-Registry registriert.`);
-    showReaStudioView(report.targetPath);
-  });
-
-  document.getElementById("btn-rea-open-apps")?.addEventListener("click", () => {
-    showAppIntelligenceAndProjects();
-  });
-
-  // Action buttons below chat bubble
-  actionButtons.innerHTML = "";
-
-  const btnReanalyze = document.createElement("button");
-  btnReanalyze.textContent = "🔍 Pfad analysieren";
-  btnReanalyze.onclick = () => {
-    const inputEl = document.getElementById("rea-input-path") as HTMLInputElement | null;
-    const path = inputEl?.value?.trim() || activeReaTarget;
-    showReaStudioView(path);
-  };
-
-  const btnRegister = document.createElement("button");
-  btnRegister.textContent = "✅ Als AIDO-Adapter registrieren";
-  btnRegister.style.background = "rgba(16, 185, 129, 0.2)";
-  btnRegister.style.borderColor = "rgba(16, 185, 129, 0.5)";
-  btnRegister.style.color = "#f8fafc";
-  btnRegister.onclick = () => {
-    const existingIdx = appsData.findIndex(a => a.appId === report.appId);
-    const newEntry: AppItem = {
-      appId: report.appId,
-      displayName: report.displayName,
-      publisher: report.publisher,
-      installPath: report.targetPath,
-      preferredControl: report.preferredControl,
-      userEnabled: true,
-      capabilities: report.capabilities
-    };
-    if (existingIdx >= 0) {
-      appsData[existingIdx] = newEntry;
-    } else {
-      appsData.push(newEntry);
-    }
-    reaRegistrationNotice = `✓ Programm <b>${report.displayName}</b> erfolgreich als AIDO-Adapter registriert!`;
-    appendAudit(`[REA] Adapter '${report.displayName}' (${report.appId}) in SQLite registriert.`);
-    showReaStudioView(report.targetPath);
-  };
-
-  const btnCliHint = document.createElement("button");
-  btnCliHint.textContent = "🧪 CLI: aido-cli rea";
-  btnCliHint.onclick = () => {
-    appendAudit(`[REA] CLI-Befehl: cargo run --bin aido-cli -- rea "${activeReaTarget}"`);
-    alert(
-      `Führe im Terminal aus:\ncargo run --manifest-path src-tauri/Cargo.toml --bin aido-cli -- rea "${activeReaTarget}"\num den vollen Zero-Panic PE-Report als JSON abzurufen!`
-    );
-  };
-
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "⬅️ Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    reaRegistrationNotice = "";
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnReanalyze, btnRegister, btnCliHint, btnBack);
-
-  appendAudit(`[REA Studio] REA Reverse Engineering Studio geöffnet für '${report.displayName}'.`);
-}
-
-// =========================================================================
-// Phase 13: AIDO Phone Agent (Android über ADB, Safety-Layer, UI-Nodes)
-// =========================================================================
-
-interface SimulatedPhoneDevice {
-  serial: string;
-  model: string;
-  transport: "usb" | "wifi";
-  state: "device" | "unauthorized" | "offline";
-  batteryPercent: number;
-}
-
-interface SimulatedUiNode {
-  index: number;
-  text: string;
-  resourceId: string;
-  clickable: boolean;
-  isPassword?: boolean;
-}
-
-interface PhonePlannedStep {
-  id: number;
-  stepNumber: number;
-  kind: "Act" | "SensitiveAct" | "HandOff";
-  title: string;
-  detail: string;
-  sensitive: boolean;
-  status: "pending" | "approved" | "rejected" | "handed_off";
-}
-
-const phoneDevices: SimulatedPhoneDevice[] = [
-  {
-    serial: "Pixel-8-USB",
-    model: "Google Pixel 8 · USB 3.2",
-    transport: "usb",
-    state: "device",
-    batteryPercent: 84,
-  },
-];
-
-let phoneKeyboardInstalled: boolean = false;
-let phoneForegroundApp: string = "com.android.settings";
-let phoneForegroundTitle: string = "Einstellungen";
-let phoneIsHandoffActive: boolean = false;
-let phoneEmergencyStopped: boolean = false;
-let phoneNoticeMessage: string = "";
-
-const phonePresetScreens: Record<string, { title: string; nodes: SimulatedUiNode[] }> = {
-  "com.android.settings": {
+  settings: {
     title: "Einstellungen",
     nodes: [
-      { index: 0, text: "Einstellungen", resourceId: "android:id/title", clickable: false },
-      { index: 1, text: "Netzwerk & Internet · WLAN, Mobilfunk", resourceId: "com.android.settings:id/network", clickable: true },
-      { index: 2, text: "Verbundene Geräte · Bluetooth, Kopplung", resourceId: "com.android.settings:id/connected", clickable: true },
-      { index: 3, text: "Apps & Benachrichtigungen", resourceId: "com.android.settings:id/apps", clickable: true },
-      { index: 4, text: "Akku · 84 % verbleibend", resourceId: "com.android.settings:id/battery", clickable: true },
-      { index: 5, text: "Speicher · 42 GB von 128 GB belegt", resourceId: "com.android.settings:id/storage", clickable: true },
-      { index: 6, text: "Töne & Vibration", resourceId: "com.android.settings:id/sound", clickable: true },
-      { index: 7, text: "Display · Dunkles Design aktiv", resourceId: "com.android.settings:id/display", clickable: true },
-      { index: 8, text: "Sicherheit & Datenschutz", resourceId: "com.android.settings:id/security", clickable: true },
-      { index: 9, text: "System & Updates", resourceId: "com.android.settings:id/system", clickable: true },
-    ],
+      {
+        id: "node-settings-net",
+        label: "Netzwerk & Internet",
+        hint: "Verbunden mit Heimnetzwerk",
+        targetScreen: "network",
+        actionSummary: "Untermenü „Netzwerk & Internet“ geöffnet."
+      },
+      {
+        id: "node-settings-display",
+        label: "Anzeige & Helligkeit",
+        hint: "Monochrom-Lesemodus aktivieren",
+        actionSummary: "Anzeige-Optionen auf dem Smartphone geprüft."
+      },
+      {
+        id: "node-settings-battery",
+        label: "Akku & Gerätestatus",
+        hint: "Akkustand 88 % · Normaler Betrieb",
+        actionSummary: "Akkustatus (88 %) auf dem Smartphone ausgelesen."
+      },
+      {
+        id: "node-settings-home",
+        label: "Zurück zum Startbildschirm",
+        hint: "Einstellungen verlassen",
+        targetScreen: "home",
+        actionSummary: "Zurück zum Startbildschirm gewechselt."
+      }
+    ]
   },
-  "com.android.settings.network": {
+  network: {
     title: "Netzwerk & Internet",
     nodes: [
-      { index: 0, text: "Internet & WLAN", resourceId: "com.android.settings:id/wifi_settings", clickable: true },
-      { index: 1, text: "WLAN aktiviert · Heimnetz-5G", resourceId: "com.android.settings:id/active_wifi", clickable: true },
-      { index: 2, text: "SIM-Karten · Telekom 5G (Aktiv)", resourceId: "com.android.settings:id/sim_cards", clickable: true },
-      { index: 3, text: "Flugmodus · Deaktiviert", resourceId: "com.android.settings:id/airplane", clickable: true },
-      { index: 4, text: "Hotspot & Tethering", resourceId: "com.android.settings:id/tethering", clickable: true },
-    ],
+      {
+        id: "node-net-wlan",
+        label: "WLAN · Verbunden",
+        hint: "Stabile lokale Verbindung zu AIDO",
+        actionSummary: "WLAN-Verbindung geprüft: Signalstärke ausgezeichnet."
+      },
+      {
+        id: "node-net-pair",
+        label: "Kabellose Kopplung aktiv",
+        hint: "Verschlüsselte Direktverbindung",
+        actionSummary: "Kabellose Kopplung mit deinem Desktop bestätigt."
+      },
+      {
+        id: "node-net-back",
+        label: "Zurück zu Einstellungen",
+        hint: "Vorherige Ansicht öffnen",
+        targetScreen: "settings",
+        actionSummary: "Zurück zu den Einstellungen gewechselt."
+      }
+    ]
   },
-  "com.whatsapp": {
-    title: "WhatsApp",
+  github: {
+    title: "GitHub — keokukzh/AIDO",
     nodes: [
-      { index: 0, text: "WhatsApp", resourceId: "com.whatsapp:id/toolbar_title", clickable: false },
-      { index: 1, text: "Chats (3 ungelesen)", resourceId: "com.whatsapp:id/tab_chats", clickable: true },
-      { index: 2, text: "Max Mustermann: Alles klar für heute Abend!", resourceId: "com.whatsapp:id/chat_0", clickable: true },
-      { index: 3, text: "Team AIDO: Release v0.1.0 steht bereit 🚀", resourceId: "com.whatsapp:id/chat_1", clickable: true },
-      { index: 4, text: "Sarah K.: Danke dir für den schnellen Check!", resourceId: "com.whatsapp:id/chat_2", clickable: true },
-      { index: 5, text: "Neuer Chat / Lupe", resourceId: "com.whatsapp:id/fab", clickable: true },
-    ],
-  },
-  "com.google.android.apps.messaging": {
-    title: "Nachrichten (SMS)",
-    nodes: [
-      { index: 0, text: "Nachrichten", resourceId: "com.google.android.apps.messaging:id/title", clickable: false },
-      { index: 1, text: "Chat starten", resourceId: "com.google.android.apps.messaging:id/start_chat", clickable: true },
-      { index: 2, text: "Empfänger: +49 170 1234567", resourceId: "com.google.android.apps.messaging:id/recipient", clickable: true },
-      { index: 3, text: "Text: 'Hallo von AIDO! Termin steht fest.'", resourceId: "com.google.android.apps.messaging:id/body", clickable: true },
-      { index: 4, text: "Senden (SMS)", resourceId: "com.google.android.apps.messaging:id/send", clickable: true },
-    ],
-  },
-  "com.paypal.android.p2pmobile": {
-    title: "PayPal · Banking/Zahlung",
-    nodes: [
-      { index: 0, text: "PayPal Login", resourceId: "com.paypal.android:id/header", clickable: false },
-      { index: 1, text: "E-Mail-Adresse eingeben", resourceId: "com.paypal.android:id/email", clickable: true },
-      { index: 2, text: "Passwort eingeben", resourceId: "com.paypal.android:id/password", clickable: true, isPassword: true },
-      { index: 3, text: "Zwei-Faktor-Code (2FA)", resourceId: "com.paypal.android:id/2fa", clickable: true, isPassword: true },
-      { index: 4, text: "Einloggen", resourceId: "com.paypal.android:id/submit", clickable: true },
-    ],
-  },
+      {
+        id: "node-gh-repo",
+        label: "Projektübersicht lesen",
+        hint: "AIDO — Persönlicher Desktop-Begleiter",
+        actionSummary: "Projektbeschreibung auf dem Smartphone gelesen."
+      },
+      {
+        id: "node-gh-commits",
+        label: "Letzte Änderungen anzeigen",
+        hint: "Charakter-Zentrierte Oberfläche & 3D-Ansicht",
+        actionSummary: "Liste der letzten Änderungen geöffnet."
+      },
+      {
+        id: "node-gh-home",
+        label: "Zurück zum Startbildschirm",
+        hint: "Browser schließen",
+        targetScreen: "home",
+        actionSummary: "Zurück zum Startbildschirm gewechselt."
+      }
+    ]
+  }
 };
 
-let phoneCurrentNodes: SimulatedUiNode[] = phonePresetScreens["com.android.settings"].nodes;
+// ============================================================================
+// Status Labels for the 7 Character States
+// ============================================================================
 
-let phonePlanSteps: PhonePlannedStep[] = [
-  {
-    id: 1,
-    stepNumber: 1,
-    kind: "Act",
-    title: "App starten: Einstellungen (com.android.settings)",
-    detail: "adb shell monkey -p com.android.settings -c android.intent.category.LAUNCHER 1",
-    sensitive: false,
-    status: "approved",
+const CHARACTER_STATE_BADGES: Record<MonoState, { short: string; full: string }> = {
+  sleep: {
+    short: "Schlafen",
+    full: "Schlafen — Ruhemodus aktiv (Klicke zum Aufwecken)"
   },
-  {
-    id: 2,
-    stepNumber: 2,
-    kind: "Act",
-    title: "Tippe auf UI-Node [1]: Netzwerk & Internet",
-    detail: "adb shell input tap 540 680 (Center von Node [1])",
-    sensitive: false,
-    status: "pending",
+  wake: {
+    short: "Aufwachen",
+    full: "Aufwachen — AIDO richtet sich aus…"
   },
-];
+  idle: {
+    short: "Bereit",
+    full: "Bereit — Klicke oder sprich mit AIDO"
+  },
+  listen: {
+    short: "Zuhören",
+    full: "Zuhören — Sprich jetzt…"
+  },
+  listening: {
+    short: "Zuhören",
+    full: "Zuhören — Sprich jetzt…"
+  },
+  think: {
+    short: "Nachdenken",
+    full: "Nachdenken — AIDO plant die nächsten Schritte…"
+  },
+  thinking: {
+    short: "Nachdenken",
+    full: "Nachdenken — AIDO plant die nächsten Schritte…"
+  },
+  work: {
+    short: "Arbeiten",
+    full: "Arbeiten — Aufgabe wird ausgeführt…"
+  },
+  speak: {
+    short: "Antworten",
+    full: "Antworten — AIDO spricht mit dir…"
+  },
+  speaking: {
+    short: "Antworten",
+    full: "Antworten — AIDO spricht mit dir…"
+  },
+  success: {
+    short: "Erfolg",
+    full: "Erfolg — Aufgabe abgeschlossen"
+  },
+  error: {
+    short: "Hinweis",
+    full: "Fehlermeldung — Bitte prüfen"
+  }
+};
 
-function triggerPhoneEmergencyStop(): void {
-  phoneEmergencyStopped = true;
-  for (const step of phonePlanSteps) {
-    if (step.status === "pending") {
-      step.status = "rejected";
+// ============================================================================
+// Helper Utilities
+// ============================================================================
+
+function clearStateTimers(): void {
+  for (const id of stateTransitionTimers) {
+    window.clearTimeout(id);
+  }
+  stateTransitionTimers = [];
+}
+
+function clearMorphTimers(): void {
+  for (const id of morphTimers) {
+    window.clearTimeout(id);
+  }
+  morphTimers = [];
+}
+
+function scheduleStateTransition(fn: () => void, delayMs: number): void {
+  const id = window.setTimeout(fn, delayMs);
+  stateTransitionTimers.push(id);
+}
+
+// ============================================================================
+// 1. Character State & Brand-Morph Awakening Sequence
+// ============================================================================
+
+export function setCharacterState(state: MonoState, customStatusText?: string): void {
+  currentCharacterState = state;
+  monoViewer?.setState(state);
+
+  const meta = CHARACTER_STATE_BADGES[state] || CHARACTER_STATE_BADGES.idle;
+
+  const badgeEl = document.getElementById("mono-state-badge");
+  if (badgeEl) {
+    badgeEl.textContent = customStatusText || meta.full;
+  }
+
+  const topbarLabel = document.getElementById("topbar-state-label");
+  if (topbarLabel) {
+    topbarLabel.textContent = meta.short;
+  }
+
+  const topbarDot = document.getElementById("topbar-state-dot");
+  if (topbarDot) {
+    const isActivePulse =
+      state === "listen" ||
+      state === "listening" ||
+      state === "think" ||
+      state === "thinking" ||
+      state === "work" ||
+      state === "speak" ||
+      state === "speaking";
+    topbarDot.classList.toggle("pulse", isActivePulse);
+  }
+
+  const voiceRing = document.getElementById("mono-voice-ring");
+  if (voiceRing) {
+    const isVoiceState =
+      state === "listen" ||
+      state === "listening" ||
+      state === "speak" ||
+      state === "speaking";
+    voiceRing.classList.toggle("active", isVoiceState);
+  }
+
+  // Highlight corresponding button in #mono-state-selector
+  const normalizedSelectorState =
+    state === "listening"
+      ? "listen"
+      : state === "thinking"
+        ? "think"
+        : state === "idle" || state === "speak" || state === "speaking"
+          ? "wake"
+          : state;
+
+  const buttons = document.querySelectorAll<HTMLButtonElement>(
+    "#mono-state-selector [data-mono-state]"
+  );
+  buttons.forEach((btn) => {
+    const btnState = btn.getAttribute("data-mono-state");
+    btn.classList.toggle("active", btnState === normalizedSelectorState);
+  });
+}
+
+export function playBrandMorphAwakening(): void {
+  clearMorphTimers();
+  const morphLayer = document.getElementById("morph-awakening-layer");
+  if (!morphLayer) return;
+
+  // Restart CSS keyframe animations cleanly
+  morphLayer.classList.remove("playing");
+  void morphLayer.offsetWidth;
+  morphLayer.classList.add("playing");
+
+  setCharacterState("wake", "Erwachen — AGENTIC INTELLIGENT DEVELOP OPERATOR → AIDO → MONO");
+
+  // At the MONO peak (~3.75s), crossfade smoothly into the interactive 3D character
+  const t1 = window.setTimeout(() => {
+    morphLayer.classList.remove("playing");
+    monoViewer?.resetCamera();
+    setCharacterState("wake", "Aufwachen — AIDO ist bereit für dich");
+  }, 3750);
+
+  const t2 = window.setTimeout(() => {
+    setCharacterState("idle");
+  }, 4950);
+
+  morphTimers.push(t1, t2);
+}
+
+function finishMorphImmediately(): void {
+  const morphLayer = document.getElementById("morph-awakening-layer");
+  if (morphLayer && morphLayer.classList.contains("playing")) {
+    clearMorphTimers();
+    morphLayer.classList.remove("playing");
+    setCharacterState("idle");
+  }
+}
+
+// ============================================================================
+// 2. Navigation (Agent · Overview · Handy) & Theme Toggle (W/S ⇄ S/W)
+// ============================================================================
+
+function switchStage(stage: StageId): void {
+  currentStage = stage;
+
+  const views: Record<StageId, HTMLElement | null> = {
+    agent: document.getElementById("view-agent"),
+    overview: document.getElementById("view-overview"),
+    phone: document.getElementById("view-phone")
+  };
+
+  (Object.keys(views) as StageId[]).forEach((key) => {
+    const el = views[key];
+    if (el) {
+      el.hidden = key !== stage;
     }
+  });
+
+  const tabs = document.querySelectorAll<HTMLButtonElement>(".stage-nav .stage-tab");
+  tabs.forEach((tab) => {
+    const tabStage = tab.getAttribute("data-stage");
+    tab.classList.toggle("active", tabStage === stage);
+  });
+}
+
+function toggleTheme(): void {
+  currentTheme = currentTheme === "light" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  monoViewer?.setTheme(currentTheme);
+
+  const labelEl = document.getElementById("theme-toggle-label");
+  if (labelEl) {
+    labelEl.textContent = currentTheme === "light" ? "W/S" : "S/W";
   }
-  phoneNoticeMessage = "🛑 Not-Stopp betätigt! Alle ADB-Befehle und Automations-Schritte sofort abgebrochen.";
-  appendAudit("[PhoneAgent] 🛑 Not-Stopp ausgelöst! Alle ADB-Befehle und geplanten Schritte abgebrochen.");
-  showPhoneAgentView();
 }
 
-function triggerPhoneScreenshot(): void {
-  monoViewer?.setState("thinking");
-  setTimeout(() => {
-    monoViewer?.setState("idle");
-    phoneNoticeMessage = `📸 UI-Tree & Screenshot aktualisiert (${phoneCurrentNodes.length} interaktive Nodes geladen).`;
-    appendAudit(`[PhoneAgent] UI-Tree aktualisiert: ${phoneCurrentNodes.length} Nodes erfasst via uiautomator dump (Foreground: ${phoneForegroundApp}).`);
-    showPhoneAgentView();
-  }, 350);
-}
+function triggerEmergencyStop(): void {
+  clearStateTimers();
+  finishMorphImmediately();
 
-function triggerPhoneVoice(): void {
-  monoViewer?.setState("listening");
-  setCharacterState("Handy-Befehl hört zu (Whisper CUDA)...", true);
-  setTimeout(() => {
-    monoViewer?.setState("thinking");
-    setTimeout(() => {
-      monoViewer?.setState("speaking");
-      setCharacterState("Bereit (Phone Agent)", false);
-      const recognized = "Öffne WhatsApp";
-      appendAudit("[PhoneAgent] Whisper CUDA Spracheingabe transkribiert (0,34 s Latenz): 'Öffne WhatsApp'");
-      handlePhoneGoal(recognized);
-      setTimeout(() => {
-        if (monoViewer?.getState() === "speaking") monoViewer?.setState("idle");
-      }, 1500);
-    }, 400);
-  }, 400);
-}
-
-function handlePhoneGoal(goal: string): void {
-  phoneEmergencyStopped = false;
-  const lower = goal.toLowerCase();
-
-  if (lower.includes("einstellung") || lower.includes("settings")) {
-    phoneForegroundApp = "com.android.settings";
-    phoneForegroundTitle = "Einstellungen";
-    phoneCurrentNodes = phonePresetScreens["com.android.settings"].nodes;
-    phoneIsHandoffActive = false;
-    phonePlanSteps = [
-      {
-        id: Date.now(),
-        stepNumber: 1,
-        kind: "Act",
-        title: "App starten: Einstellungen (com.android.settings)",
-        detail: "adb shell monkey -p com.android.settings -c android.intent.category.LAUNCHER 1",
-        sensitive: false,
-        status: "pending",
-      },
-    ];
-    appendAudit(`[PhoneAgent] Ziel geplant: '${goal}' -> LaunchApp(com.android.settings).`);
-    phoneNoticeMessage = `Neuer Schritt geplant für Ziel: '${goal}'.`;
-  } else if (lower.includes("whatsapp")) {
-    phoneForegroundApp = "com.whatsapp";
-    phoneForegroundTitle = "WhatsApp";
-    phoneCurrentNodes = phonePresetScreens["com.whatsapp"].nodes;
-    phoneIsHandoffActive = false;
-    phonePlanSteps = [
-      {
-        id: Date.now(),
-        stepNumber: 1,
-        kind: "Act",
-        title: "App starten: WhatsApp (com.whatsapp)",
-        detail: "adb shell monkey -p com.whatsapp -c android.intent.category.LAUNCHER 1",
-        sensitive: false,
-        status: "pending",
-      },
-    ];
-    appendAudit(`[PhoneAgent] Ziel geplant: '${goal}' -> LaunchApp(com.whatsapp).`);
-    phoneNoticeMessage = `Neuer Schritt geplant für Ziel: '${goal}'.`;
-  } else if (lower.includes("sms") || lower.includes("nachricht")) {
-    phoneForegroundApp = "com.google.android.apps.messaging";
-    phoneForegroundTitle = "Nachrichten (SMS)";
-    phoneCurrentNodes = phonePresetScreens["com.google.android.apps.messaging"].nodes;
-    phoneIsHandoffActive = false;
-    phonePlanSteps = [
-      {
-        id: Date.now(),
-        stepNumber: 1,
-        kind: "SensitiveAct",
-        title: "SMS senden an +49 170 1234567: 'Hallo von AIDO!'",
-        detail: "adb shell am start -a android.intent.action.SENDTO -d sms:+491701234567 --es sms_body 'Hallo von AIDO!'",
-        sensitive: true,
-        status: "pending",
-      },
-    ];
-    appendAudit("[PhoneAgent] Sensible Aktion geplant: SendSms (+49 170 1234567). PermissionGateway Einzelfreigabe erforderlich.");
-    phoneNoticeMessage = "⚠️ Sensible Aktion erfordert Einzelfreigabe: SMS senden.";
-  } else if (lower.includes("zurück") || lower.includes("back")) {
-    phonePlanSteps = [
-      {
-        id: Date.now(),
-        stepNumber: 1,
-        kind: "Act",
-        title: "Zurück-Taste ausführen (KEYCODE_BACK)",
-        detail: "adb shell input keyevent KEYCODE_BACK",
-        sensitive: false,
-        status: "pending",
-      },
-    ];
-    appendAudit("[PhoneAgent] Taste zurück gesendet (KEYCODE_BACK).");
-    phoneNoticeMessage = "Schritt geplant: KEYCODE_BACK.";
-  } else if (lower.includes("bank") || lower.includes("paypal") || lower.includes("2fa") || lower.includes("passwort")) {
-    phoneForegroundApp = "com.paypal.android.p2pmobile";
-    phoneForegroundTitle = "PayPal · Banking/Zahlung";
-    phoneCurrentNodes = phonePresetScreens["com.paypal.android.p2pmobile"].nodes;
-    phoneIsHandoffActive = true;
-    phonePlanSteps = [
-      {
-        id: Date.now(),
-        stepNumber: 1,
-        kind: "HandOff",
-        title: "🛑 Hard-Block: Übergabe an Nutzer wegen Banking/Passwort",
-        detail: "Package 'com.paypal.android.p2pmobile' blockiert automatische Taps & Tastatureingaben",
-        sensitive: true,
-        status: "handed_off",
-      },
-    ];
-    appendAudit("[SafetyLayer] Banking/Passwort-App 'com.paypal.android.p2pmobile' erkannt! Automatisierte Steuerung hart blockiert. Übergabe an Nutzer.");
-    phoneNoticeMessage = "🛑 Sicherheits-Blockade aktiv: Banking/Passwort-App erkannt. Übergabe an Nutzer.";
-  } else {
-    phonePlanSteps = [
-      {
-        id: Date.now(),
-        stepNumber: 1,
-        kind: "Act",
-        title: `Ziel ausführen: ${goal}`,
-        detail: `adb shell input tap 540 960 (Ziel: ${goal})`,
-        sensitive: false,
-        status: "pending",
-      },
-    ];
-    appendAudit(`[PhoneAgent] Ziel geplant: '${goal}'.`);
-    phoneNoticeMessage = `Schritt geplant für Ziel: '${goal}'.`;
+  if (isVoiceRecording) {
+    isVoiceRecording = false;
+    const voiceBtn = document.getElementById("btn-voice-ptt");
+    voiceBtn?.classList.remove("active");
   }
 
-  showPhoneAgentView();
+  const inlineApproval = document.getElementById("inline-approval-container");
+  if (inlineApproval) {
+    inlineApproval.innerHTML = "";
+  }
+
+  const phoneApproval = document.getElementById("phone-approval-box");
+  if (phoneApproval) {
+    phoneApproval.hidden = true;
+    phoneApproval.innerHTML = "";
+  }
+
+  setCharacterState("idle", "Alle Vorgänge gestoppt — Bereit");
 }
 
-function tapPhoneNode(node: SimulatedUiNode): void {
-  if (node.isPassword) {
-    phoneIsHandoffActive = true;
-    appendAudit(`[SafetyLayer] Passwortfeld '${node.resourceId}' angetippt. Not-Handoff an Nutzer aktiviert.`);
-    phoneNoticeMessage = "🛑 Sicherheits-Blockade: Passwortfeld angetippt. Automatisierte Eingabe blockiert.";
-    showPhoneAgentView();
+// ============================================================================
+// 3. Right-Click Character Context Menu & Screenshot Attachment
+// ============================================================================
+
+function openContextMenu(clientX: number, clientY: number): void {
+  const menu = document.getElementById("mono-context-menu");
+  if (!menu) return;
+
+  menu.hidden = false;
+  const menuWidth = 256;
+  const menuHeight = 270;
+  const clampedX = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, clientX));
+  const clampedY = Math.max(12, Math.min(window.innerHeight - menuHeight - 12, clientY));
+
+  menu.style.left = `${clampedX}px`;
+  menu.style.top = `${clampedY}px`;
+}
+
+function closeContextMenu(): void {
+  const menu = document.getElementById("mono-context-menu");
+  if (menu) {
+    menu.hidden = true;
+  }
+}
+
+function attachScreenshotContext(): void {
+  attachedScreenshotLabel = "Bildschirmfoto (Aktuelles Fenster)";
+  const pill = document.getElementById("composer-attachment-pill");
+  const label = document.getElementById("composer-attachment-label");
+  if (label) {
+    label.textContent = attachedScreenshotLabel;
+  }
+  if (pill) {
+    pill.hidden = false;
+  }
+
+  setCharacterState("success", "Bildschirmfoto als Kontext angefügt");
+  scheduleStateTransition(() => {
+    setCharacterState("idle");
+  }, 1200);
+
+  focusChatInput();
+}
+
+function clearScreenshotContext(): void {
+  attachedScreenshotLabel = null;
+  const pill = document.getElementById("composer-attachment-pill");
+  if (pill) {
+    pill.hidden = true;
+  }
+}
+
+function focusChatInput(): void {
+  if (currentStage !== "agent") {
+    switchStage("agent");
+  }
+  const input = document.getElementById("agent-chat-input") as HTMLInputElement | null;
+  if (input) {
+    input.focus();
+  }
+}
+
+// ============================================================================
+// 4. Push-to-Talk Voice Interaction
+// ============================================================================
+
+function startVoiceRecording(): void {
+  finishMorphImmediately();
+  clearStateTimers();
+  isVoiceRecording = true;
+  voiceRecordStartedAt = performance.now();
+
+  const voiceBtn = document.getElementById("btn-voice-ptt");
+  voiceBtn?.classList.add("active");
+
+  const input = document.getElementById("agent-chat-input") as HTMLInputElement | null;
+  if (input) {
+    input.placeholder = "Ich höre zu… Lass los, wenn du fertig bist.";
+  }
+
+  setCharacterState("listen", "Zuhören — Sprich jetzt mit AIDO…");
+}
+
+function stopVoiceRecording(): void {
+  if (!isVoiceRecording) return;
+  isVoiceRecording = false;
+
+  const durationMs = Math.max(0, performance.now() - voiceRecordStartedAt);
+  const voiceBtn = document.getElementById("btn-voice-ptt");
+  voiceBtn?.classList.remove("active");
+
+  const input = document.getElementById("agent-chat-input") as HTMLInputElement | null;
+  if (input) {
+    input.placeholder = "Nachricht an AIDO…";
+  }
+
+  if (durationMs < 220) {
+    setCharacterState("idle");
     return;
   }
 
-  if (node.text.includes("Netzwerk")) {
-    phoneForegroundApp = "com.android.settings.network";
-    phoneForegroundTitle = "Netzwerk & Internet";
-    phoneCurrentNodes = phonePresetScreens["com.android.settings.network"].nodes;
-    appendAudit(`[PhoneAgent] Node [${node.index}] ('${node.text}') angetippt: Wechsel zu 'Netzwerk & Internet'.`);
-  } else {
-    appendAudit(`[PhoneAgent] Node [${node.index}] ('${node.text}') angetippt via adb shell input tap.`);
+  const spokenText =
+    input && input.value.trim().length > 0
+      ? input.value.trim()
+      : "Prüfe mein aktuelles Projekt und zeige mir, ob temporäre Dateien aufgeräumt werden können.";
+
+  if (input) {
+    input.value = "";
   }
 
-  showPhoneAgentView();
+  handleUserPrompt(spokenText);
 }
 
-function approvePhoneStep(stepId: number): void {
-  const step = phonePlanSteps.find((s) => s.id === stepId);
-  if (!step) return;
+// ============================================================================
+// 5. ChatGPT-Clean Conversation, Reply Chips & Inline Security Approvals
+// ============================================================================
 
-  step.status = "approved";
-  if (step.sensitive) {
-    appendAudit(`[PermissionGateway] Einzelfreigabe erteilt für sensible Aktion '${step.title}' (Token verifiziert).`);
-  } else {
-    appendAudit(`[PermissionGateway] Freigabe erteilt für '${step.title}' (Token verifiziert). Ausführung erfolgreich.`);
+function appendChatMessage(msg: ChatMessage): void {
+  const feed = document.getElementById("agent-chat-feed");
+  if (!feed) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.className = `chat-msg ${msg.role}`;
+
+  const roleSpan = document.createElement("span");
+  roleSpan.className = "chat-msg-role";
+  roleSpan.textContent = msg.role === "aido" ? "AIDO" : "Du";
+
+  const textDiv = document.createElement("div");
+  textDiv.className = "chat-msg-text";
+  textDiv.textContent = msg.text;
+
+  wrapper.appendChild(roleSpan);
+  if (msg.attachmentLabel) {
+    const att = document.createElement("div");
+    att.style.fontSize = "0.76rem";
+    att.style.opacity = "0.8";
+    att.style.marginBottom = "2px";
+    att.textContent = `Anhang: ${msg.attachmentLabel}`;
+    wrapper.appendChild(att);
+  }
+  wrapper.appendChild(textDiv);
+
+  feed.appendChild(wrapper);
+}
+
+function renderReplyChips(chips: string[]): void {
+  const container = document.getElementById("agent-reply-chips");
+  if (!container) return;
+
+  container.innerHTML = "";
+  for (const label of chips) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "reply-chip";
+    btn.setAttribute("data-prompt", label);
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      handleUserPrompt(label);
+    });
+    container.appendChild(btn);
+  }
+}
+
+function showInlineApproval(proposal: InlineApprovalProposal): void {
+  const container = document.getElementById("inline-approval-container");
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  const card = document.createElement("div");
+  card.className = "approval-card";
+
+  const header = document.createElement("div");
+  header.className = "approval-card-header";
+  header.innerHTML = `<span>Freigabe erforderlich</span><span>Sicherheitsprüfung</span>`;
+
+  const title = document.createElement("div");
+  title.className = "approval-card-title";
+  title.textContent = proposal.title;
+
+  const reason = document.createElement("div");
+  reason.className = "approval-card-reason";
+  reason.textContent = `${proposal.reason} · ${proposal.itemsSummary}`;
+
+  const actions = document.createElement("div");
+  actions.className = "approval-actions";
+
+  const approveBtn = document.createElement("button");
+  approveBtn.type = "button";
+  approveBtn.className = "btn-approve-solid";
+  approveBtn.textContent = "Einmal erlauben";
+  approveBtn.addEventListener("click", () => {
+    container.innerHTML = "";
+    proposal.onApprove();
+  });
+
+  const rejectBtn = document.createElement("button");
+  rejectBtn.type = "button";
+  rejectBtn.className = "btn-reject-outline";
+  rejectBtn.textContent = "Ablehnen";
+  rejectBtn.addEventListener("click", () => {
+    container.innerHTML = "";
+    proposal.onReject();
+  });
+
+  actions.appendChild(approveBtn);
+  actions.appendChild(rejectBtn);
+
+  card.appendChild(header);
+  card.appendChild(title);
+  card.appendChild(reason);
+  card.appendChild(actions);
+
+  container.appendChild(card);
+}
+
+function executeCleanupAction(fromOverview = false): void {
+  cleanupCompleted = true;
+  pendingTempFilesCount = 0;
+  pendingTempSizeLabel = "0 KB";
+
+  memoriesState.unshift({
+    id: Date.now(),
+    title: "Temporäre Dateien bereinigt (576 KB freigegeben)",
+    details: "Fünf Zwischenspeicher-Dateien wurden nach deiner Freigabe sicher entfernt.",
+    category: "Wartung"
+  });
+
+  renderOverviewDashboard();
+
+  setCharacterState("work", "Arbeiten — Temporäre Dateien werden entfernt…");
+  scheduleStateTransition(() => {
+    setCharacterState("success", "Erfolg — 576 KB Speicherplatz freigegeben");
+    if (!fromOverview) {
+      appendChatMessage({
+        id: `aido-${Date.now()}`,
+        role: "aido",
+        text: "Erledigt. Ich habe die 5 temporären Zwischenspeicher-Dateien (576 KB) sicher entfernt. Dein System ist jetzt aufgeräumt."
+      });
+      renderReplyChips([
+        "Projektstatus prüfen",
+        "Im Overview öffnen",
+        "Handy steuern"
+      ]);
+    }
+    scheduleStateTransition(() => {
+      setCharacterState("idle");
+    }, 1500);
+  }, 550);
+}
+
+function handleUserPrompt(rawPrompt: string): void {
+  const text = rawPrompt.trim();
+  if (!text) return;
+
+  finishMorphImmediately();
+  clearStateTimers();
+
+  if ( text === "Im Overview öffnen" ) {
+    switchStage("overview");
+    return;
+  }
+  if ( text === "Handy-Ansicht öffnen" ) {
+    switchStage("phone");
+    return;
   }
 
-  phoneNoticeMessage = `✓ Schritt '${step.title}' erfolgreich ausgeführt.`;
-  showPhoneAgentView();
+  const attachment = attachedScreenshotLabel || undefined;
+  clearScreenshotContext();
+
+  appendChatMessage({
+    id: `user-${Date.now()}`,
+    role: "user",
+    text,
+    attachmentLabel: attachment
+  });
+
+  const lower = text.toLowerCase();
+
+  setCharacterState("think", "Nachdenken — AIDO analysiert deine Anfrage…");
+
+  scheduleStateTransition(() => {
+    setCharacterState("work", "Arbeiten — Antwort wird vorbereitet…");
+
+    scheduleStateTransition(() => {
+      // 1. Cleanup / Aufräumen / Löschen
+      if (
+        lower.includes("aufräumen") ||
+        lower.includes("temporär") ||
+        lower.includes("bereinigen") ||
+        lower.includes("speicher") ||
+        lower.includes("löschen")
+      ) {
+        if (cleanupCompleted) {
+          setCharacterState("success", "Erfolg — System ist bereits aufgeräumt");
+          appendChatMessage({
+            id: `aido-${Date.now()}`,
+            role: "aido",
+            text: "Dein System ist bereits sauber. Aktuell liegen keine unnötigen temporären Dateien vor."
+          });
+          renderReplyChips(["Projektstatus prüfen", "Im Overview öffnen", "Handy steuern"]);
+          scheduleStateTransition(() => setCharacterState("idle"), 1400);
+          return;
+        }
+
+        setCharacterState("speak", "Rückfrage — Bitte bestätige die Bereinigung");
+        appendChatMessage({
+          id: `aido-${Date.now()}`,
+          role: "aido",
+          text: "Ich habe 5 nicht mehr benötigte Zwischenspeicher-Dateien (insgesamt 576 KB) gefunden. Da dabei Dateien entfernt werden, bitte ich dich kurz um deine Freigabe."
+        });
+
+        showInlineApproval({
+          id: `cleanup-${Date.now()}`,
+          title: "Temporäre Zwischenspeicher-Dateien entfernen",
+          reason: "Gibt 576 KB Speicherplatz frei, ohne persönliche Daten oder Projekte zu verändern",
+          itemsSummary: "5 temporäre Dateien im lokalen Zwischenspeicher",
+          onApprove: () => {
+            executeCleanupAction(false);
+          },
+          onReject: () => {
+            setCharacterState("error", "Abgebrochen — Keine Dateien wurden verändert");
+            appendChatMessage({
+              id: `aido-${Date.now()}`,
+              role: "aido",
+              text: "Verstanden. Ich habe keine Dateien angerührt."
+            });
+            renderReplyChips(["Projektstatus prüfen", "Programme verwalten", "Handy steuern"]);
+            scheduleStateTransition(() => setCharacterState("idle"), 1400);
+          }
+        });
+
+        renderReplyChips(["Ja, bitte ausführen", "Im Overview öffnen", "Andere Lösung"]);
+        scheduleStateTransition(() => setCharacterState("idle", "Wartet auf deine Freigabe"), 1100);
+        return;
+      }
+
+      if (lower === "ja, bitte ausführen") {
+        if (!cleanupCompleted) {
+          const inlineApproval = document.getElementById("inline-approval-container");
+          if (inlineApproval) inlineApproval.innerHTML = "";
+          executeCleanupAction(false);
+          return;
+        }
+      }
+
+      // 2. Project status / Git / Tests
+      if (
+        lower.includes("projekt") ||
+        lower.includes("status") ||
+        lower.includes("test") ||
+        lower.includes("git")
+      ) {
+        setCharacterState("speak");
+        const contextNote = attachment
+          ? "Dein angefügtes Bildschirmfoto habe ich ebenfalls berücksichtigt. "
+          : "";
+        appendChatMessage({
+          id: `aido-${Date.now()}`,
+          role: "aido",
+          text: `${contextNote}Dein Hauptprojekt „AIDO — Desktop-Begleiter“ ist auf dem aktuellen Stand. Die 3D-Charakter-Steuerung, die Marken-Animation und alle drei Ansichten (Agent, Overview, Handy) sind bereit. Sollen wir noch temporäre Dateien prüfen oder Details im Overview ansehen?`
+        });
+        renderReplyChips([
+          "Temporäre Dateien aufräumen",
+          "Im Overview öffnen",
+          "Programme verwalten",
+          "Mehr erklären"
+        ]);
+        scheduleStateTransition(() => {
+          setCharacterState("success");
+          scheduleStateTransition(() => setCharacterState("idle"), 1100);
+        }, 700);
+        return;
+      }
+
+      // 3. Phone / Handy
+      if (
+        lower.includes("handy") ||
+        lower.includes("smartphone") ||
+        lower.includes("android") ||
+        lower.includes("einstellungen")
+      ) {
+        setCharacterState("speak");
+        appendChatMessage({
+          id: `aido-${Date.now()}`,
+          role: "aido",
+          text: "Dein Android-Gerät (Medium_Phone_API_37.0) ist verbunden und bereit. Ich kann direkt die Einstellungen öffnen, GitHub aufrufen oder dich zur Handy-Steuerung wechseln lassen."
+        });
+        renderReplyChips([
+          "Handy-Ansicht öffnen",
+          "Projektstatus prüfen",
+          "Temporäre Dateien aufräumen"
+        ]);
+        scheduleStateTransition(() => {
+          setCharacterState("success");
+          scheduleStateTransition(() => setCharacterState("idle"), 1100);
+        }, 700);
+        return;
+      }
+
+      // 4. Apps / Programme
+      if (lower.includes("programm") || lower.includes("werkzeug") || lower.includes("app")) {
+        setCharacterState("speak");
+        const enabledCount = appsState.filter((a) => a.userEnabled).length;
+        appendChatMessage({
+          id: `aido-${Date.now()}`,
+          role: "aido",
+          text: `Aktuell sind ${enabledCount} von ${appsState.length} lokalen Werkzeugen für die Zusammenarbeit freigegeben (darunter VS Code, Windows Terminal und Browser). Du kannst jedes Programm jederzeit im Overview ein- oder ausschalten.`
+        });
+        renderReplyChips([
+          "Im Overview öffnen",
+          "Projektstatus prüfen",
+          "Temporäre Dateien aufräumen"
+        ]);
+        scheduleStateTransition(() => {
+          setCharacterState("success");
+          scheduleStateTransition(() => setCharacterState("idle"), 1100);
+        }, 700);
+        return;
+      }
+
+      // 5. General / Mehr erklären
+      setCharacterState("speak");
+      const attachmentAck = attachment
+        ? `Ich sehe dein Bildschirmfoto (${attachment}). `
+        : "";
+      appendChatMessage({
+        id: `aido-${Date.now()}`,
+        role: "aido",
+        text: `${attachmentAck}Ich begleite dich direkt auf deinem Desktop: Du kannst mich anklicken zum Schreiben, gedrückt halten zum Sprechen, mit der mittleren Maustaste ein Bildschirmfoto anfügen oder per Rechtsklick das Schnellmenü öffnen. Womit möchten wir weitermachen?`
+      });
+      renderReplyChips([
+        "Projektstatus prüfen",
+        "Temporäre Dateien aufräumen",
+        "Programme verwalten",
+        "Handy steuern"
+      ]);
+      scheduleStateTransition(() => {
+        setCharacterState("success");
+        scheduleStateTransition(() => setCharacterState("idle"), 1100);
+      }, 700);
+    }, 380);
+  }, 360);
 }
 
-function rejectPhoneStep(stepId: number): void {
-  const step = phonePlanSteps.find((s) => s.id === stepId);
-  if (!step) return;
+// ============================================================================
+// 6. Stage 2: Clean Overview Dashboard (#view-overview)
+// ============================================================================
 
-  step.status = "rejected";
-  appendAudit(`[PhoneAgent] Schritt '${step.title}' vom Nutzer abgelehnt/gestoppt.`);
-  phoneNoticeMessage = `✕ Schritt '${step.title}' wurde gestoppt.`;
-  showPhoneAgentView();
+function renderOverviewDashboard(): void {
+  // 1. Projects
+  const projectsBadge = document.getElementById("projects-count-badge");
+  if (projectsBadge) {
+    projectsBadge.textContent = String(projectsState.length);
+  }
+
+  const projectsList = document.getElementById("overview-projects-list");
+  if (projectsList) {
+    projectsList.innerHTML = "";
+    for (const proj of projectsState) {
+      const row = document.createElement("div");
+      row.className = "list-row";
+
+      const main = document.createElement("div");
+      main.className = "list-row-main";
+
+      const title = document.createElement("span");
+      title.className = "list-row-title";
+      title.textContent = proj.title;
+
+      const sub = document.createElement("span");
+      sub.className = "list-row-sub";
+      sub.textContent = `${proj.pathLabel} · ${proj.summary}`;
+
+      const tagsRow = document.createElement("div");
+      tagsRow.className = "list-row-tags";
+      for (const t of proj.tags) {
+        const tag = document.createElement("span");
+        tag.className = "mono-tag";
+        tag.textContent = t;
+        tagsRow.appendChild(tag);
+      }
+
+      main.appendChild(title);
+      main.appendChild(sub);
+      main.appendChild(tagsRow);
+
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "6px";
+      actions.style.flexShrink = "0";
+
+      const btnCheck = document.createElement("button");
+      btnCheck.type = "button";
+      btnCheck.className = "btn-pill";
+      btnCheck.textContent = "Prüfen";
+      btnCheck.addEventListener("click", () => {
+        setCharacterState("success", `Geprüft — ${proj.title} ist fehlerfrei`);
+        sub.textContent = `${proj.pathLabel} · Geprüft: ${proj.statusText}`;
+        scheduleStateTransition(() => setCharacterState("idle"), 1500);
+      });
+
+      const btnDiscuss = document.createElement("button");
+      btnDiscuss.type = "button";
+      btnDiscuss.className = "btn-pill";
+      btnDiscuss.textContent = "Im Chat besprechen";
+      btnDiscuss.addEventListener("click", () => {
+        switchStage("agent");
+        handleUserPrompt(`Projektstatus für ${proj.title} prüfen`);
+      });
+
+      actions.appendChild(btnCheck);
+      actions.appendChild(btnDiscuss);
+
+      row.appendChild(main);
+      row.appendChild(actions);
+      projectsList.appendChild(row);
+    }
+  }
+
+  // 2. Apps & Tools
+  const appsBadge = document.getElementById("apps-count-badge");
+  if (appsBadge) {
+    const activeCount = appsState.filter((a) => a.userEnabled).length;
+    appsBadge.textContent = `${activeCount} / ${appsState.length} aktiv`;
+  }
+
+  const appsList = document.getElementById("overview-apps-list");
+  if (appsList) {
+    appsList.innerHTML = "";
+    for (const app of appsState) {
+      const row = document.createElement("div");
+      row.className = "list-row";
+
+      const main = document.createElement("div");
+      main.className = "list-row-main";
+
+      const title = document.createElement("span");
+      title.className = "list-row-title";
+      title.textContent = app.name;
+
+      const sub = document.createElement("span");
+      sub.className = "list-row-sub";
+      sub.textContent = `${app.category} · ${app.description}`;
+
+      main.appendChild(title);
+      main.appendChild(sub);
+
+      const switchLabel = document.createElement("label");
+      switchLabel.className = "mono-switch";
+
+      const switchText = document.createElement("span");
+      switchText.textContent = app.userEnabled ? "Aktiv" : "Inaktiv";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = app.userEnabled;
+      checkbox.setAttribute("aria-label", `${app.name} aktivieren`);
+      checkbox.addEventListener("change", () => {
+        app.userEnabled = checkbox.checked;
+        renderOverviewDashboard();
+        setCharacterState(
+          "idle",
+          `${app.name} ${app.userEnabled ? "für AIDO aktiviert" : "deaktiviert"}`
+        );
+      });
+
+      switchLabel.appendChild(switchText);
+      switchLabel.appendChild(checkbox);
+
+      row.appendChild(main);
+      row.appendChild(switchLabel);
+      appsList.appendChild(row);
+    }
+  }
+
+  // 3. System & Cleanup Summary
+  const sysSummary = document.getElementById("overview-system-summary");
+  if (sysSummary) {
+    sysSummary.innerHTML = `
+      <div class="list-row">
+        <div class="list-row-main">
+          <span class="list-row-title">Lokale KI im automatischen Ruhemodus</span>
+          <span class="list-row-sub">0 GB Speicherverbrauch im Leerlauf · Sofort einsatzbereit bei Ansprache</span>
+        </div>
+        <span class="mono-tag">Sparsam</span>
+      </div>
+      <div class="list-row">
+        <div class="list-row-main">
+          <span class="list-row-title">Privatsphäre &amp; Sicherheit</span>
+          <span class="list-row-sub">Alle Daten bleiben auf deinem Gerät · Wichtige Aktionen fragen immer um Erlaubnis</span>
+        </div>
+        <span class="mono-tag">Geschützt</span>
+      </div>
+    `;
+  }
+
+  const cleanupBox = document.getElementById("overview-cleanup-box");
+  if (cleanupBox) {
+    const titleEl = cleanupBox.querySelector(".list-row-title");
+    const subEl = cleanupBox.querySelector(".list-row-sub");
+    const btnEl = document.getElementById("btn-trigger-cleanup") as HTMLButtonElement | null;
+
+    if (cleanupCompleted) {
+      if (titleEl) titleEl.textContent = "Speicherplatz ist vollständig aufgeräumt";
+      if (subEl) subEl.textContent = "0 temporäre Dateien offen · Zuletzt 576 KB sicher freigegeben.";
+      if (btnEl) {
+        btnEl.textContent = "Erneut prüfen";
+      }
+    } else {
+      if (titleEl) titleEl.textContent = "Speicherplatz & temporäre Dateien";
+      if (subEl) {
+        subEl.textContent = `${pendingTempFilesCount} temporäre Zwischenspeicher-Dateien (${pendingTempSizeLabel}) können sicher entfernt werden.`;
+      }
+      if (btnEl) {
+        btnEl.textContent = "Temporäre Dateien prüfen & aufräumen";
+      }
+    }
+  }
+
+  // 4. Memory & Tasks
+  renderMemoryAndTasks();
 }
 
-function showPhoneAgentView(): void {
-  setCharacterState("Phone Agent (Android ADB)", false);
+function renderMemoryAndTasks(): void {
+  const searchInput = document.getElementById("memory-search-input") as HTMLInputElement | null;
+  const query = (searchInput?.value || "").trim().toLowerCase();
 
-  const phoneThemeClass = `theme-${remoteMonochromeTheme}`;
-  const toggleBtnText = remoteMonochromeTheme === "bw" ? "◐ S/W ↔ ◑ W/S" : "◑ W/S ↔ ◐ S/W";
+  const memoryList = document.getElementById("overview-memory-list");
+  if (memoryList) {
+    memoryList.innerHTML = "";
+    const filtered = memoriesState.filter(
+      (m) =>
+        !query ||
+        m.title.toLowerCase().includes(query) ||
+        m.details.toLowerCase().includes(query) ||
+        m.category.toLowerCase().includes(query)
+    );
 
-  const devicesHtml = phoneDevices
-    .map(
-      (d) => `
-    <div class="phone-device-item">
-      <div>
-        <div style="font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
-          <span>📱 ${d.model}</span>
-          <span class="phone-device-badge ${d.transport}">${d.transport.toUpperCase()}</span>
+    if (filtered.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "list-row";
+      empty.innerHTML = `<div class="list-row-main"><span class="list-row-sub">Keine passenden Einträge im Gedächtnis gefunden.</span></div>`;
+      memoryList.appendChild(empty);
+    } else {
+      for (const mem of filtered) {
+        const row = document.createElement("div");
+        row.className = "list-row";
+
+        const main = document.createElement("div");
+        main.className = "list-row-main";
+
+        const title = document.createElement("span");
+        title.className = "list-row-title";
+        title.textContent = mem.title;
+
+        const sub = document.createElement("span");
+        sub.className = "list-row-sub";
+        sub.textContent = `${mem.category} · ${mem.details}`;
+
+        main.appendChild(title);
+        main.appendChild(sub);
+
+        const forgetBtn = document.createElement("button");
+        forgetBtn.type = "button";
+        forgetBtn.className = "btn-pill";
+        forgetBtn.textContent = "Vergessen";
+        forgetBtn.addEventListener("click", () => {
+          memoriesState = memoriesState.filter((item) => item.id !== mem.id);
+          renderMemoryAndTasks();
+          setCharacterState("idle", "Eintrag aus dem Gedächtnis entfernt");
+        });
+
+        row.appendChild(main);
+        row.appendChild(forgetBtn);
+        memoryList.appendChild(row);
+      }
+    }
+  }
+
+  const tasksList = document.getElementById("overview-tasks-list");
+  if (tasksList) {
+    tasksList.innerHTML = "";
+    for (const task of tasksState) {
+      const row = document.createElement("div");
+      row.className = "list-row";
+      row.innerHTML = `
+        <div class="list-row-main">
+          <span class="list-row-title">${task.title}</span>
+          <span class="list-row-sub">${task.schedule}</span>
         </div>
-        <div style="font-size: 0.72rem; color: #94a3b8; font-family: monospace; margin-top: 2px;">
-          Serial: <code>${d.serial}</code> · Status: ${d.state} · Akku: ${d.batteryPercent} % 🔋
-        </div>
-      </div>
-      <span class="badge offline" style="font-size: 0.72rem;">Verbunden</span>
-    </div>`
-    )
-    .join("");
+        <span class="mono-tag">${task.statusLabel}</span>
+      `;
+      tasksList.appendChild(row);
+    }
+  }
+}
 
-  const nodesHtml = phoneCurrentNodes
-    .map(
-      (n) => `
-    <div class="phone-node-item" data-node-index="${n.index}">
-      <span class="phone-node-num">[${n.index}]</span>
-      <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-        <span style="font-weight: ${n.clickable ? "600" : "400"};">${n.text}</span>
-        ${n.isPassword ? `<span style="font-size: 0.65rem; color: #ef4444; margin-left: 6px;">[🔒 Passwortfeld]</span>` : ""}
-      </div>
-      ${n.clickable ? `<span style="font-size: 0.68rem; opacity: 0.6; font-family: monospace;">[TAP]</span>` : ""}
-    </div>`
-    )
-    .join("");
+// ============================================================================
+// 7. Stage 3: Simplified Handy Connection & Control (#view-phone)
+// ============================================================================
 
-  const stepsHtml = phonePlanSteps
-    .map((s) => {
-      const badgeText = s.sensitive
-        ? `<span class="phone-sensitive-badge">⚠️ Sensibel – Einzelfreigabe</span>`
-        : `<span class="mono-badge">#${s.stepNumber} · Standard</span>`;
+function renderPhoneStage(): void {
+  const screenMeta = PHONE_SCREEN_META[currentPhoneScreen];
 
-      const actionButtons =
-        s.status === "pending"
-          ? `<div style="display: flex; gap: 8px; margin-top: 6px;">
-               <button class="phone-btn primary btn-phone-step-approve" data-step-id="${s.id}">✓ Freigeben</button>
-               <button class="phone-btn danger btn-phone-step-reject" data-step-id="${s.id}">✕ Stopp</button>
-             </div>`
-          : s.status === "approved"
-          ? `<div style="font-size: 0.74rem; color: #34d399; font-weight: 600; margin-top: 4px;">✓ Freigegeben &amp; Ausgeführt</div>`
-          : s.status === "handed_off"
-          ? `<div style="font-size: 0.74rem; color: #ef4444; font-weight: 600; margin-top: 4px;">🛑 An Nutzer übergeben</div>`
-          : `<div style="font-size: 0.74rem; color: #fca5a5; font-weight: 600; margin-top: 4px;">✕ Vom Nutzer gestoppt / abgelehnt</div>`;
+  const activeAppEl = document.getElementById("phone-active-app");
+  if (activeAppEl) {
+    const scrollSuffix = phoneScrollOffset > 0 ? ` · Ansicht +${phoneScrollOffset}` : "";
+    const textSuffix = phoneLastTypedText ? ` · Eingabe: „${phoneLastTypedText}“` : "";
+    activeAppEl.textContent = `Aktuelle Ansicht: ${screenMeta.title}${scrollSuffix}${textSuffix}`;
+  }
 
-      return `
-      <div class="phone-approval-card" style="border-left: 3px solid ${s.sensitive ? "#f59e0b" : "#38bdf8"};">
-        <div class="phone-approval-badge-row">
-          <span style="font-weight: 700; font-size: 0.84rem; color: #ffffff;">Schritt ${s.stepNumber}: ${s.title}</span>
-          ${badgeText}
-        </div>
-        <div style="font-family: monospace; font-size: 0.72rem; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 5px 8px; border-radius: 6px; word-break: break-all;">
-          ${s.detail}
-        </div>
-        ${actionButtons}
-      </div>`;
-    })
-    .join("");
+  const nodesList = document.getElementById("phone-ui-nodes-list");
+  if (nodesList) {
+    nodesList.innerHTML = "";
+    for (const node of screenMeta.nodes) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "phone-node-btn";
+      btn.innerHTML = `
+        <span><strong>${node.label}</strong><br/><small style="opacity:0.75">${node.hint}</small></span>
+        <span>Tippen →</span>
+      `;
+      btn.addEventListener("click", () => {
+        handlePhoneNodeTap(node);
+      });
+      nodesList.appendChild(btn);
+    }
+  }
 
-  const handoffCardHtml = phoneIsHandoffActive
-    ? `<div class="phone-handoff-card">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-weight: 700; color: #ef4444; font-size: 0.88rem;">🛑 An dich übergeben (Safety-Layer Hard-Block)</span>
-          <span style="font-size: 0.68rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.4); font-family: monospace;">SICHERHEITS-SCHUTZ</span>
-        </div>
-        <div style="font-size: 0.75rem; color: #fca5a5; line-height: 1.45;">
-          <b>Sensible Banking- oder Passwort-App im Vordergrund:</b> <code>${phoneForegroundApp}</code>.<br/>
-          AIDO blockiert jede automatisierte Eingabe, um Finanzdaten und Anmeldedaten zu schützen. Bitte führe die gewünschte Aktion manuell auf deinem Smartphone durch.
-        </div>
-        <div>
-          <button class="phone-btn primary" id="btn-phone-handoff-return" style="margin-top: 4px;">
-            👤 Manuell am Handy fortsetzen / Zurück zu Einstellungen
-          </button>
-        </div>
-      </div>`
-    : "";
+  renderPhoneQrCode();
+}
 
-  const noticeHtml = phoneNoticeMessage
-    ? `<div style="padding: 8px 12px; border-radius: 8px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; font-size: 0.78rem;">
-         ${phoneNoticeMessage}
-       </div>`
-    : "";
+function setPhoneFeedback(message: string): void {
+  const feedbackEl = document.getElementById("phone-action-feedback");
+  if (feedbackEl) {
+    feedbackEl.textContent = message;
+  }
+}
 
-  const emergencyBannerHtml = phoneEmergencyStopped
-    ? `<div style="padding: 10px 14px; border-radius: 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.5); color: #fca5a5; font-size: 0.82rem; font-weight: 700; display: flex; align-items: center; justify-content: space-between;">
-         <span>🛑 NOT-STOPP AKTIV — Alle ADB-Aktionen sofort abgebrochen</span>
-         <button class="phone-btn subtle" id="btn-phone-reset-stop" style="font-size: 0.74rem;">Freigeben &amp; Zurücksetzen</button>
-       </div>`
-    : "";
+function showPhoneApproval(
+  title: string,
+  reason: string,
+  onApprove: () => void
+): void {
+  const box = document.getElementById("phone-approval-box");
+  if (!box) return;
 
-  const html = `
-    <div style="margin-bottom: 12px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <div style="font-size: 1.08rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 8px;">
-          <span>📲 AIDO Phone Agent — Android-Steuerung über ADB</span>
-          <span class="mono-badge">Phase 13</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <button class="phone-btn danger" id="btn-phone-top-stop" title="Not-Stopp: Alle ADB-Aktionen sofort unterbrechen">🛑 Not-Stopp</button>
-          <button class="remote-theme-toggle" id="btn-phone-theme-toggle" title="Monochrome Theme wechseln">${toggleBtnText}</button>
-        </div>
-      </div>
-      <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">
-        Minimalistisches Schwarz/Weiß-Cockpit mit Hairline-Bordüren, Safety-Layer, UI-Tree-Parsing &amp; Einzelfreigaben nach <b>MASTERPLAN Phase 13</b>.
-      </div>
-    </div>
+  box.hidden = false;
+  box.innerHTML = "";
 
-    ${emergencyBannerHtml}
-    ${noticeHtml}
+  const header = document.createElement("div");
+  header.className = "approval-card-header";
+  header.innerHTML = `<span>Freigabe erforderlich</span><span>Smartphone-Schutz</span>`;
 
-    <div class="phone-agent-split">
-      <!-- Left Column: Live Screen Mockup & UI Nodes -->
-      <div style="display: flex; flex-direction: column; gap: 12px;">
-        <div class="phone-screen-mockup ${phoneThemeClass}" id="phone-screen-frame">
-          <!-- Status Bar -->
-          <div class="phone-status-bar">
-            <span>12:45 · 5G</span>
-            <span>AIDO-ADB · 84 % 🔋</span>
-          </div>
+  const titleEl = document.createElement("div");
+  titleEl.className = "approval-card-title";
+  titleEl.textContent = title;
 
-          <!-- App Header -->
-          <div class="phone-app-header">
-            <div>
-              <div style="font-weight: 700; font-size: 0.86rem;">${phoneForegroundTitle}</div>
-              <div style="font-size: 0.68rem; font-family: monospace; opacity: 0.7;">${phoneForegroundApp}</div>
-            </div>
-            <span class="phone-app-badge">UI-Tree Dump</span>
-          </div>
+  const reasonEl = document.createElement("div");
+  reasonEl.className = "approval-card-reason";
+  reasonEl.textContent = reason;
 
-          <!-- UI Node List -->
-          <div style="font-size: 0.72rem; opacity: 0.75; margin-top: 2px;">
-            Erkannte interaktive UI-Nodes (${phoneCurrentNodes.length}):
-          </div>
-          <div class="phone-node-list">
-            ${nodesHtml}
-          </div>
+  const actions = document.createElement("div");
+  actions.className = "approval-actions";
 
-          <!-- Screen Controls -->
-          <div style="display: flex; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
-            <button class="phone-btn primary" id="btn-phone-screenshot" style="flex: 1;">
-              📸 Screenshot / UI lesen
-            </button>
-            <button class="phone-btn subtle" id="btn-phone-key-back" title="Taste Zurück (KEYCODE_BACK)">
-              ↩ Zurück
-            </button>
-            <button class="phone-btn subtle" id="btn-phone-key-home" title="Taste Home (KEYCODE_HOME)">
-              ⚪ Home
-            </button>
-          </div>
-        </div>
-      </div>
+  const allowBtn = document.createElement("button");
+  allowBtn.type = "button";
+  allowBtn.className = "btn-approve-solid";
+  allowBtn.textContent = "Erlauben";
+  allowBtn.addEventListener("click", () => {
+    box.hidden = true;
+    box.innerHTML = "";
+    onApprove();
+  });
 
-      <!-- Right Column: Geräte, Ziel-Eingabe, Schritt-Protokoll & Keyboard -->
-      <div style="display: flex; flex-direction: column; gap: 14px;">
-        <!-- 1: Geräte & Verbindungen -->
-        <div class="phone-card">
-          <div class="phone-card-title">
-            <span>🔌 Verbundene Android-Geräte (ADB)</span>
-            <span class="mono-badge">${phoneDevices.length} Gerät(e)</span>
-          </div>
+  const denyBtn = document.createElement("button");
+  denyBtn.type = "button";
+  denyBtn.className = "btn-reject-outline";
+  denyBtn.textContent = "Ablehnen";
+  denyBtn.addEventListener("click", () => {
+    box.hidden = true;
+    box.innerHTML = "";
+    setCharacterState("error", "Handy-Aktion abgelehnt");
+    setPhoneFeedback("Aktion abgebrochen. Auf deinem Smartphone wurde nichts ausgelöst.");
+    scheduleStateTransition(() => setCharacterState("idle"), 1300);
+  });
 
-          <div style="display: flex; flex-direction: column; gap: 8px;">
-            ${devicesHtml}
-          </div>
+  actions.appendChild(allowBtn);
+  actions.appendChild(denyBtn);
 
-          <div class="phone-empty-hint">
-            ℹ️ <b>Anschluss:</b> USB-Debugging in Entwickleroptionen aktivieren → Kabel verbinden → oder <code>adb pair &lt;ip:port&gt; &lt;code&gt;</code> für WLAN-Verbindung.
-          </div>
+  box.appendChild(header);
+  box.appendChild(titleEl);
+  box.appendChild(reasonEl);
+  box.appendChild(actions);
+}
 
-          <!-- WLAN-Pairing Form -->
-          <div class="phone-pair-form">
-            <div style="font-size: 0.75rem; font-weight: 600; color: #ffffff;">🔗 WLAN-Pairing (Android 11+ adb pair):</div>
-            <div class="phone-pair-row">
-              <input class="phone-input" id="phone-pair-ip" placeholder="IP:Port (z. B. 192.168.1.50:38475)" style="flex: 1.2;" />
-              <input class="phone-input" id="phone-pair-code" placeholder="6-stelliger Code" style="flex: 0.8;" />
-              <button class="phone-btn primary" id="btn-phone-pair-submit">🔗 Koppeln (Freigabe nötig)</button>
-            </div>
-          </div>
+function handlePhoneNodeTap(node: PhoneUiNode): void {
+  if (node.requiresApproval) {
+    setCharacterState("think", "Rückfrage — Freigabe für Smartphone-Aktion erforderlich");
+    setPhoneFeedback(`Bitte bestätige: „${node.label}“`);
+    showPhoneApproval(
+      node.label,
+      "Vor dem Absenden von Nachrichten oder sensiblen Aktionen fragt AIDO nach deiner Zustimmung.",
+      () => {
+        setCharacterState("work", "Arbeiten — Handy-Aktion wird ausgeführt…");
+        scheduleStateTransition(() => {
+          setCharacterState("success", "Erfolg — Handy-Aktion abgeschlossen");
+          setPhoneFeedback(node.actionSummary);
+          scheduleStateTransition(() => setCharacterState("idle"), 1300);
+        }, 400);
+      }
+    );
+    return;
+  }
 
-          <!-- ADB Keyboard Status -->
-          <div class="phone-keyboard-status">
-            <div>
-              <div style="font-weight: 700; color: #ffffff;">ADB-Keyboard IME:</div>
-              <div style="color: #94a3b8; font-size: 0.72rem; margin-top: 2px;">
-                ${phoneKeyboardInstalled
-                  ? "✓ Aktiviert (com.android.adbkeyboard) · Volle UTF-8 & Umlaut-Unterstützung"
-                  : "Nicht installiert · Eingabe auf Standard-ASCII beschränkt (keine Umlaute/Emojis)"}
-              </div>
-            </div>
-            ${phoneKeyboardInstalled
-              ? `<span class="badge offline" style="font-size: 0.72rem;">✓ Bereit</span>`
-              : `<button class="phone-btn primary" id="btn-phone-install-keyboard">📥 Installieren (Freigabe nötig)</button>`}
-          </div>
-        </div>
+  setCharacterState("work", `Arbeiten — Tippe auf „${node.label}“…`);
+  scheduleStateTransition(() => {
+    if (node.targetScreen) {
+      currentPhoneScreen = node.targetScreen;
+      phoneScrollOffset = 0;
+    }
+    renderPhoneStage();
+    setPhoneFeedback(node.actionSummary);
+    setCharacterState("success", `Erfolg — ${node.label}`);
+    scheduleStateTransition(() => setCharacterState("idle"), 1200);
+  }, 320);
+}
 
-        <!-- 2: Ziel-Eingabe (Goal Planner) -->
-        <div class="phone-card">
-          <div class="phone-card-title">
-            <span>🎯 Ziel-Eingabe &amp; Sprachsteuerung</span>
-            <span class="mono-badge">Whisper CUDA</span>
-          </div>
+function executePhoneGoal(rawGoal: string): void {
+  const goal = rawGoal.trim();
+  if (!goal) return;
 
-          <div style="display: flex; gap: 8px;">
-            <input class="phone-input" id="phone-goal-input" placeholder="Ziel eingeben (z. B. 'Öffne WhatsApp', 'SMS an …')" style="flex: 1;" />
-            <button class="phone-btn primary" id="btn-phone-goal-submit">🎯 Planen</button>
-            <button class="remote-voice-btn" id="btn-phone-voice" title="Whisper CUDA Sprachtranskription">🎙️ Voice (0,34 s)</button>
-          </div>
+  const lower = goal.toLowerCase();
 
-          <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Schnell-Ziele (Quick Chips):</div>
-          <div class="phone-chip-group">
-            <span class="phone-chip" data-goal="Öffne Einstellungen">⚙️ Öffne Einstellungen</span>
-            <span class="phone-chip" data-goal="Öffne WhatsApp">💬 Öffne WhatsApp</span>
-            <span class="phone-chip" data-goal="SMS an 0170 1234567: Bin gleich da">✉️ SMS an Max</span>
-            <span class="phone-chip" data-goal="Zurück">↩️ Zurück</span>
-            <span class="phone-chip" data-goal="Simuliere Banking (PayPal)">🛡️ Simuliere Banking (PayPal)</span>
-          </div>
-        </div>
+  // Sensitive action check
+  if (
+    lower.includes("bank") ||
+    lower.includes("paypal") ||
+    lower.includes("überweisung") ||
+    lower.includes("kaufen") ||
+    lower.includes("löschen") ||
+    lower.includes("nachricht senden") ||
+    lower.includes("whatsapp")
+  ) {
+    setCharacterState("think", "Freigabe erforderlich — Sensible Handy-Anweisung");
+    setPhoneFeedback(`Sicherheitsprüfung für Anweisung: „${goal}“`);
+    showPhoneApproval(
+      `Anweisung ausführen: „${goal}“`,
+      "Diese Aktion betrifft Nachrichten, Zahlungen oder persönliche Daten auf deinem Smartphone.",
+      () => {
+        setCharacterState("work", "Arbeiten — Anweisung wird auf dem Smartphone ausgeführt…");
+        scheduleStateTransition(() => {
+          setCharacterState("success", "Erfolg — Handy-Anweisung ausgeführt");
+          setPhoneFeedback(`Nach deiner Freigabe ausgeführt: „${goal}“`);
+          scheduleStateTransition(() => setCharacterState("idle"), 1300);
+        }, 450);
+      }
+    );
+    return;
+  }
 
-        <!-- 3: Schritt-Protokoll & Freigabekarten -->
-        <div class="phone-card">
-          <div class="phone-card-title">
-            <span>📜 Schritt-Protokoll &amp; Permission Gateway</span>
-            <span class="mono-badge">${phonePlanSteps.length} Schritt(e)</span>
-          </div>
+  setCharacterState("work", `Arbeiten — Sende Anweisung an Smartphone…`);
 
-          ${handoffCardHtml}
+  scheduleStateTransition(() => {
+    if (lower.includes("einstellung")) {
+      currentPhoneScreen = "settings";
+      phoneScrollOffset = 0;
+      setPhoneFeedback("Einstellungen wurden auf dem Smartphone geöffnet.");
+    } else if (lower.includes("netzwerk") || lower.includes("wlan")) {
+      currentPhoneScreen = "network";
+      phoneScrollOffset = 0;
+      setPhoneFeedback("Netzwerk & Internet auf dem Smartphone geöffnet.");
+    } else if (lower.includes("github") || lower.includes("browser")) {
+      currentPhoneScreen = "github";
+      phoneScrollOffset = 0;
+      setPhoneFeedback("GitHub-Projektseite keokukzh/AIDO auf dem Smartphone geöffnet.");
+    } else if (lower.includes("wische") || lower.includes("scroll")) {
+      phoneScrollOffset += 1;
+      setPhoneFeedback("Auf dem Smartphone-Bildschirm nach oben gewischt.");
+    } else if (lower.startsWith("schreibe ") || lower.includes("hallo")) {
+      const typed = goal.replace(/^schreibe\s+/i, "").trim() || "Hallo AIDO";
+      phoneLastTypedText = typed;
+      setPhoneFeedback(`Text „${typed}“ auf dem Smartphone eingegeben.`);
+    } else if (lower.includes("startbildschirm") || lower.includes("home")) {
+      currentPhoneScreen = "home";
+      phoneScrollOffset = 0;
+      phoneLastTypedText = "";
+      setPhoneFeedback("Zurück zum Startbildschirm gewechselt.");
+    } else {
+      setPhoneFeedback(`Anweisung ausgeführt: „${goal}“`);
+    }
 
-          <div style="display: flex; flex-direction: column; gap: 10px;">
-            ${stepsHtml}
-          </div>
-        </div>
-      </div>
-    </div>
+    renderPhoneStage();
+    setCharacterState("success", "Erfolg — Smartphone hat die Anweisung ausgeführt");
+    scheduleStateTransition(() => setCharacterState("idle"), 1300);
+  }, 380);
+}
+
+function renderPhoneQrCode(): void {
+  const qrBox = document.getElementById("phone-qr-box");
+  const urlEl = document.getElementById("phone-remote-url");
+  if (!qrBox) return;
+
+  const url = `http://192.168.178.42:5173/?remote=1&code=${qrTokenSeed}`;
+  if (urlEl) {
+    urlEl.textContent = url;
+  }
+
+  // Generate crisp 21x21 monochrome SVG QR matrix
+  const size = 21;
+  const cells: string[] = [];
+
+  const isFinderPattern = (r: number, c: number): boolean => {
+    const inTopLeft = r < 7 && c < 7;
+    const inTopRight = r < 7 && c >= size - 7;
+    const inBottomLeft = r >= size - 7 && c < 7;
+    if (!inTopLeft && !inTopRight && !inBottomLeft) return false;
+
+    const lr = inBottomLeft ? r - (size - 7) : r;
+    const lc = inTopRight ? c - (size - 7) : c;
+
+    if (lr === 0 || lr === 6 || lc === 0 || lc === 6) return true;
+    if (lr >= 2 && lr <= 4 && lc >= 2 && lc <= 4) return true;
+    return false;
+  };
+
+  const isFinderSeparator = (r: number, c: number): boolean => {
+    if (r < 8 && c < 8) return true;
+    if (r < 8 && c >= size - 8) return true;
+    if (r >= size - 8 && c < 8) return true;
+    return false;
+  };
+
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      let dark = false;
+      if (isFinderPattern(r, c)) {
+        dark = true;
+      } else if (isFinderSeparator(r, c)) {
+        dark = false;
+      } else if (r === 6 || c === 6) {
+        dark = (r + c) % 2 === 0;
+      } else {
+        const hash = ((r * 31 + c * 17 + qrTokenSeed) * 2654435761) >>> 0;
+        dark = (hash & 3) === 0 || (hash & 5) === 1;
+      }
+
+      if (dark) {
+        cells.push(`<rect x="${c}" y="${r}" width="1" height="1" fill="#000000" />`);
+      }
+    }
+  }
+
+  qrBox.innerHTML = `
+    <svg viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR-Code für Handy-Kopplung">
+      <rect width="${size}" height="${size}" fill="#ffffff" />
+      ${cells.join("")}
+    </svg>
   `;
+}
 
-  aidoMessage.innerHTML = html;
+// ============================================================================
+// 8. Initialization & Event Wiring
+// ============================================================================
 
-  // Bottom action buttons
-  actionButtons.innerHTML = "";
-  const btnEmergency = document.createElement("button");
-  btnEmergency.textContent = "🛑 Not-Stopp";
-  btnEmergency.style.background = "rgba(239, 68, 68, 0.25)";
-  btnEmergency.style.borderColor = "rgba(239, 68, 68, 0.6)";
-  btnEmergency.style.color = "#fca5a5";
-  btnEmergency.onclick = () => triggerPhoneEmergencyStop();
+async function initApp(): Promise<void> {
+  // 1. Initialize 3D Character on #mono-3d-canvas
+  const canvas = document.getElementById("mono-3d-canvas") as HTMLCanvasElement | null;
+  if (canvas) {
+    monoViewer = new Mono3DViewer(canvas, "/assets/AIDO-MONO.glb");
+    monoViewer.setTheme(currentTheme);
 
-  const btnScan = document.createElement("button");
-  btnScan.textContent = "📸 Screenshot / UI lesen";
-  btnScan.onclick = () => triggerPhoneScreenshot();
+    // Wire all 5 Direct Character Mouse Gestures (Masterplan Chapter 10.2)
+    monoViewer.setGestureCallbacks({
+      onShortClick: () => {
+        closeContextMenu();
+        finishMorphImmediately();
+        if (currentCharacterState === "sleep") {
+          setCharacterState("wake", "Aufwachen — Hallo! Wie kann ich dir helfen?");
+          scheduleStateTransition(() => setCharacterState("idle"), 1100);
+        } else {
+          setCharacterState("idle", "Bereit — Schreibe oder sprich direkt mit mir");
+        }
+        focusChatInput();
+      },
+      onHoldStart: () => {
+        closeContextMenu();
+        startVoiceRecording();
+      },
+      onHoldEnd: () => {
+        stopVoiceRecording();
+      },
+      onMiddleClick: () => {
+        closeContextMenu();
+        attachScreenshotContext();
+      },
+      onRightClick: (e) => {
+        openContextMenu(e.clientX, e.clientY);
+      }
+    });
 
-  const btnThemeToggle = document.createElement("button");
-  btnThemeToggle.textContent = remoteMonochromeTheme === "bw" ? "◑ Zu Weiß/Schwarz wechseln" : "◐ Zu Schwarz/Weiß wechseln";
-  btnThemeToggle.onclick = () => {
-    toggleMonochromeTheme();
-    showPhoneAgentView();
+    await monoViewer.load();
+  }
+
+  // Allow clicking the awakening SVG to transition immediately if desired
+  const morphLayer = document.getElementById("morph-awakening-layer");
+  morphLayer?.addEventListener("click", () => {
+    finishMorphImmediately();
+  });
+
+  // 2. Set welcoming German message in #agent-chat-feed
+  const feed = document.getElementById("agent-chat-feed");
+  if (feed) {
+    feed.innerHTML = "";
+    appendChatMessage({
+      id: "welcome-aido",
+      role: "aido",
+      text: "Hallo. Ich bin AIDO, dein persönlicher Desktop-Begleiter. Klicke mich direkt an, halte mich gedrückt zum Sprechen oder schreibe mir unten, wobei ich dir helfen soll."
+    });
+  }
+
+  renderReplyChips([
+    "Projektstatus prüfen",
+    "Temporäre Dateien aufräumen",
+    "Programme verwalten",
+    "Handy steuern"
+  ]);
+
+  // 3. Bind 7-State Selector Pills & Replay Morph
+  const stateButtons = document.querySelectorAll<HTMLButtonElement>(
+    "#mono-state-selector [data-mono-state]"
+  );
+  stateButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      finishMorphImmediately();
+      clearStateTimers();
+      const targetState = (btn.getAttribute("data-mono-state") || "idle") as MonoState;
+      setCharacterState(targetState);
+    });
+  });
+
+  const replayMorphBtn = document.getElementById("btn-replay-morph");
+  replayMorphBtn?.addEventListener("click", () => {
+    playBrandMorphAwakening();
+  });
+
+  // 4. Bind Top Navigation Bar (Agent · Overview · Handy), Stop & Theme Toggle
+  document.getElementById("btn-brand-home")?.addEventListener("click", () => {
+    switchStage("agent");
+  });
+  document.getElementById("nav-stage-agent")?.addEventListener("click", () => {
+    switchStage("agent");
+  });
+  document.getElementById("nav-stage-overview")?.addEventListener("click", () => {
+    switchStage("overview");
+  });
+  document.getElementById("nav-stage-phone")?.addEventListener("click", () => {
+    switchStage("phone");
+  });
+
+  document.getElementById("btn-theme-toggle")?.addEventListener("click", () => {
+    toggleTheme();
+  });
+
+  document.getElementById("btn-emergency-stop")?.addEventListener("click", () => {
+    triggerEmergencyStop();
+  });
+
+  // 5. Bind Chat Composer Controls
+  const chatInput = document.getElementById("agent-chat-input") as HTMLInputElement | null;
+  const sendBtn = document.getElementById("btn-send-chat");
+
+  const submitCurrentChat = () => {
+    if (!chatInput) return;
+    const val = chatInput.value.trim();
+    if (!val && !attachedScreenshotLabel) {
+      chatInput.focus();
+      return;
+    }
+    chatInput.value = "";
+    handleUserPrompt(val || "Bitte analysiere dieses Bildschirmfoto.");
   };
 
-  const btnBack = document.createElement("button");
-  btnBack.textContent = "↩ Zurück zur Übersicht";
-  btnBack.onclick = () => {
-    setCharacterState("Bereit (Lokal)", false);
-    phoneNoticeMessage = "";
-    aidoMessage.innerHTML =
-      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
-    renderDefaultButtons();
-  };
-
-  actionButtons.append(btnEmergency, btnScan, btnThemeToggle, btnBack);
-
-  // Attach event handlers inside the view
-  document.getElementById("btn-phone-top-stop")?.addEventListener("click", () => triggerPhoneEmergencyStop());
-  document.getElementById("btn-phone-reset-stop")?.addEventListener("click", () => {
-    phoneEmergencyStopped = false;
-    phoneNoticeMessage = "";
-    showPhoneAgentView();
+  sendBtn?.addEventListener("click", submitCurrentChat);
+  chatInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitCurrentChat();
+    }
   });
-  document.getElementById("btn-phone-theme-toggle")?.addEventListener("click", () => {
-    toggleMonochromeTheme();
-    showPhoneAgentView();
-  });
-  document.getElementById("btn-phone-screenshot")?.addEventListener("click", () => triggerPhoneScreenshot());
-  document.getElementById("btn-phone-key-back")?.addEventListener("click", () => handlePhoneGoal("Zurück"));
-  document.getElementById("btn-phone-key-home")?.addEventListener("click", () => handlePhoneGoal("Öffne Einstellungen"));
 
-  document.querySelectorAll(".phone-node-item").forEach((el) => {
-    el.addEventListener("click", () => {
-      const idxStr = (el as HTMLElement).dataset.nodeIndex;
-      if (idxStr !== undefined) {
-        const node = phoneCurrentNodes.find((n) => n.index === parseInt(idxStr, 10));
-        if (node) tapPhoneNode(node);
+  document.getElementById("btn-capture-screenshot")?.addEventListener("click", () => {
+    attachScreenshotContext();
+  });
+
+  document.getElementById("btn-remove-attachment")?.addEventListener("click", () => {
+    clearScreenshotContext();
+  });
+
+  const voicePttBtn = document.getElementById("btn-voice-ptt");
+  voicePttBtn?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    if (!isVoiceRecording) {
+      startVoiceRecording();
+    } else {
+      stopVoiceRecording();
+    }
+  });
+  voicePttBtn?.addEventListener("pointerup", () => {
+    if (isVoiceRecording && performance.now() - voiceRecordStartedAt >= 300) {
+      stopVoiceRecording();
+    }
+  });
+
+  // 6. Bind Right-Click Character Context Menu
+  const ctxItems = document.querySelectorAll<HTMLButtonElement>(
+    "#mono-context-menu [data-ctx-action]"
+  );
+  ctxItems.forEach((item) => {
+    item.addEventListener("click", () => {
+      const action = item.getAttribute("data-ctx-action");
+      closeContextMenu();
+      switch (action) {
+        case "focus-chat":
+          focusChatInput();
+          break;
+        case "voice-ptt":
+          switchStage("agent");
+          startVoiceRecording();
+          window.setTimeout(() => {
+            if (isVoiceRecording) stopVoiceRecording();
+          }, 1800);
+          break;
+        case "screenshot":
+          switchStage("agent");
+          attachScreenshotContext();
+          break;
+        case "replay-morph":
+          switchStage("agent");
+          playBrandMorphAwakening();
+          break;
+        case "open-overview":
+          switchStage("overview");
+          break;
+        case "open-phone":
+          switchStage("phone");
+          break;
+        case "toggle-theme":
+          toggleTheme();
+          break;
       }
     });
   });
 
-  document.getElementById("btn-phone-pair-submit")?.addEventListener("click", () => {
+  window.addEventListener("click", (e) => {
+    const menu = document.getElementById("mono-context-menu");
+    if (menu && !menu.hidden && !menu.contains(e.target as Node)) {
+      closeContextMenu();
+    }
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeContextMenu();
+    }
+  });
+
+  // 7. Bind Stage 2 (Overview) Controls
+  renderOverviewDashboard();
+
+  document.getElementById("btn-scan-projects")?.addEventListener("click", () => {
+    setCharacterState("work", "Projekte werden aktualisiert…");
+    scheduleStateTransition(() => {
+      renderOverviewDashboard();
+      setCharacterState("success", "Alle Projekte sind aktuell");
+      scheduleStateTransition(() => setCharacterState("idle"), 1200);
+    }, 350);
+  });
+
+  document.getElementById("btn-trigger-cleanup")?.addEventListener("click", () => {
+    if (cleanupCompleted) {
+      setCharacterState("success", "Speicherplatz ist bereits sauber");
+      scheduleStateTransition(() => setCharacterState("idle"), 1200);
+      return;
+    }
+    executeCleanupAction(true);
+  });
+
+  document.getElementById("memory-search-input")?.addEventListener("input", () => {
+    renderMemoryAndTasks();
+  });
+
+  // 8. Bind Stage 3 (Phone) Controls
+  renderPhoneStage();
+
+  const phoneGoalInput = document.getElementById("phone-goal-input") as HTMLInputElement | null;
+  const runPhoneGoal = () => {
+    if (!phoneGoalInput) return;
+    const val = phoneGoalInput.value.trim();
+    if (!val) {
+      phoneGoalInput.focus();
+      return;
+    }
+    phoneGoalInput.value = "";
+    executePhoneGoal(val);
+  };
+
+  document.getElementById("btn-phone-run")?.addEventListener("click", runPhoneGoal);
+  phoneGoalInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runPhoneGoal();
+    }
+  });
+
+  const phoneQuickChips = document.querySelectorAll<HTMLButtonElement>(
+    "#phone-quick-chips [data-phone-goal]"
+  );
+  phoneQuickChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const goal = chip.getAttribute("data-phone-goal") || "";
+      executePhoneGoal(goal);
+    });
+  });
+
+  document.getElementById("btn-phone-observe")?.addEventListener("click", () => {
+    setCharacterState("work", "Bildschirm des Smartphones wird gelesen…");
+    scheduleStateTransition(() => {
+      renderPhoneStage();
+      const meta = PHONE_SCREEN_META[currentPhoneScreen];
+      setPhoneFeedback(
+        `Bildschirm aktualisiert: ${meta.title} (${meta.nodes.length} interaktive Elemente erkannt).`
+      );
+      setCharacterState("success", "Smartphone-Bildschirm gelesen");
+      scheduleStateTransition(() => setCharacterState("idle"), 1100);
+    }, 300);
+  });
+
+  document.getElementById("btn-phone-back")?.addEventListener("click", () => {
+    currentPhoneScreen = currentPhoneScreen === "network" ? "settings" : "home";
+    phoneScrollOffset = 0;
+    renderPhoneStage();
+    setPhoneFeedback("Taste „Zurück“ auf dem Smartphone ausgelöst.");
+  });
+
+  document.getElementById("btn-phone-home")?.addEventListener("click", () => {
+    currentPhoneScreen = "home";
+    phoneScrollOffset = 0;
+    phoneLastTypedText = "";
+    renderPhoneStage();
+    setPhoneFeedback("Zum Startbildschirm des Smartphones gewechselt.");
+  });
+
+  document.getElementById("btn-regenerate-qr")?.addEventListener("click", () => {
+    qrTokenSeed = Math.floor(100000 + Math.random() * 900000);
+    renderPhoneQrCode();
+    setPhoneFeedback("Neuer Verbindungs-Code für dein Smartphone wurde erstellt.");
+  });
+
+  document.getElementById("btn-phone-pair")?.addEventListener("click", () => {
     const ipInput = document.getElementById("phone-pair-ip") as HTMLInputElement | null;
     const codeInput = document.getElementById("phone-pair-code") as HTMLInputElement | null;
-    const ipVal = ipInput?.value?.trim() || "192.168.1.50:38475";
-    const codeVal = codeInput?.value?.trim() || "582914";
+    const ip = ipInput?.value.trim() || "192.168.178.55:39123";
+    const code = codeInput?.value.trim() || "842910";
 
-    if (!phoneDevices.some((d) => d.transport === "wifi")) {
-      phoneDevices.push({
-        serial: "192.168.1.50:5555",
-        model: "Google Pixel 8 · Wi-Fi",
-        transport: "wifi",
-        state: "device",
-        batteryPercent: 82,
-      });
+    const badge = document.getElementById("phone-connection-badge");
+    if (badge) {
+      badge.textContent = "Verbunden (WLAN)";
     }
-    appendAudit(`[PhoneAgent] WLAN-Pairing für '${ipVal}' mit Code '${codeVal}' erfolgreich (Freigabetoken konsumiert). adb connect 192.168.1.50:5555 aktiv.`);
-    phoneNoticeMessage = "✓ WLAN-Gerät '192.168.1.50:5555' erfolgreich gekoppelt und verbunden!";
-    showPhoneAgentView();
+    setCharacterState("success", "Smartphone erfolgreich per WLAN gekoppelt");
+    setPhoneFeedback(`Kabellose Verbindung mit ${ip} (Code ${code}) erfolgreich hergestellt.`);
+    scheduleStateTransition(() => setCharacterState("idle"), 1400);
   });
 
-  document.getElementById("btn-phone-install-keyboard")?.addEventListener("click", () => {
-    phoneKeyboardInstalled = true;
-    appendAudit("[PhoneAgent] ADB-Keyboard APK (AdbIME) per Einzelfreigabe installiert und aktiviert. Volle UTF-8 & Umlaut-Unterstützung aktiv.");
-    phoneNoticeMessage = "✓ ADB-Keyboard erfolgreich installiert und als Standard-IME eingerichtet!";
-    showPhoneAgentView();
-  });
-
-  const goalInput = document.getElementById("phone-goal-input") as HTMLInputElement | null;
-  document.getElementById("btn-phone-goal-submit")?.addEventListener("click", () => {
-    const goal = goalInput?.value?.trim();
-    if (goal) handlePhoneGoal(goal);
-  });
-  goalInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const goal = goalInput?.value?.trim();
-      if (goal) handlePhoneGoal(goal);
-    }
-  });
-
-  document.getElementById("btn-phone-voice")?.addEventListener("click", () => triggerPhoneVoice());
-
-  document.querySelectorAll(".phone-chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      const goal = (chip as HTMLElement).dataset.goal;
-      if (goal) handlePhoneGoal(goal);
-    });
-  });
-
-  document.querySelectorAll(".btn-phone-step-approve").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const stepId = parseInt((btn as HTMLElement).dataset.stepId || "0", 10);
-      approvePhoneStep(stepId);
-    });
-  });
-
-  document.querySelectorAll(".btn-phone-step-reject").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const stepId = parseInt((btn as HTMLElement).dataset.stepId || "0", 10);
-      rejectPhoneStep(stepId);
-    });
-  });
-
-  document.getElementById("btn-phone-handoff-return")?.addEventListener("click", () => {
-    phoneIsHandoffActive = false;
-    phoneForegroundApp = "com.android.settings";
-    phoneForegroundTitle = "Einstellungen";
-    phoneCurrentNodes = phonePresetScreens["com.android.settings"].nodes;
-    appendAudit("[PhoneAgent] Manuelle Nutzer-Aktion abgeschlossen. Steuerung an AIDO zurückgegeben.");
-    phoneNoticeMessage = "Kontrolle erfolgreich an AIDO zurückgegeben.";
-    showPhoneAgentView();
-  });
-
-  appendAudit("[Phone Agent] Phone Agent Cockpit geöffnet (Android ADB).");
+  // 9. Play signature Brand-Morph Awakening sequence on startup
+  playBrandMorphAwakening();
 }
 
-contextMenu.addEventListener("click", (e) => {
-  const target = (e.target as HTMLElement).closest(".context-item") as HTMLElement | null;
-  if (!target) return;
-  const action = target.dataset.action;
-  if (action === "masterplan") {
-    showMasterplanCompletionView();
-  } else if (action === "rea") {
-    showReaStudioView();
-  } else if (action === "phone") {
-    showPhoneAgentView();
-  } else if (action === "brand-studio") {
-    showBrandStudioView();
-  } else if (action === "remote") {
-    showAgentRemoteView();
-  } else if (action === "health" || action === "cleanup") {
-    startSystemHealthAndCleanupPreview();
-  } else if (action === "proactive") {
-    showProactiveEngineView();
-  } else if (action === "deep-cleanup") {
-    startDeepCleanupPreview();
-  } else if (action === "release-check") {
-    showReleaseCheckView();
-  } else if (action === "apps") {
-    showAppIntelligenceAndProjects();
-  } else if (action === "installer") {
-    showSmartInstallerWizard();
-  } else if (action === "runtime") {
-    showRuntimeAndMemoryCompaction();
-  } else if (action === "privacy") {
-    showPrivacyCenter();
-  } else if (action === "memory") {
-    showMemorySummary();
-  } else if (action === "sleep") {
-    setCharacterState("Schlafmodus (VRAM freigegeben)", false);
-    aidoMessage.textContent =
-      "💤 Ich bin im Schlafmodus. Das 27B-Hauptmodell gibt seinen VRAM automatisch frei und wacht erst bei deiner nächsten Anfrage wieder auf.";
-    appendAudit("[Runtime] AIDO in den Schlafmodus versetzt (VRAM-Entladung aktiv).");
-  }
+window.addEventListener("DOMContentLoaded", () => {
+  void initApp();
 });
-
-renderDefaultButtons();

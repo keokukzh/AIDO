@@ -1,2430 +1,1734 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIDO (Agentic Intelligent Developing Operator) — Dein persönlicher, lokaler Desktop-Begleiter</title>
+  <title>AIDO — Dein persönlicher Desktop-Begleiter</title>
   <link rel="icon" type="image/png" href="/assets/AIDO-MONO-Charakter.png" />
   <style>
-    :root {
-      --bg-dark: #07090e;
-      --card-bg: rgba(20, 23, 31, 0.94);
-      --card-bg-solid: #14171f;
-      --satin-graphite: #1a1e28;
-      --border: rgba(255, 255, 255, 0.12);
-      --border-focus: rgba(255, 255, 255, 0.35);
-      --accent: #f8fafc;
-      --accent-glow: rgba(248, 250, 252, 0.25);
-      --accent-mono: #64748b;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --info: #38bdf8;
-      --text: #f8fafc;
-      --muted: #94a3b8;
+    :root,
+    html[data-theme="light"] {
+      --bg: #ffffff;
+      --bg-elevated: #fafafa;
+      --bg-subtle: #f4f4f5;
+      --bg-hover: #efefef;
+      --fg: #000000;
+      --fg-secondary: #3f3f46;
+      --fg-muted: #71717a;
+      --border: #e4e4e7;
+      --border-strong: #000000;
+      --pill-bg: #f4f4f5;
+      --pill-active-bg: #000000;
+      --pill-active-fg: #ffffff;
+      --composer-bg: #f4f4f5;
+      --composer-border: #d4d4d8;
+      --shadow-soft: 0 8px 28px rgba(0, 0, 0, 0.06);
+      --shadow-menu: 0 12px 36px rgba(0, 0, 0, 0.12);
+      color-scheme: light;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-    body {
-      background: radial-gradient(circle at 80% 80%, #151922 0%, var(--bg-dark) 75%);
-      color: var(--text);
+
+    html[data-theme="dark"] {
+      --bg: #000000;
+      --bg-elevated: #0a0a0a;
+      --bg-subtle: #121212;
+      --bg-hover: #1c1c1e;
+      --fg: #ffffff;
+      --fg-secondary: #d4d4d8;
+      --fg-muted: #a1a1aa;
+      --border: #27272a;
+      --border-strong: #ffffff;
+      --pill-bg: #121212;
+      --pill-active-bg: #ffffff;
+      --pill-active-fg: #000000;
+      --composer-bg: #121212;
+      --composer-border: #27272a;
+      --shadow-soft: 0 8px 28px rgba(0, 0, 0, 0.55);
+      --shadow-menu: 0 12px 36px rgba(0, 0, 0, 0.75);
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      padding: 24px;
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      transition: background-color 0.2s ease, color 0.2s ease;
       overflow-x: hidden;
     }
-    .header-bar {
+
+    button, input {
+      font: inherit;
+      color: inherit;
+    }
+
+    svg.icon {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex-shrink: 0;
+    }
+
+    /* =========================================================================
+       1. TOP NAVIGATION BAR (.topbar)
+       ========================================================================= */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
       display: flex;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      padding: 12px 18px;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      margin-bottom: 20px;
+      gap: 16px;
+      height: 60px;
+      padding: 0 24px;
+      background-color: var(--bg);
+      border-bottom: 1px solid var(--border);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
-    .brand { display: flex; align-items: center; gap: 14px; }
-    .brand-logo-wrap {
+
+    .topbar-left {
       display: flex;
       align-items: center;
-      justify-content: center;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px;
-      padding: 6px 12px;
+      gap: 12px;
+      min-width: 200px;
     }
-    .brand-logo-img {
-      height: 28px;
-      width: auto;
-      filter: invert(1);
-      object-fit: contain;
-    }
-    .brand-text-col { display: flex; flex-direction: column; gap: 3px; }
-    .brand-title-wrap { display: flex; align-items: center; gap: 8px; }
-    .brand-sublogo-img {
-      height: 15px;
-      width: auto;
-      filter: invert(1);
-      opacity: 0.95;
-      object-fit: contain;
-    }
-    .brand-pill {
-      background: rgba(255, 255, 255, 0.08);
-      color: #f8fafc;
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-    .slogan { font-size: 0.82rem; color: var(--muted); }
-    .badges { display: flex; gap: 10px; align-items: center; }
-    .badge {
-      padding: 5px 12px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 600;
+
+    .brand-home-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      border: 1px solid rgba(255,255,255,0.12);
-    }
-    .badge.offline { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.4); }
-    .badge.access { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); }
-
-    .workspace {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 20px;
-      flex: 1;
-    }
-    .character-stage {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 18px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      position: relative;
-      user-select: none;
-    }
-    .stage-top-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      width: 100%;
-      gap: 6px;
-    }
-    .mono-badge {
-      font-size: 0.72rem;
-      color: #94a3b8;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 3px 8px;
-      border-radius: 999px;
-      font-weight: 600;
-    }
-    .character-viewport-container {
-      position: relative;
-      width: 100%;
-      height: 270px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at 50% 50%, rgba(30, 36, 50, 0.5) 0%, rgba(10, 13, 18, 0.9) 80%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      margin: 12px 0;
-      overflow: hidden;
-      cursor: grab;
-      touch-action: none;
-    }
-    .character-viewport-container:active {
-      cursor: grabbing;
-    }
-    .char-view-mode {
-      display: none;
-      width: 100%;
-      height: 100%;
-      position: relative;
-      align-items: center;
-      justify-content: center;
-    }
-    .char-view-mode.active {
-      display: flex;
-    }
-    .mono-3d-canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .canvas-3d-hint {
-      position: absolute;
-      bottom: 6px;
-      left: 0;
-      right: 0;
-      text-align: center;
-      font-size: 0.68rem;
-      color: rgba(255, 255, 255, 0.45);
-      pointer-events: none;
-    }
-    .character-mode-bar {
-      display: flex;
-      gap: 4px;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 3px;
-      margin-bottom: 12px;
-      width: 100%;
-    }
-    .mode-btn {
-      flex: 1;
-      padding: 6px 4px;
-      font-size: 0.72rem;
-      font-weight: 600;
+      gap: 10px;
       background: transparent;
       border: 1px solid transparent;
-      border-radius: 7px;
-      color: var(--muted);
+      border-radius: 999px;
+      padding: 6px 12px 6px 8px;
       cursor: pointer;
-      transition: all 0.15s ease;
-      text-align: center;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
     }
-    .mode-btn:hover {
-      background: rgba(255, 255, 255, 0.06);
-      color: #fff;
+
+    .brand-home-btn:hover {
+      background-color: var(--bg-subtle);
+      border-color: var(--border);
     }
-    .mode-btn.active {
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.25);
+
+    .brand-mark-svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+      display: block;
     }
-    .mono-2d-wrapper {
+
+    .brand-wordmark {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .topbar-state-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg-elevated);
+      font-size: 0.78rem;
+      color: var(--fg-secondary);
+      font-weight: 500;
+    }
+
+    .state-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--fg);
+      display: inline-block;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .state-dot.pulse {
+      animation: dot-pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes dot-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.45); opacity: 0.45; }
+    }
+
+    .stage-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 999px;
+      background-color: var(--pill-bg);
+      border: 1px solid var(--border);
+    }
+
+    .stage-tab {
+      background: transparent;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 18px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+      cursor: pointer;
+      transition: background-color 0.16s ease, color 0.16s ease;
+    }
+
+    .stage-tab:hover {
+      color: var(--fg);
+    }
+
+    .stage-tab.active {
+      background-color: var(--pill-active-bg);
+      color: var(--pill-active-fg);
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 200px;
+    }
+
+    .btn-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
+      color: var(--fg);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .btn-pill:hover {
+      background-color: var(--bg-subtle);
+      border-color: var(--fg-secondary);
+    }
+
+    .btn-stop:hover,
+    .btn-stop:active,
+    .btn-stop.active {
+      background-color: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+    }
+
+    /* =========================================================================
+       STAGE VIEWS & PAGE FLOW (ZERO NESTED SCROLLBOXES)
+       ========================================================================= */
+    .app-main {
+      width: 100%;
+      padding: 24px 20px 64px;
+    }
+
+    .stage-view {
+      width: 100%;
+      margin: 0 auto;
+      animation: view-fade 0.2s ease-out;
+    }
+
+    .stage-view[hidden] {
+      display: none !important;
+    }
+
+    @keyframes view-fade {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* =========================================================================
+       2. STAGE 1: #view-agent (COMPANION-FIRST)
+       ========================================================================= */
+    .agent-stage-container {
+      max-width: 760px;
+      margin: 0 auto;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      width: 100%;
-      height: 100%;
-    }
-    .mono-2d-img {
-      width: 170px;
-      height: 170px;
-      object-fit: contain;
-      filter: invert(1) drop-shadow(0 0 16px rgba(255, 255, 255, 0.2));
-      transition: transform 0.25s ease;
-    }
-    .mono-2d-img:hover {
-      transform: scale(1.05);
+      gap: 18px;
     }
 
-    /* AIDO Infinite Brand Transformation SVG Styles */
-    .svg-morph-wrapper {
-      --aido-duration: 10.4s;
+    #companion-hero-stage {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      display: grid;
+      place-items: center;
+      user-select: none;
+    }
+
+    /* Layer 1: Awakening Brand Transformation SVG */
+    #morph-awakening-layer {
+      --aido-duration: 5.2s;
       --aido-word-scale-x: .215;
       --aido-word-scale-y: .29;
+      position: absolute;
+      inset: 0;
+      z-index: 2;
       display: grid;
       place-items: center;
       width: 100%;
       height: 100%;
-      min-height: 240px;
-      overflow: hidden;
-      color: #f8fafc;
+      color: var(--fg);
+      background-color: var(--bg);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
     }
+
+    #morph-awakening-layer.playing {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
     .aido-transform {
       display: block;
-      width: 100%;
-      max-width: 270px;
+      width: min(100%, 680px);
       height: auto;
       fill: currentColor;
     }
+
     .aido-word {
       --aido-word-y: -14.5px;
       --aido-word-origin: translate(var(--aido-word-x), var(--aido-word-y));
     }
+
     .aido-word-a {
       --aido-word-x: -346.7px;
       --aido-mark: translate(-174px, -50px) rotate(0deg) scale(1);
       --aido-mono: translate(-54.5px, 15px) rotate(0deg) scale(1, .54);
     }
+
     .aido-word-i {
       --aido-word-x: -189.8px;
       --aido-mark: translate(-61px, -50px) rotate(0deg) scale(1);
       --aido-mono: translate(-6.6px, -19px) rotate(0deg) scale(.55, .27);
     }
+
     .aido-word-d {
       --aido-word-x: 19.5px;
       --aido-mark: translate(-24px, -50px) rotate(0deg) scale(1);
       --aido-mono: translate(-43px, 30px) rotate(-90deg) scale(.78, .86);
     }
+
     .aido-word-o {
       --aido-word-x: 173.5px;
       --aido-mark: translate(74px, -50px) rotate(0deg) scale(1);
       --aido-mono: translate(-31px, -105px) rotate(0deg) scale(.62);
     }
+
     .aido-letter {
       --aido-start: var(--aido-word-origin) rotate(0deg)
         scale(calc(var(--aido-word-scale-x) * 1.08), var(--aido-word-scale-y));
       transform: var(--aido-start);
       transform-origin: 0 0;
+    }
+
+    #morph-awakening-layer.playing .aido-letter {
       animation: aido-letter var(--aido-duration) cubic-bezier(.55, 0, .25, 1) infinite both;
     }
-    .aido-letter-o {
+
+    #morph-awakening-layer.playing .aido-letter-o {
       animation-name: aido-letter, aido-head-arc;
     }
+
     .aido-tail-origin {
       transform: var(--aido-word-origin) scale(var(--aido-word-scale-x), var(--aido-word-scale-y));
     }
+
     .aido-tail {
       transform-box: fill-box;
       transform-origin: left center;
+    }
+
+    #morph-awakening-layer.playing .aido-tail {
       animation: aido-tail var(--aido-duration) ease-in-out infinite both;
     }
-    .aido-outline-morph {
+
+    #morph-awakening-layer.playing .aido-outline-morph {
       animation: aido-outline var(--aido-duration) cubic-bezier(.55, 0, .25, 1) infinite both;
     }
+
     @keyframes aido-letter {
       0%, 20%, 96%, 100% { transform: var(--aido-start); }
       32%, 45% { transform: var(--aido-mark); }
       61%, 76% { transform: var(--aido-mono); }
     }
+
     @keyframes aido-head-arc {
       0%, 45%, 61%, 100% { translate: 0 0; }
       52% { translate: 0 -34px; }
     }
+
     @keyframes aido-tail {
       0%, 13%, 97%, 100% { transform: translateX(0) scale(1); }
       25%, 90% { transform: translateX(-24px) scale(0); }
     }
+
     @keyframes aido-outline {
       0%, 45%, 96%, 100% { d: var(--aido-outline-start); }
       61%, 76% { d: var(--aido-outline-mono); }
     }
 
-    /* Brand Studio Showcase Styles */
-    .brand-showcase-container {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      margin-top: 10px;
-    }
-    .brand-grid-3col {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-      gap: 12px;
-    }
-    .brand-card-item {
-      background: rgba(15, 20, 28, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      text-align: center;
-    }
-    .brand-card-img-wrap {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      padding: 12px;
-      width: 100%;
-      height: 100px;
+    /* Layer 2: 3D WebGL Character Canvas & Pulsing Voice Ring */
+    #mono-3d-layer {
+      position: relative;
+      z-index: 1;
+      width: 420px;
+      height: 380px;
+      max-width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-    }
-    .brand-card-img-wrap img {
-      max-width: 100%;
-      max-height: 80px;
-      object-fit: contain;
-      filter: invert(1);
-    }
-    .brand-card-title {
-      font-weight: 700;
-      font-size: 0.88rem;
-      color: #f8fafc;
-    }
-    .brand-card-desc {
-      font-size: 0.74rem;
-      color: #94a3b8;
-      line-height: 1.4;
-    }
-    .node-inspector-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-      margin: 8px 0;
-    }
-    .node-inspector-table th, .node-inspector-table td {
-      padding: 8px 12px;
-      text-align: left;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-    .node-inspector-table th {
-      color: #94a3b8;
-      font-weight: 600;
-      font-size: 0.74rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .state-btn-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 10px 0;
-    }
-    .btn-state-chip {
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #cbd5e1;
-      transition: all 0.18s ease;
-    }
-    .btn-state-chip:hover, .btn-state-chip.active {
-      background: rgba(255, 255, 255, 0.2);
-      color: #fff;
-      border-color: rgba(255, 255, 255, 0.4);
-    }
-    .btn-state-chip.emerald.active {
-      background: rgba(16, 185, 129, 0.25);
-      color: #6ee7b7;
-      border-color: rgba(16, 185, 129, 0.5);
-    }
-    .btn-state-chip.cyan.active {
-      background: rgba(56, 189, 248, 0.25);
-      color: #7dd3fc;
-      border-color: rgba(56, 189, 248, 0.5);
+      transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .state-pill {
-      font-size: 0.8rem;
-      color: #f8fafc;
-      background: rgba(255, 255, 255, 0.08);
+    #morph-awakening-layer.playing ~ #mono-3d-layer {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #mono-3d-canvas {
+      width: 380px;
+      height: 380px;
+      max-width: 100%;
+      display: block;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    #mono-3d-canvas:active {
+      cursor: grabbing;
+    }
+
+    #mono-voice-ring {
+      position: absolute;
+      width: 290px;
+      height: 290px;
+      border-radius: 50%;
+      border: 1.5px solid var(--fg);
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.92);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    #mono-voice-ring.active {
+      opacity: 0.28;
+      animation: voice-ring-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes voice-ring-pulse {
+      0%, 100% { transform: scale(0.94); opacity: 0.18; }
+      50% { transform: scale(1.06); opacity: 0.42; }
+    }
+
+    /* Live State Pill & 7-State Bar */
+    .character-status-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      text-align: center;
+    }
+
+    #mono-state-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 16px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg-elevated);
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    #mono-state-selector {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .mono-state-pill {
       padding: 4px 12px;
       border-radius: 999px;
       border: 1px solid var(--border);
+      background-color: var(--bg);
+      color: var(--fg-secondary);
+      font-size: 0.76rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
     }
-    .gesture-help {
+
+    .mono-state-pill:hover {
+      border-color: var(--fg);
+      color: var(--fg);
+    }
+
+    .mono-state-pill.active {
+      background-color: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+    }
+
+    .gesture-hint {
+      font-size: 0.74rem;
+      color: var(--fg-muted);
+      letter-spacing: 0.01em;
+    }
+
+    /* =========================================================================
+       CHATGPT-STYLE CONVERSATION & COMPOSER ZONE (.agent-conversation-zone)
+       ========================================================================= */
+    .agent-conversation-zone {
       width: 100%;
-      font-size: 0.78rem;
-      color: var(--muted);
-      background: rgba(0,0,0,0.3);
-      padding: 12px;
-      border-radius: 12px;
-      line-height: 1.6;
-    }
-    .main-panel {
+      max-width: 720px;
+      margin: 8px auto 0;
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 18px;
-    }
-    .card h2 { font-size: 1rem; margin-bottom: 10px; color: #e0e7ff; }
-    .chat-bubble {
-      background: rgba(99, 102, 241, 0.12);
-      border-left: 4px solid var(--accent);
-      padding: 14px;
-      border-radius: 10px;
-      font-size: 0.94rem;
-      line-height: 1.55;
-      margin-bottom: 14px;
-      max-height: 520px;
-      overflow-y: auto;
-    }
-    .options-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    button {
-      background: rgba(99, 102, 241, 0.2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 9px 15px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.85rem;
-      transition: all 0.18s ease;
-    }
-    button:hover { background: var(--accent); border-color: var(--accent); }
-    button.approve { background: rgba(16, 185, 129, 0.22); border-color: rgba(16, 185, 129, 0.5); color: #6ee7b7; }
-    button.approve:hover { background: var(--success); color: #052e16; }
-    button.reject { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
-    button.reject:hover { background: var(--danger); color: #fff; }
 
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-top: 10px;
-    }
-    .metric-box {
-      background: rgba(0,0,0,0.28);
-      padding: 12px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.08);
-    }
-    .metric-label { font-size: 0.75rem; color: var(--muted); }
-    .metric-value { font-size: 1.05rem; font-weight: 700; margin-top: 4px; color: #f9fafb; }
-
-    /* App Intelligence & Project Catalog Styles */
-    .intel-section {
-      margin-top: 14px;
+    #agent-chat-feed {
       display: flex;
       flex-direction: column;
       gap: 14px;
+      width: 100%;
     }
-    .intel-heading {
-      font-size: 0.92rem;
+
+    .chat-msg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 14px 18px;
+      border-radius: 18px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      border: 1px solid var(--border);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .chat-msg.aido {
+      align-self: flex-start;
+      background-color: var(--bg-elevated);
+      color: var(--fg);
+      max-width: 92%;
+    }
+
+    .chat-msg.user {
+      align-self: flex-end;
+      background-color: var(--fg);
+      color: var(--bg);
+      border-color: var(--fg);
+      max-width: 85%;
+    }
+
+    .chat-msg-role {
+      font-size: 0.72rem;
       font-weight: 700;
-      color: #c7d2fe;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.65;
+    }
+
+    .chat-msg-text {
+      word-break: break-word;
+    }
+
+    /* Single-Click Inline Security Approvals */
+    #inline-approval-container:empty {
+      display: none;
+    }
+
+    .approval-card {
+      padding: 16px 18px;
+      border-radius: 16px;
+      border: 1.5px solid var(--fg);
+      background-color: var(--bg-elevated);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .approval-card-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      padding-bottom: 6px;
-      margin-bottom: 4px;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
-    .apps-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-      gap: 12px;
+
+    .approval-card-title {
+      font-size: 0.95rem;
+      font-weight: 600;
     }
-    .app-card {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(99, 102, 241, 0.25);
-      border-radius: 12px;
-      padding: 12px;
+
+    .approval-card-reason {
+      font-size: 0.84rem;
+      color: var(--fg-secondary);
+    }
+
+    .approval-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .btn-approve-solid {
+      padding: 7px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--fg);
+      background-color: var(--fg);
+      color: var(--bg);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-reject-outline {
+      padding: 7px 18px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
+      color: var(--fg);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Context-Aware Reply Chips */
+    #agent-reply-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .reply-chip {
+      padding: 7px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
+      color: var(--fg-secondary);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .reply-chip:hover {
+      background-color: var(--bg-subtle);
+      border-color: var(--fg);
+      color: var(--fg);
+    }
+
+    /* ChatGPT Composer Box */
+    .composer-box {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      padding: 10px 12px 10px 18px;
+      border-radius: 28px;
+      background-color: var(--composer-bg);
+      border: 1px solid var(--composer-border);
+      box-shadow: var(--shadow-soft);
+      transition: border-color 0.15s ease, background-color 0.2s ease;
     }
-    .app-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+
+    .composer-box:focus-within {
+      border-color: var(--fg);
     }
-    .app-title-group {
-      display: flex;
+
+    #composer-attachment-pill {
+      display: inline-flex;
       align-items: center;
+      align-self: flex-start;
       gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--fg-secondary);
     }
-    .app-name {
-      font-weight: 700;
-      font-size: 0.92rem;
-      color: #f3f4f6;
+
+    #composer-attachment-pill[hidden] {
+      display: none !important;
     }
-    .app-meta {
-      font-size: 0.74rem;
-      color: var(--muted);
-      word-break: break-all;
+
+    #btn-remove-attachment {
+      background: transparent;
+      border: none;
+      color: var(--fg);
+      font-size: 0.95rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 2px;
     }
-    .app-toggle {
+
+    .composer-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #agent-chat-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--fg);
+      font-size: 0.96rem;
+      outline: none;
+      padding: 6px 0;
+    }
+
+    #agent-chat-input::placeholder {
+      color: var(--fg-muted);
+    }
+
+    .composer-actions {
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    .composer-icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--fg-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .composer-icon-btn:hover,
+    .composer-icon-btn.active {
+      background-color: var(--bg);
+      border-color: var(--border);
+      color: var(--fg);
+    }
+
+    #btn-send-chat {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid var(--fg);
+      background-color: var(--fg);
+      color: var(--bg);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.12s ease;
+    }
+
+    #btn-send-chat:hover {
+      opacity: 0.86;
+    }
+
+    #btn-send-chat:active {
+      transform: scale(0.95);
+    }
+
+    /* =========================================================================
+       3. RIGHT-CLICK CHARACTER CONTEXT MENU (#mono-context-menu)
+       ========================================================================= */
+    #mono-context-menu {
+      position: fixed;
+      z-index: 1000;
+      min-width: 248px;
+      padding: 6px;
+      border-radius: 14px;
+      background-color: var(--bg);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-menu);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    #mono-context-menu[hidden] {
+      display: none !important;
+    }
+
+    .ctx-menu-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--fg);
+      font-size: 0.84rem;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .ctx-menu-item:hover {
+      background-color: var(--fg);
+      color: var(--bg);
+    }
+
+    .ctx-menu-divider {
+      height: 1px;
+      background-color: var(--border);
+      margin: 4px 6px;
+    }
+
+    /* =========================================================================
+       4. STAGE 2: #view-overview (2x2 GRID)
+       ========================================================================= */
+    .view-container {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .view-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+
+    .view-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .view-header p {
+      font-size: 0.92rem;
+      color: var(--fg-secondary);
+    }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      max-width: 1120px;
+      width: 100%;
+    }
+
+    .surface-card {
+      background-color: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title-group h2 {
+      font-size: 1.02rem;
+      font-weight: 700;
+    }
+
+    .count-badge {
+      padding: 2px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--fg-secondary);
+    }
+
+    .stack-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .list-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+    }
+
+    .list-row-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .list-row-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .list-row-sub {
       font-size: 0.78rem;
-      color: #cbd5e1;
-      cursor: pointer;
+      color: var(--fg-muted);
+      word-break: break-all;
     }
-    .app-toggle input[type="checkbox"] {
-      cursor: pointer;
-      accent-color: var(--accent);
-      width: 15px;
-      height: 15px;
-    }
-    .cap-list {
+
+    .list-row-tags {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
       margin-top: 4px;
     }
-    .cap-badge {
-      font-size: 0.72rem;
-      padding: 2px 7px;
-      border-radius: 6px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .cap-badge.low { color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
-    .cap-badge.medium { color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
-    .cap-badge.high { color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
-    .project-card {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 12px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .project-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .project-title {
-      font-weight: 700;
-      font-size: 1.05rem;
-      color: #34d399;
-    }
-    .project-meta {
-      font-size: 0.78rem;
-      color: var(--muted);
-    }
-    .tags-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .tag {
-      font-size: 0.74rem;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: rgba(99, 102, 241, 0.15);
-      color: #a5b4fc;
-      border: 1px solid rgba(99, 102, 241, 0.3);
-    }
-    .tag.branch { background: rgba(52, 211, 153, 0.12); color: #6ee7b7; border-color: rgba(52, 211, 153, 0.3); }
-    .tag.dirty { background: rgba(245, 158, 11, 0.12); color: #fcd34d; border-color: rgba(245, 158, 11, 0.3); }
-    .tag.action { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); font-family: monospace; }
-    .btn-launch {
-      align-self: flex-start;
-      background: rgba(16, 185, 129, 0.25);
-      border: 1px solid rgba(16, 185, 129, 0.5);
-      color: #6ee7b7;
-      padding: 7px 14px;
-      font-size: 0.82rem;
-      border-radius: 8px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-    .btn-launch:hover {
-      background: var(--success);
-      color: #052e16;
-    }
 
-    .context-menu {
-      position: fixed;
-      background: #111827;
+    .mono-tag {
+      padding: 2px 8px;
+      border-radius: 999px;
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 6px;
-      width: 250px;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
-      display: none;
-      z-index: 1000;
-    }
-    .context-item {
-      padding: 8px 12px;
-      font-size: 0.84rem;
-      border-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-    }
-    .context-item:hover { background: rgba(99, 102, 241, 0.25); }
-    .audit-list {
-      font-size: 0.82rem;
-      color: var(--muted);
-      list-style: none;
-      line-height: 1.65;
+      background-color: var(--bg-subtle);
+      font-size: 0.72rem;
+      color: var(--fg-secondary);
     }
 
-    /* Smart Installer Styles */
-    .installer-section {
-      margin-top: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .eta-forecast-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 12px;
-      margin-bottom: 8px;
-    }
-    .eta-forecast-box {
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(99, 102, 241, 0.35);
-      border-radius: 12px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .eta-forecast-box.highlight {
-      border-color: rgba(16, 185, 129, 0.5);
-      background: rgba(16, 185, 129, 0.08);
-    }
-    .eta-forecast-box.warning {
-      border-color: rgba(245, 158, 11, 0.5);
-      background: rgba(245, 158, 11, 0.08);
-    }
-    .eta-title {
-      font-size: 0.74rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--muted);
-      font-weight: 700;
-    }
-    .eta-main-val {
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: #f3f4f6;
-    }
-    .eta-desc {
-      font-size: 0.74rem;
-      color: #94a3b8;
-      line-height: 1.4;
-    }
-    .models-reuse-box {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 12px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .models-reuse-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: 700;
-      font-size: 0.88rem;
-      color: #34d399;
-    }
-    .model-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 6px 10px;
-      background: rgba(0, 0, 0, 0.25);
-      border-radius: 8px;
-      font-size: 0.78rem;
-    }
-    .model-path {
-      font-family: monospace;
-      color: #94a3b8;
-      font-size: 0.72rem;
-    }
-    .phases-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .phase-row {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 10px 14px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: all 0.2s ease;
-    }
-    .phase-row.active {
-      border-color: rgba(99, 102, 241, 0.6);
-      background: rgba(99, 102, 241, 0.12);
-    }
-    .phase-row.completed {
-      border-color: rgba(16, 185, 129, 0.4);
-      background: rgba(16, 185, 129, 0.08);
-    }
-    .phase-row.paused {
-      border-color: rgba(245, 158, 11, 0.4);
-      background: rgba(245, 158, 11, 0.08);
-    }
-    .phase-info {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .phase-title {
-      font-weight: 700;
-      font-size: 0.88rem;
-      color: #f3f4f6;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .phase-rollback {
-      font-size: 0.72rem;
-      color: #94a3b8;
-    }
-    .phase-badge {
-      font-size: 0.74rem;
-      padding: 3px 10px;
-      border-radius: 999px;
-      font-weight: 600;
-      border: 1px solid transparent;
-    }
-    .phase-badge.pending { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border-color: rgba(148, 163, 184, 0.3); }
-    .phase-badge.completed { background: rgba(16, 185, 129, 0.18); color: #34d399; border-color: rgba(16, 185, 129, 0.4); }
-    .phase-badge.paused { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); }
-    .phase-badge.rolledback { background: rgba(239, 68, 68, 0.18); color: #f87171; border-color: rgba(239, 68, 68, 0.4); }
-
-    /* Runtime & Memory Compaction Styles */
-    .runtime-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 12px;
-      margin-top: 10px;
-    }
-    .runtime-card {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: 12px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .runtime-card.standby {
-      border-color: rgba(148, 163, 184, 0.3);
-    }
-    .runtime-card.active {
-      border-color: rgba(16, 185, 129, 0.5);
-      background: rgba(16, 185, 129, 0.05);
-    }
-    .runtime-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .runtime-title {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: #f3f4f6;
-    }
-    .memory-layers-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin: 12px 0 16px 0;
-    }
-    .filter-badge {
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.05);
-      color: #94a3b8;
-      transition: all 0.2s ease;
-    }
-    .filter-badge:hover, .filter-badge.active {
-      background: rgba(99, 102, 241, 0.3);
-      color: #e0e7ff;
-      border-color: var(--accent);
-    }
-    .memory-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      max-height: 480px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-    .memory-card {
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(99, 102, 241, 0.25);
-      border-radius: 12px;
-      padding: 12px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-    .memory-card.compacted {
-      opacity: 0.75;
-      border-style: dashed;
-      border-color: rgba(148, 163, 184, 0.3);
-    }
-    .memory-card.forgotten {
-      opacity: 0.45;
-      text-decoration: line-through;
-      border-color: rgba(239, 68, 68, 0.25);
-    }
-    .memory-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .layer-tag {
-      font-size: 0.72rem;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-weight: 700;
-    }
-    .layer-tag.working { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.4); }
-    .layer-tag.episodic { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.4); }
-    .layer-tag.semantic { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .layer-tag.system { background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.4); }
-    .btn-forget {
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      color: #fca5a5;
-      padding: 3px 9px;
-      border-radius: 6px;
-      font-size: 0.74rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .btn-forget:hover {
-      background: var(--danger);
-      color: #fff;
-    }
-    .btn-compact {
-      background: rgba(16, 185, 129, 0.2);
-      border: 1px solid rgba(16, 185, 129, 0.45);
-      color: #6ee7b7;
-      padding: 8px 16px;
-      border-radius: 10px;
-      font-size: 0.84rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s ease;
+    /* Monochrome Toggle Switch */
+    .mono-switch {
+      position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-    .btn-compact:hover {
-      background: var(--success);
-      color: #052e16;
-    }
-
-    /* Proactive Engine & Focus Guard Styles */
-    .focus-mode-bar {
-      display: flex;
       gap: 8px;
-      flex-wrap: wrap;
-      margin: 10px 0 14px 0;
-    }
-    .focus-pill {
-      padding: 6px 14px;
-      border-radius: 999px;
       font-size: 0.78rem;
-      font-weight: 600;
+      color: var(--fg-secondary);
       cursor: pointer;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.05);
-      color: #94a3b8;
-      transition: all 0.2s ease;
-    }
-    .focus-pill:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #f3f4f6;
-    }
-    .focus-pill.active {
-      background: rgba(99, 102, 241, 0.3);
-      color: #e0e7ff;
-      border-color: var(--accent);
-    }
-    .focus-pill.gaming.active {
-      background: rgba(239, 68, 68, 0.25);
-      color: #fca5a5;
-      border-color: rgba(239, 68, 68, 0.6);
-    }
-    .focus-pill.call.active {
-      background: rgba(245, 158, 11, 0.25);
-      color: #fcd34d;
-      border-color: rgba(245, 158, 11, 0.6);
-    }
-    .focus-guard-banner {
-      background: rgba(239, 68, 68, 0.14);
-      border: 1px solid rgba(239, 68, 68, 0.45);
-      border-radius: 12px;
-      padding: 14px 18px;
-      margin-bottom: 14px;
-      color: #fca5a5;
-      font-size: 0.88rem;
-      line-height: 1.5;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .focus-guard-banner.call {
-      background: rgba(245, 158, 11, 0.14);
-      border-color: rgba(245, 158, 11, 0.45);
-      color: #fcd34d;
-    }
-    .proactive-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 10px;
-    }
-    .proactive-card {
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: 14px;
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      transition: all 0.2s ease;
-    }
-    .proactive-card.priority-9 {
-      border-left: 4px solid #f59e0b;
-    }
-    .proactive-card.priority-8 {
-      border-left: 4px solid #10b981;
-    }
-    .proactive-card.priority-7 {
-      border-left: 4px solid #818cf8;
-    }
-    .proactive-card.priority-6 {
-      border-left: 4px solid #38bdf8;
-    }
-    .proactive-card.muted-card {
-      opacity: 0.5;
-      border-style: dashed;
-    }
-    .proactive-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .proactive-title {
-      font-weight: 700;
-      font-size: 0.95rem;
-      color: #f3f4f6;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .proactive-why {
-      font-size: 0.76rem;
-      color: #94a3b8;
-      font-style: italic;
-    }
-    .proactive-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 6px;
-    }
-    .btn-subtle {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #cbd5e1;
-      font-size: 0.76rem;
-      padding: 5px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .btn-subtle:hover {
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
-    }
-    .deep-cleanup-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 12px;
-      margin: 12px 0;
-    }
-    .deep-cleanup-item {
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 12px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .deep-cleanup-category {
-      font-size: 0.74rem;
-      font-weight: 700;
-      color: #34d399;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .deep-cleanup-size {
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: #f3f4f6;
-    }
-    .deep-cleanup-file {
-      font-family: monospace;
-      font-size: 0.74rem;
-      color: #94a3b8;
-      word-break: break-all;
-    }
-    .deep-cleanup-desc {
-      font-size: 0.74rem;
-      color: #cbd5e1;
-      line-height: 1.35;
-    }
-    /* Phase 7 & 8: Adapter Sandbox & Release Readiness Styles */
-    .release-checklist-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 10px;
-      margin: 10px 0 16px 0;
-    }
-    .release-item {
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      border-radius: 10px;
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.82rem;
-      color: #f3f4f6;
-    }
-    .release-item.passed {
-      border-color: rgba(16, 185, 129, 0.5);
-      background: rgba(16, 185, 129, 0.08);
-    }
-    .release-check-icon {
-      font-size: 1.1rem;
-      flex-shrink: 0;
-    }
-    .sandbox-card {
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(99, 102, 241, 0.35);
-      border-radius: 12px;
-      padding: 14px 16px;
-      margin: 10px 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .sandbox-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .uninstall-comparison-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin: 12px 0;
-    }
-    .uninstall-box {
-      background: rgba(15, 23, 42, 0.85);
-      border-radius: 12px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .uninstall-box.danger-scope {
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      background: rgba(239, 68, 68, 0.05);
-    }
-    .uninstall-box.safe-scope {
-      border: 1px solid rgba(16, 185, 129, 0.45);
-      background: rgba(16, 185, 129, 0.05);
-    }
-    .uninstall-box-title {
-      font-weight: 700;
-      font-size: 0.88rem;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .uninstall-box.danger-scope .uninstall-box-title { color: #fca5a5; }
-    .uninstall-box.safe-scope .uninstall-box-title { color: #6ee7b7; }
-    .uninstall-path-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 0.76rem;
-      font-family: monospace;
-    }
-    .uninstall-path-item {
-      padding: 6px 10px;
-      border-radius: 6px;
-      word-break: break-all;
-    }
-    .uninstall-box.danger-scope .uninstall-path-item {
-      background: rgba(239, 68, 68, 0.12);
-      color: #fca5a5;
-      border: 1px solid rgba(239, 68, 68, 0.25);
-    }
-    .uninstall-box.safe-scope .uninstall-path-item {
-      background: rgba(16, 185, 129, 0.12);
-      color: #a7f3d0;
-      border: 1px solid rgba(16, 185, 129, 0.25);
-    }
-    .zero-destruct-banner {
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.5);
-      border-radius: 12px;
-      padding: 12px 16px;
-      color: #6ee7b7;
-      font-size: 0.86rem;
-      line-height: 1.5;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    /* =========================================================================
-       Phase 9: AIDO Agent Remote — Minimalist Monochrome UI
-       Strictly Black/White (#050507 / #ffffff) or White/Black (#fafafa / #09090b)
-       ========================================================================= */
-    .remote-split-layout {
-      display: grid;
-      grid-template-columns: minmax(320px, 1.1fr) minmax(340px, 380px);
-      gap: 22px;
-      align-items: start;
-      margin-top: 8px;
-    }
-    @media (max-width: 960px) {
-      .remote-split-layout {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* Left Card: PC QR & PIN Pairing Station */
-    .remote-pc-station {
-      background: rgba(8, 10, 16, 0.96);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 20px;
-      padding: 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      box-shadow: 0 0 28px rgba(255, 255, 255, 0.05);
-      position: relative;
-    }
-    .remote-station-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 12px;
-    }
-    .remote-station-title {
-      font-size: 0.96rem;
-      font-weight: 700;
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      letter-spacing: 0.2px;
-    }
-    .remote-status-pill {
-      font-size: 0.72rem;
-      font-family: monospace;
-      padding: 3px 10px;
-      border-radius: 999px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-    }
-    .remote-status-pill.offline {
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.35);
-      color: #34d399;
-    }
-    .remote-status-pill.connected {
-      background: rgba(255, 255, 255, 0.14);
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      color: #ffffff;
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.25);
-    }
-    .remote-qr-box {
-      background: #050507;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 16px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      box-shadow: 0 0 32px rgba(255, 255, 255, 0.06);
-      position: relative;
-    }
-    .remote-qr-svg-wrap {
-      width: 172px;
-      height: 172px;
-      background: #ffffff;
-      border-radius: 12px;
-      padding: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.18);
-      position: relative;
-    }
-    .remote-pin-digits {
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      align-items: center;
-    }
-    .remote-pin-digit {
-      width: 44px;
-      height: 48px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: monospace;
-      font-size: 1.5rem;
-      font-weight: 800;
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.24);
-      border-radius: 8px;
-      box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.05);
-    }
-    .remote-ttl-badge {
-      font-size: 0.74rem;
-      font-family: monospace;
-      color: rgba(255, 255, 255, 0.7);
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      padding: 4px 12px;
-      border-radius: 999px;
-    }
-    .remote-station-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .remote-station-btn {
-      padding: 11px 16px;
-      border-radius: 11px;
-      font-weight: 700;
-      font-size: 0.84rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: all 0.2s ease;
-    }
-    .remote-station-btn.connect {
-      background: #ffffff;
-      color: #050507;
-      border: 1px solid #ffffff;
-      box-shadow: 0 0 18px rgba(255, 255, 255, 0.28);
-    }
-    .remote-station-btn.connect:hover {
-      box-shadow: 0 0 26px rgba(255, 255, 255, 0.55);
-      transform: translateY(-1px);
-    }
-    .remote-station-btn.revoke {
-      background: rgba(255, 255, 255, 0.05);
-      color: rgba(255, 255, 255, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-    }
-    .remote-station-btn.revoke:hover {
-      background: rgba(239, 68, 68, 0.16);
-      border-color: rgba(239, 68, 68, 0.45);
-      color: #fca5a5;
-    }
-    .remote-paired-device-box {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 0.78rem;
-      line-height: 1.5;
-      color: rgba(255, 255, 255, 0.82);
-    }
-
-    /* Right Card: Minimalist Smartphone Remote Frame */
-    .remote-phone-frame {
-      border-radius: 36px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-      position: relative;
-      transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
       user-select: none;
     }
-    /* Theme: Black / White (Dark Monochrome) */
-    .remote-phone-frame.theme-bw {
-      background: #050507;
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      box-shadow: 0 0 35px rgba(255, 255, 255, 0.08), 0 20px 45px rgba(0, 0, 0, 0.85), inset 0 0 1px rgba(255, 255, 255, 0.35);
-    }
-    /* Theme: White / Black (Light Monochrome) */
-    .remote-phone-frame.theme-wb {
-      background: #fafafa;
-      color: #09090b;
-      border: 1px solid rgba(9, 9, 11, 0.16);
-      box-shadow: 0 0 35px rgba(0, 0, 0, 0.15), 0 20px 45px rgba(0, 0, 0, 0.14), inset 0 0 1px rgba(0, 0, 0, 0.25);
+
+    .mono-switch input[type="checkbox"] {
+      appearance: none;
+      width: 36px;
+      height: 20px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background-color: var(--bg);
+      position: relative;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
     }
 
-    /* Adapting Assets within Themes */
-    .remote-phone-frame.theme-bw .remote-brand-img {
-      filter: invert(1);
-    }
-    .remote-phone-frame.theme-wb .remote-brand-img {
-      filter: invert(0);
-    }
-
-    /* 1: Minimal Phone Header */
-    .remote-phone-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 12px;
-      border-bottom: 1px solid;
-    }
-    .remote-phone-frame.theme-bw .remote-phone-header {
-      border-color: rgba(255, 255, 255, 0.12);
-    }
-    .remote-phone-frame.theme-wb .remote-phone-header {
-      border-color: rgba(9, 9, 11, 0.12);
-    }
-    .remote-phone-brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .remote-glow-dot {
-      width: 7px;
-      height: 7px;
+    .mono-switch input[type="checkbox"]::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
-      display: inline-block;
-      animation: remote-dot-pulse 2s infinite ease-in-out;
-    }
-    .remote-phone-frame.theme-bw .remote-glow-dot {
-      background: #ffffff;
-      box-shadow: 0 0 8px #ffffff;
-    }
-    .remote-phone-frame.theme-wb .remote-glow-dot {
-      background: #09090b;
-      box-shadow: 0 0 6px rgba(9, 9, 11, 0.65);
-    }
-    @keyframes remote-dot-pulse {
-      0%, 100% { opacity: 0.4; transform: scale(0.9); }
-      50% { opacity: 1; transform: scale(1.2); }
-    }
-    .remote-parity-pill {
-      font-size: 0.66rem;
-      font-family: monospace;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      border: 1px solid;
-    }
-    .remote-phone-frame.theme-bw .remote-parity-pill {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.25);
-      color: #ffffff;
-    }
-    .remote-phone-frame.theme-wb .remote-parity-pill {
-      background: rgba(9, 9, 11, 0.08);
-      border-color: rgba(9, 9, 11, 0.25);
-      color: #09090b;
-    }
-    .remote-theme-toggle {
-      font-size: 0.72rem;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 8px;
-      cursor: pointer;
-      border: 1px solid;
-      transition: all 0.18s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .remote-phone-frame.theme-bw .remote-theme-toggle {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.3);
-      color: #ffffff;
-    }
-    .remote-phone-frame.theme-bw .remote-theme-toggle:hover {
-      background: #ffffff;
-      color: #050507;
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.4);
-    }
-    .remote-phone-frame.theme-wb .remote-theme-toggle {
-      background: rgba(9, 9, 11, 0.08);
-      border-color: rgba(9, 9, 11, 0.3);
-      color: #09090b;
-    }
-    .remote-phone-frame.theme-wb .remote-theme-toggle:hover {
-      background: #09090b;
-      color: #fafafa;
-      box-shadow: 0 0 12px rgba(0, 0, 0, 0.25);
+      background-color: var(--fg);
+      transition: transform 0.15s ease, background-color 0.15s ease;
     }
 
-    /* 2: 1-Tap Daumen-Freigabekarte */
-    .remote-thumb-card {
-      border: 1px solid;
-      border-radius: 18px;
-      padding: 15px;
+    .mono-switch input[type="checkbox"]:checked {
+      background-color: var(--fg);
+    }
+
+    .mono-switch input[type="checkbox"]:checked::after {
+      transform: translateX(16px);
+      background-color: var(--bg);
+    }
+
+    .cleanup-box {
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
       display: flex;
       flex-direction: column;
       gap: 10px;
-      transition: all 0.2s ease;
-      position: relative;
     }
-    .remote-phone-frame.theme-bw .remote-thumb-card {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.18);
-      box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
-    }
-    .remote-phone-frame.theme-wb .remote-thumb-card {
-      background: rgba(9, 9, 11, 0.03);
-      border-color: rgba(9, 9, 11, 0.18);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-    }
-    .remote-thumb-badge-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .remote-thumb-status-badge {
-      font-size: 0.66rem;
-      font-family: monospace;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      padding: 2px 8px;
-      border-radius: 6px;
-      border: 1px solid;
-    }
-    .remote-phone-frame.theme-bw .remote-thumb-status-badge {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.28);
-      color: #ffffff;
-    }
-    .remote-phone-frame.theme-wb .remote-thumb-status-badge {
-      background: rgba(9, 9, 11, 0.08);
-      border-color: rgba(9, 9, 11, 0.25);
-      color: #09090b;
-    }
-    .remote-thumb-title {
-      font-size: 0.92rem;
-      font-weight: 700;
-      line-height: 1.35;
-    }
-    .remote-thumb-desc {
-      font-size: 0.74rem;
-      line-height: 1.45;
-      opacity: 0.8;
-    }
-    .remote-thumb-buttons {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 2px;
-    }
-    .remote-btn-thumb {
-      padding: 11px 14px;
-      border-radius: 12px;
+
+    .search-input {
+      width: 100%;
+      padding: 9px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
+      color: var(--fg);
       font-size: 0.86rem;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: all 0.18s ease;
-      border: 1px solid;
-    }
-    .remote-phone-frame.theme-bw .remote-btn-thumb.approve {
-      background: #ffffff;
-      color: #050507;
-      border-color: #ffffff;
-      box-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
-    }
-    .remote-phone-frame.theme-bw .remote-btn-thumb.approve:hover {
-      box-shadow: 0 0 24px rgba(255, 255, 255, 0.6);
-      transform: translateY(-1px);
-    }
-    .remote-phone-frame.theme-bw .remote-btn-thumb.reject {
-      background: rgba(255, 255, 255, 0.06);
-      color: #ffffff;
-      border-color: rgba(255, 255, 255, 0.2);
-    }
-    .remote-phone-frame.theme-bw .remote-btn-thumb.reject:hover {
-      background: rgba(255, 255, 255, 0.14);
-      border-color: rgba(255, 255, 255, 0.4);
-    }
-    .remote-phone-frame.theme-wb .remote-btn-thumb.approve {
-      background: #09090b;
-      color: #fafafa;
-      border-color: #09090b;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-    }
-    .remote-phone-frame.theme-wb .remote-btn-thumb.approve:hover {
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-      transform: translateY(-1px);
-    }
-    .remote-phone-frame.theme-wb .remote-btn-thumb.reject {
-      background: rgba(9, 9, 11, 0.05);
-      color: #09090b;
-      border-color: rgba(9, 9, 11, 0.2);
-    }
-    .remote-phone-frame.theme-wb .remote-btn-thumb.reject:hover {
-      background: rgba(9, 9, 11, 0.12);
-      border-color: rgba(9, 9, 11, 0.35);
-    }
-
-    /* 3: 2x2 Schnell-Steuerdeck */
-    .remote-grid-2x2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .remote-tile {
-      border: 1px solid;
-      border-radius: 14px;
-      padding: 12px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      cursor: pointer;
-      transition: all 0.18s ease;
-      text-align: left;
-    }
-    .remote-phone-frame.theme-bw .remote-tile {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.14);
-      color: #ffffff;
-    }
-    .remote-phone-frame.theme-bw .remote-tile:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.32);
-      box-shadow: 0 0 16px rgba(255, 255, 255, 0.18);
-      transform: translateY(-1px);
-    }
-    .remote-phone-frame.theme-wb .remote-tile {
-      background: rgba(9, 9, 11, 0.03);
-      border-color: rgba(9, 9, 11, 0.14);
-      color: #09090b;
-    }
-    .remote-phone-frame.theme-wb .remote-tile:hover {
-      background: rgba(9, 9, 11, 0.08);
-      border-color: rgba(9, 9, 11, 0.3);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-      transform: translateY(-1px);
-    }
-    .remote-tile-title {
-      font-size: 0.78rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-    .remote-tile-sub {
-      font-size: 0.66rem;
-      opacity: 0.68;
-      font-family: monospace;
-    }
-
-    /* Inline AIDO-Blick Vision-Notiz */
-    .remote-blick-box {
-      border: 1px solid;
-      border-radius: 14px;
-      padding: 12px 14px;
-      font-size: 0.76rem;
-      line-height: 1.45;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      transition: all 0.25s ease;
-      position: relative;
-    }
-    .remote-phone-frame.theme-bw .remote-blick-box {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.2);
-      color: #f8fafc;
-      box-shadow: 0 0 18px rgba(255, 255, 255, 0.06);
-    }
-    .remote-phone-frame.theme-wb .remote-blick-box {
-      background: rgba(9, 9, 11, 0.04);
-      border-color: rgba(9, 9, 11, 0.2);
-      color: #09090b;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-    }
-    .remote-blick-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-family: monospace;
-      font-size: 0.68rem;
-      opacity: 0.75;
-      border-bottom: 1px dashed;
-      padding-bottom: 4px;
-    }
-    .remote-phone-frame.theme-bw .remote-blick-meta { border-color: rgba(255, 255, 255, 0.15); }
-    .remote-phone-frame.theme-wb .remote-blick-meta { border-color: rgba(9, 9, 11, 0.15); }
-
-    /* 4: Chat Dock, Reply Chips & Whisper CUDA Voice */
-    .remote-chat-dock {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .remote-chips-row {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      padding-bottom: 2px;
-    }
-    .remote-reply-chip {
-      padding: 5px 10px;
-      border-radius: 999px;
-      font-size: 0.72rem;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-      border: 1px solid;
-      transition: all 0.15s ease;
-    }
-    .remote-phone-frame.theme-bw .remote-reply-chip {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.18);
-      color: #ffffff;
-    }
-    .remote-phone-frame.theme-bw .remote-reply-chip:hover {
-      background: rgba(255, 255, 255, 0.16);
-      border-color: rgba(255, 255, 255, 0.35);
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
-    }
-    .remote-phone-frame.theme-wb .remote-reply-chip {
-      background: rgba(9, 9, 11, 0.05);
-      border-color: rgba(9, 9, 11, 0.18);
-      color: #09090b;
-    }
-    .remote-phone-frame.theme-wb .remote-reply-chip:hover {
-      background: rgba(9, 9, 11, 0.12);
-      border-color: rgba(9, 9, 11, 0.35);
-    }
-    .remote-chat-input-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .remote-chat-input {
-      flex: 1;
-      padding: 9px 12px;
-      border-radius: 12px;
-      font-size: 0.8rem;
-      border: 1px solid;
       outline: none;
-      transition: all 0.2s ease;
     }
-    .remote-phone-frame.theme-bw .remote-chat-input {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.18);
-      color: #ffffff;
+
+    .search-input:focus {
+      border-color: var(--fg);
     }
-    .remote-phone-frame.theme-bw .remote-chat-input:focus {
-      border-color: rgba(255, 255, 255, 0.5);
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.15);
-    }
-    .remote-phone-frame.theme-wb .remote-chat-input {
-      background: rgba(9, 9, 11, 0.05);
-      border-color: rgba(9, 9, 11, 0.18);
-      color: #09090b;
-    }
-    .remote-phone-frame.theme-wb .remote-chat-input:focus {
-      border-color: rgba(9, 9, 11, 0.5);
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    }
-    .remote-voice-btn {
-      padding: 9px 13px;
-      border-radius: 12px;
-      font-size: 0.78rem;
+
+    .subsection-label {
+      font-size: 0.76rem;
       font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      border: 1px solid;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-    }
-    .remote-phone-frame.theme-bw .remote-voice-btn {
-      background: #ffffff;
-      color: #050507;
-      border-color: #ffffff;
-      box-shadow: 0 0 18px rgba(255, 255, 255, 0.35);
-    }
-    .remote-phone-frame.theme-bw .remote-voice-btn:hover {
-      box-shadow: 0 0 26px rgba(255, 255, 255, 0.6);
-      transform: scale(1.03);
-    }
-    .remote-phone-frame.theme-wb .remote-voice-btn {
-      background: #09090b;
-      color: #fafafa;
-      border-color: #09090b;
-      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
-    }
-    .remote-phone-frame.theme-wb .remote-voice-btn:hover {
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.38);
-      transform: scale(1.03);
-    }
-    .remote-feed-bubble {
-      font-size: 0.75rem;
-      line-height: 1.4;
-      padding: 8px 12px;
-      border-radius: 10px;
-      border: 1px solid;
-      margin-top: 2px;
-    }
-    .remote-phone-frame.theme-bw .remote-feed-bubble {
-      background: rgba(255, 255, 255, 0.05);
-      border-color: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.9);
-    }
-    .remote-phone-frame.theme-wb .remote-feed-bubble {
-      background: rgba(9, 9, 11, 0.04);
-      border-color: rgba(9, 9, 11, 0.12);
-      color: rgba(9, 9, 11, 0.9);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--fg-muted);
+      margin-top: 4px;
     }
 
     /* =========================================================================
-       Phase 12: REA Reverse Engineering Studio
+       5. STAGE 3: #view-phone (2-COLUMN PHONE CONTROL)
        ========================================================================= */
-    .rea-studio-box {
-      background: rgba(15, 18, 25, 0.94);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px;
+    .phone-grid {
+      display: grid;
+      grid-template-columns: 380px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1120px;
+      width: 100%;
+      align-items: start;
+    }
+
+    .phone-preview-card {
+      background-color: var(--bg-elevated);
+      border: 1.5px solid var(--fg);
+      border-radius: 28px;
+      padding: 18px;
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
-    .rea-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 9px;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-    }
-    .rea-badge.kind-gui {
-      background: rgba(56, 189, 248, 0.14);
-      color: #38bdf8;
-      border-color: rgba(56, 189, 248, 0.35);
-    }
-    .rea-badge.kind-cli {
-      background: rgba(16, 185, 129, 0.14);
-      color: #34d399;
-      border-color: rgba(16, 185, 129, 0.35);
-    }
-    .rea-badge.kind-electron {
-      background: rgba(168, 85, 247, 0.14);
-      color: #c084fc;
-      border-color: rgba(168, 85, 247, 0.35);
-    }
-    .rea-badge.risk-low {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border-color: rgba(16, 185, 129, 0.35);
-    }
-    .rea-badge.risk-medium {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fbbf24;
-      border-color: rgba(245, 158, 11, 0.35);
-    }
-    .rea-badge.risk-high {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border-color: rgba(239, 68, 68, 0.35);
-    }
-    .rea-dll-chip {
-      display: inline-block;
-      padding: 3px 8px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
-      font-size: 0.72rem;
-      font-family: monospace;
-      color: #e2e8f0;
-      white-space: nowrap;
-    }
-    .rea-cap-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.8rem;
-      text-align: left;
-    }
-    .rea-cap-table th {
-      background: rgba(255, 255, 255, 0.06);
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--border);
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .rea-cap-table td {
-      padding: 8px 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      color: var(--text);
-      vertical-align: middle;
-    }
-    .rea-cap-table tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
 
-    /* =========================================================================
-       Phase 13: AIDO Phone Agent (Android ADB) - Minimalist Monochrome UI
-       Hairline 1px borders, subtle glow, strict B/W / W/B theme support
-       ========================================================================= */
-    .phone-agent-split {
-      display: grid;
-      grid-template-columns: minmax(360px, 1.25fr) minmax(320px, 420px);
-      gap: 20px;
-      margin-top: 14px;
-    }
-    @media (max-width: 980px) {
-      .phone-agent-split {
-        grid-template-columns: 1fr;
-      }
-    }
-    .phone-card {
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 14px;
-      background: rgba(8, 10, 16, 0.96);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      box-shadow: 0 0 25px rgba(255, 255, 255, 0.04);
-    }
-    .phone-card-title {
-      font-size: 0.92rem;
-      font-weight: 700;
-      color: #ffffff;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .phone-device-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 12px;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.04);
-    }
-    .phone-device-badge {
-      font-size: 0.7rem;
-      font-family: monospace;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-weight: 600;
-    }
-    .phone-device-badge.usb {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.35);
-    }
-    .phone-device-badge.wifi {
-      background: rgba(56, 189, 248, 0.15);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-    }
-    .phone-empty-hint {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      line-height: 1.45;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px dashed rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.02);
-    }
-    .phone-pair-form {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.02);
-    }
-    .phone-pair-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .phone-input {
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      padding: 8px 12px;
-      color: #ffffff;
-      font-size: 0.82rem;
-      font-family: monospace;
-      outline: none;
-      transition: all 0.2s ease;
-    }
-    .phone-input:focus {
-      border-color: rgba(255, 255, 255, 0.55);
-      box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
-    }
-    .phone-btn {
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      cursor: pointer;
-      border: 1px solid;
-      transition: all 0.18s ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      white-space: nowrap;
-    }
-    .phone-btn.primary {
-      background: #ffffff;
-      color: #050507;
-      border-color: #ffffff;
-      box-shadow: 0 0 14px rgba(255, 255, 255, 0.28);
-    }
-    .phone-btn.primary:hover {
-      box-shadow: 0 0 22px rgba(255, 255, 255, 0.55);
-      transform: translateY(-1px);
-    }
-    .phone-btn.danger {
-      background: rgba(239, 68, 68, 0.18);
-      border-color: rgba(239, 68, 68, 0.5);
-      color: #fca5a5;
-    }
-    .phone-btn.danger:hover {
-      background: rgba(239, 68, 68, 0.3);
-      box-shadow: 0 0 16px rgba(239, 68, 68, 0.4);
-    }
-    .phone-btn.subtle {
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.18);
-      color: #ffffff;
-    }
-    .phone-btn.subtle:hover {
-      background: rgba(255, 255, 255, 0.14);
-      border-color: rgba(255, 255, 255, 0.35);
-    }
-    .phone-screen-mockup {
-      border-radius: 32px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      position: relative;
-      transition: all 0.25s ease;
-      user-select: none;
-      min-height: 520px;
-    }
-    .phone-screen-mockup.theme-bw {
-      background: #050507;
-      color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      box-shadow: 0 0 35px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.85);
-    }
-    .phone-screen-mockup.theme-wb {
-      background: #fafafa;
-      color: #09090b;
-      border: 1px solid rgba(9, 9, 11, 0.18);
-      box-shadow: 0 0 35px rgba(0, 0, 0, 0.15), 0 18px 40px rgba(0, 0, 0, 0.12);
-    }
     .phone-status-bar {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.7rem;
-      font-family: monospace;
-      padding-bottom: 6px;
-      border-bottom: 1px solid;
-    }
-    .phone-screen-mockup.theme-bw .phone-status-bar {
-      border-color: rgba(255, 255, 255, 0.12);
-      color: rgba(255, 255, 255, 0.75);
-    }
-    .phone-screen-mockup.theme-wb .phone-status-bar {
-      border-color: rgba(9, 9, 11, 0.12);
-      color: rgba(9, 9, 11, 0.75);
-    }
-    .phone-app-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 0;
-    }
-    .phone-app-badge {
-      font-size: 0.68rem;
-      font-family: monospace;
-      padding: 2px 7px;
-      border-radius: 6px;
-      border: 1px solid;
-    }
-    .phone-screen-mockup.theme-bw .phone-app-badge {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.22);
-      color: #ffffff;
-    }
-    .phone-screen-mockup.theme-wb .phone-app-badge {
-      background: rgba(9, 9, 11, 0.08);
-      border-color: rgba(9, 9, 11, 0.22);
-      color: #09090b;
-    }
-    .phone-node-list {
-      display: flex;
       flex-direction: column;
       gap: 6px;
-      max-height: 380px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-    .phone-node-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 10px;
-      border-radius: 8px;
-      border: 1px solid;
-      font-size: 0.76rem;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .phone-screen-mockup.theme-bw .phone-node-item {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.12);
-      color: #ffffff;
-    }
-    .phone-screen-mockup.theme-bw .phone-node-item:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-    .phone-screen-mockup.theme-wb .phone-node-item {
-      background: rgba(9, 9, 11, 0.03);
-      border-color: rgba(9, 9, 11, 0.12);
-      color: #09090b;
-    }
-    .phone-screen-mockup.theme-wb .phone-node-item:hover {
-      background: rgba(9, 9, 11, 0.08);
-      border-color: rgba(9, 9, 11, 0.3);
-    }
-    .phone-node-num {
-      font-family: monospace;
-      font-weight: 700;
-      opacity: 0.65;
-      font-size: 0.72rem;
-    }
-    .phone-chip-group {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .phone-chip {
-      font-size: 0.72rem;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      background: rgba(255, 255, 255, 0.05);
-      color: #f8fafc;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .phone-chip:hover {
-      background: rgba(255, 255, 255, 0.14);
-      border-color: rgba(255, 255, 255, 0.35);
-    }
-    .phone-approval-card {
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      border-radius: 12px;
-      padding: 12px 14px;
-      background: rgba(255, 255, 255, 0.04);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .phone-approval-badge-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .phone-sensitive-badge {
-      font-size: 0.68rem;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 6px;
-      background: rgba(245, 158, 11, 0.16);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.4);
-    }
-    .phone-handoff-card {
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      border-radius: 12px;
-      padding: 14px;
-      background: rgba(239, 68, 68, 0.08);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .phone-keyboard-status {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 12px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 10px;
-      background: rgba(255, 255, 255, 0.03);
-      font-size: 0.78rem;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
     }
 
+    .phone-status-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    #phone-device-name {
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+
+    #phone-connection-badge {
+      padding: 2px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--fg);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    #phone-active-app {
+      font-size: 0.78rem;
+      color: var(--fg-secondary);
+    }
+
+    #phone-screen-surface {
+      min-height: 320px;
+      padding: 14px;
+      border-radius: 18px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #phone-ui-nodes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .phone-node-btn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background-color: var(--bg-elevated);
+      color: var(--fg);
+      font-size: 0.84rem;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .phone-node-btn:hover {
+      border-color: var(--fg);
+      background-color: var(--fg);
+      color: var(--bg);
+    }
+
+    .phone-hardware-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      padding-top: 6px;
+    }
+
+    .phone-controls-column {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .input-action-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+
+    .text-input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background-color: var(--bg);
+      color: var(--fg);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .text-input:focus {
+      border-color: var(--fg);
+    }
+
+    .btn-primary {
+      padding: 10px 18px;
+      border-radius: 12px;
+      border: 1px solid var(--fg);
+      background-color: var(--fg);
+      color: var(--bg);
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.86;
+    }
+
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #phone-action-feedback {
+      padding: 10px 14px;
+      border-radius: 12px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.84rem;
+      color: var(--fg-secondary);
+    }
+
+    #phone-approval-box[hidden] {
+      display: none !important;
+    }
+
+    .qr-pairing-layout {
+      display: grid;
+      grid-template-columns: 148px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+    }
+
+    #phone-qr-box {
+      width: 148px;
+      height: 148px;
+      padding: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background-color: #ffffff;
+      color: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #phone-qr-box svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .pairing-details {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #phone-remote-url {
+      font-size: 0.84rem;
+      font-weight: 600;
+      word-break: break-all;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+    }
+
+    .wlan-pair-row {
+      display: grid;
+      grid-template-columns: 1fr 140px auto;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .overview-grid,
+      .phone-grid {
+        grid-template-columns: 1fr;
+      }
+      .topbar {
+        flex-wrap: wrap;
+        height: auto;
+        padding: 12px 16px;
+      }
+      .topbar-left, .topbar-right {
+        min-width: auto;
+      }
+      .wlan-pair-row {
+        grid-template-columns: 1fr;
+      }
+      .qr-pairing-layout {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
-  <header class="header-bar">
-    <div class="brand">
-      <div class="brand-logo-wrap" title="AIDO — Agentic Intelligent Developing Operator">
-        <img src="/assets/AIDO-Wortmarke.png" alt="AIDO Wortmarke" class="brand-logo-img" />
-      </div>
-      <div class="brand-text-col">
-        <div class="brand-title-wrap">
-          <img src="/assets/AIDO-Ausgeschriebener-Name.png" alt="Agentic Intelligent Developing Operator" class="brand-sublogo-img" />
-        </div>
-        <div class="slogan">„AIDO denkt für dich. Nicht du für AIDO.“ · „Dein PC. Dein AIDO. Deine Daten.“</div>
+  <!-- 1. TOP NAVIGATION BAR -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button id="btn-brand-home" class="brand-home-btn" type="button" title="Zurück zum Agenten">
+        <svg class="brand-mark-svg" viewBox="0 0 100 100" aria-hidden="true">
+          <path d="M 39 0 H 93 L 71 22 H 40 C 30 22 23 30 23 40 V 60 C 23 70 30 77 40 77 H 60 C 70 77 77 70 77 60 V 33 L 100 9 V 61 C 100 83 84 100 61 100 H 39 C 16 100 0 83 0 61 V 39 C 0 16 16 0 39 0 Z" />
+        </svg>
+        <span class="brand-wordmark">AIDO</span>
+      </button>
+      <div class="topbar-state-pill" aria-live="polite">
+        <span id="topbar-state-dot" class="state-dot"></span>
+        <span id="topbar-state-label">Bereit</span>
       </div>
     </div>
-    <div class="badges">
-      <span class="badge brand-pill" id="brand-pill" title="AIDO-MONO 3D glTF 2.0 Character Engine">🧊 AIDO-MONO · 3D Engine</span>
-      <span class="badge offline" id="privacy-badge">🔒 Private Offline (127.0.0.1)</span>
-      <span class="badge access" id="access-badge">🛡️ Standard Access (Freigabe aktiv)</span>
+
+    <nav class="stage-nav" aria-label="Hauptnavigation">
+      <button id="nav-stage-agent" class="stage-tab active" type="button" data-stage="agent">Agent</button>
+      <button id="nav-stage-overview" class="stage-tab" type="button" data-stage="overview">Overview</button>
+      <button id="nav-stage-phone" class="stage-tab" type="button" data-stage="phone">Handy</button>
+    </nav>
+
+    <div class="topbar-right">
+      <button id="btn-emergency-stop" class="btn-pill btn-stop" type="button" title="Aktive Ausführung sofort anhalten">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </svg>
+        <span>Stopp</span>
+      </button>
+      <button id="btn-theme-toggle" class="btn-pill" type="button" title="Farbmodus wechseln (Weiß/Schwarz oder Schwarz/Weiß)">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 3v18a9 9 0 0 0 0-18Z" fill="currentColor" stroke="none" />
+        </svg>
+        <span id="theme-toggle-label">W/S</span>
+      </button>
     </div>
   </header>
 
-  <main class="workspace">
-    <section class="character-stage" id="character-stage">
-      <div class="stage-top-bar">
-        <span class="state-pill" id="char-state">Zustand: Bereit (Lokal)</span>
-        <span class="mono-badge" id="mono-node-badge" title="3 artikulierte Nodes aus AIDO-MONO.glb">🧊 MONO · 3D Articulated</span>
-      </div>
-
-      <div class="character-viewport-container" id="character-viewport-container" title="Linksklick: Dialog | Ziehen: 3D Drehen | Mausrad: Zoom | Doppelklick: Reset | Halten: Spracheingabe | Mittelklick: Screenshot">
-        <!-- Mode 1: 3D WebGL Canvas for AIDO-MONO.glb -->
-        <div class="char-view-mode active" id="mode-3d-view">
-          <canvas id="aido-mono-3d-canvas" class="mono-3d-canvas" width="280" height="280"></canvas>
-          <div class="canvas-3d-hint"><span>🖱️ Ziehen: 360° · Rad: Zoom · DblClick: Reset</span></div>
-        </div>
-
-        <!-- Mode 2: Infinite Brand Morph SVG Animation (from landingpage) -->
-        <div class="char-view-mode" id="mode-svg-view">
-          <div class="svg-morph-wrapper">
+  <main class="app-main">
+    <!-- 2. STAGE 1: #view-agent (PRIMARY DEFAULT VIEW — COMPANION-FIRST) -->
+    <section id="view-agent" class="stage-view">
+      <div class="agent-stage-container">
+        <!-- Hero Character Stage -->
+        <div id="companion-hero-stage">
+          <!-- Layer 1: Exact Landingpage Brand Transformation SVG (AGENTIC INTELLIGENT DEVELOP OPERATOR -> AIDO -> MONO) -->
+          <div id="morph-awakening-layer" aria-label="AIDO Marken-Transformation">
             <svg class="aido-transform" viewBox="0 0 760 340" role="img"
-      aria-label="AGENTIC INTELLIGENT DEVELOP OPERATOR becomes AIDO and then MONO">
-      <g transform="translate(380 170)">
-        <g class="aido-word aido-word-a">
-          <g class="aido-tail-origin">
-            <path class="aido-tail" fill-rule="evenodd" d="
-              M121.3 41L123 41L124.6 29.5L126.2 29.5L127.9 23L131.1 21.3L131.1 18L132.8 18L137.7 11.5L141 11.5L142.6 8.2L145.9 8.2L145.9 6.6L149.2 6.6L149.2 4.9L152.5 4.9L152.5 3.3L165.6 1.6L165.6 0L191.8 0L191.8 1.6L208.2 1.6L208.2 3.3L221.3 4.9L221.3 8.2L219.7 8.2L216.4 18L213.1 19.7L211.5 26.2L203.3 24.6L203.3 23L175.4 21.3L175.4 23L160.7 24.6L159 27.9L155.7 27.9L155.7 29.5L152.5 31.1L152.5 34.4L150.8 34.4L150.8 37.7L149.2 37.7L149.2 44.3L147.5 44.3L147.5 55.7L149.2 55.7L149.2 62.3L150.8 62.3L152.5 68.9L154.1 68.9L157.4 73.8L163.9 75.4L163.9 77L183.6 78.7L198.4 77L198.4 62.3L196.7 62.3L196.7 60.7L177 60.7L177 41L223 41L223 100L160.7 100L160.7 98.4L154.1 98.4L154.1 96.7L150.8 96.7L150.8 95.1L142.6 93.4L139.3 88.5L136.1 88.5L136.1 86.9L131.1 83.6L131.1 80.3L127.9 78.7L127.9 75.4L126.2 75.4L126.2 72.1L124.6 72.1L123 59L121.3 59Z
-              M242.6 1.6L244.3 1.6L244.3 0L319.7 0L319.7 1.6L321.3 1.6L321.3 23L268.9 23L268.9 39.3L314.8 39.3L314.8 60.7L275.4 60.7L268.9 60.7L268.9 77L270.5 77L270.5 78.7L272.1 78.7L272.1 77L319.7 77L319.7 78.7L321.3 78.7L321.3 100L252.5 100L252.5 98.4L249.2 98.4L249.2 96.7L245.9 95.1L245.9 91.8L244.3 91.8L244.3 88.5L242.6 88.5Z
-              M337.7 1.6L339.3 1.6L339.3 0L363.9 0L363.9 1.6L367.2 3.3L367.2 6.6L372.1 9.8L372.1 13.1L375.4 14.8L375.4 18L380.3 21.3L380.3 24.6L382 24.6L382 26.2L385.2 27.9L385.2 31.1L391.8 36.1L391.8 39.3L396.7 42.6L396.7 45.9L401.6 49.2L401.6 52.5L403.3 52.5L404.9 55.7L406.6 55.7L406.6 0L431.1 0L431.1 1.6L432.8 1.6L432.8 98.4L432.8 100L406.6 100L406.6 96.7L400 91.8L400 88.5L395.1 85.2L395.1 82L390.2 78.7L390.2 75.4L385.2 72.1L385.2 68.9L380.3 65.6L380.3 62.3L375.4 59L375.4 55.7L370.5 52.5L370.5 49.2L363.9 44.3L363.9 100L337.7 100Z
-              M444.3 1.6L445.9 1.6L445.9 0L526.2 0L526.2 1.6L529.5 0L529.5 1.6L531.1 1.6L531.1 23L500 23L500 67.2L500 100L473.8 100L473.8 24.6L475.4 24.6L475.4 23L444.3 23Z
-              M542.6 0L567.2 0L567.2 1.6L568.9 1.6L568.9 100L542.6 100Z
-              M582 47.5L583.6 47.5L585.2 31.1L586.9 31.1L590.2 21.3L591.8 21.3L593.4 16.4L595.1 16.4L598.4 11.5L601.6 11.5L603.3 8.2L606.6 8.2L606.6 6.6L609.8 6.6L609.8 4.9L613.1 4.9L613.1 3.3L618 3.3L618 1.6L626.2 1.6L626.2 0L649.2 0L649.2 1.6L668.9 3.3L668.9 4.9L672.1 4.9L672.1 19.7L670.5 19.7L667.2 24.6L663.9 24.6L663.9 26.2L659 26.2L659 24.6L654.1 24.6L654.1 23L626.2 23L626.2 24.6L619.7 26.2L619.7 27.9L613.1 32.8L613.1 36.1L611.5 36.1L609.8 47.5L608.2 47.5L609.8 55.7L609.8 60.7L611.5 60.7L611.5 65.6L614.8 67.2L614.8 70.5L619.7 72.1L619.7 73.8L624.6 75.4L624.6 77L644.3 78.7L644.3 77L657.4 75.4L657.4 73.8L660.7 73.8L660.7 72.1L663.9 72.1L663.9 70.5L672.1 72.1L672.1 93.4L670.5 93.4L670.5 95.1L662.3 96.7L662.3 98.4L654.1 98.4L654.1 100L619.7 100L619.7 98.4L614.8 98.4L614.8 96.7L606.6 95.1L604.9 91.8L601.6 91.8L601.6 90.2L590.2 80.3L590.2 77L588.5 77L588.5 73.8L586.9 73.8L586.9 70.5L585.2 70.5L585.2 65.6L583.6 65.6Z" />
-          </g>
-          <g class="aido-letter aido-letter-a">
-            <path d="M 0 100 L 45 0 L 68 0 L 41 61 L 70 61 L 63 45 L 74 19 L 109 100 L 85 100 L 76 80 L 34 80 L 25 100 Z"
-              class="aido-outline-morph"
-              style='--aido-outline-start: path("M 0 100 L 45 0 L 68 0 L 41 61 L 70 61 L 63 45 L 74 19 L 109 100 L 85 100 L 76 80 L 34 80 L 25 100 Z"); --aido-outline-mono: path("M 0 100 L 30 22 L 47 22 L 47 22 L 62 22 L 62 22 L 79 22 L 109 100 L 89 100 L 71 22 L 38 22 L 20 100 Z");' />
-          </g>
-        </g>
-        <g class="aido-word aido-word-i">
-          <g class="aido-tail-origin">
-            <path class="aido-tail" fill-rule="evenodd" d="
-              M45.9 0L70.5 0L70.5 1.6L77 6.6L77 9.8L80.3 11.5L80.3 14.8L85.2 18L85.2 21.3L90.2 24.6L90.2 27.9L95.1 31.1L95.1 34.4L100 37.7L100 41L104.9 44.3L104.9 47.5L109.8 50.8L109.8 54.1L113.1 54.1L113.1 1.6L114.8 1.6L114.8 0L116.4 0L116.4 1.6L126.2 1.6L126.2 0L137.7 0L137.7 1.6L139.3 1.6L139.3 96.7L137.7 96.7L137.7 98.4L137.7 100L113.1 100L111.5 95.1L106.6 91.8L106.6 88.5L104.9 88.5L104.9 86.9L101.6 85.2L101.6 82L98.4 80.3L98.4 77L96.7 77L96.7 75.4L93.4 73.8L93.4 70.5L88.5 67.2L88.5 63.9L82 59L82 55.7L77 52.5L77 49.2L70.5 44.3L70.5 100L45.9 100Z
-              M150.8 1.6L152.5 1.6L152.5 0L236.1 0L236.1 1.6L237.7 1.6L237.7 23L208.2 23L208.2 68.9L208.2 98.4L206.6 98.4L206.6 100L182 100L182 23L150.8 23Z
-              M249.2 0L323 0L323 23L273.8 23L273.8 39.3L316.4 39.3L316.4 60.7L277 60.7L273.8 60.7L273.8 77L323 77L323 100L257.4 100L257.4 98.4L250.8 93.4L250.8 90.2L249.2 90.2Z
-              M337.7 0L362.3 0L362.3 1.6L363.9 1.6L363.9 65.6L362.3 65.6L362.3 77L404.9 77L404.9 78.7L406.6 78.7L406.6 98.4L406.6 100L345.9 100L345.9 98.4L339.3 93.4L339.3 90.2L337.7 90.2Z
-              M414.8 1.6L416.4 1.6L416.4 0L439.3 0L439.3 1.6L441 1.6L441 77L482 77L482 78.7L483.6 78.7L483.6 98.4L483.6 100L424.6 100L423 96.7L419.7 96.7L419.7 93.4L416.4 91.8L416.4 86.9L414.8 86.9Z
-              M493.4 0L495.1 0L495.1 1.6L496.7 1.6L496.7 0L518 0L518 1.6L519.7 1.6L519.7 98.4L519.7 100L493.4 100Z
-              M532.8 39.3L534.4 39.3L534.4 32.8L536.1 32.8L536.1 29.5L537.7 29.5L541 19.7L542.6 19.7L550.8 9.8L554.1 9.8L555.7 6.6L559 6.6L559 4.9L562.3 4.9L562.3 3.3L575.4 1.6L575.4 0L603.3 0L603.3 1.6L614.8 1.6L614.8 3.3L627.9 4.9L627.9 9.8L626.2 9.8L626.2 13.1L624.6 13.1L624.6 16.4L621.3 18L621.3 21.3L619.7 21.3L618 26.2L608.2 24.6L608.2 23L575.4 23L575.4 24.6L572.1 24.6L570.5 27.9L567.2 27.9L565.6 32.8L563.9 32.8L562.3 37.7L560.7 37.7L560.7 44.3L559 44.3L560.7 63.9L562.3 63.9L562.3 67.2L563.9 67.2L570.5 75.4L573.8 75.4L573.8 77L582 77L582 78.7L604.9 77L604.9 60.7L583.6 60.7L583.6 45.9L585.2 45.9L583.6 41L631.1 41L631.1 42.6L629.5 42.6L629.5 44.3L631.1 44.3L631.1 52.5L629.5 52.5L629.5 54.1L631.1 54.1L631.1 63.9L629.5 63.9L629.5 73.8L631.1 73.8L629.5 100L568.9 100L568.9 98.4L559 96.7L559 95.1L555.7 95.1L554.1 91.8L550.8 91.8L550.8 90.2L542.6 83.6L542.6 80.3L539.3 78.7L539.3 75.4L537.7 75.4L537.7 72.1L536.1 72.1L536.1 67.2L534.4 67.2L534.4 60.7L532.8 60.7Z
-              M645.9 1.6L647.5 1.6L647.5 0L719.7 0L719.7 23L670.5 23L670.5 37.7L672.1 37.7L672.1 39.3L714.8 39.3L714.8 60.7L675.4 60.7L670.5 60.7L670.5 77L678.7 77L678.7 78.7L680.3 78.7L680.3 77L719.7 77L719.7 100L655.7 100L655.7 98.4L652.5 98.4L652.5 96.7L649.2 95.1L649.2 91.8L647.5 91.8L647.5 88.5L645.9 88.5Z
-              M736.1 0L759 0L759 1.6L762.3 1.6L762.3 4.9L763.9 4.9L763.9 6.6L767.2 8.2L767.2 11.5L772.1 14.8L772.1 18L775.4 19.7L775.4 23L780.3 26.2L780.3 29.5L785.2 32.8L785.2 36.1L790.2 39.3L790.2 42.6L791.8 42.6L793.4 47.5L800 52.5L800 55.7L803.3 55.7L803.3 0L826.2 0L826.2 1.6L827.9 1.6L827.9 100L801.6 100L800 95.1L796.7 93.4L796.7 90.2L791.8 86.9L791.8 83.6L786.9 80.3L786.9 77L783.6 75.4L783.6 72.1L778.7 68.9L778.7 65.6L773.8 62.3L773.8 59L768.9 55.7L768.9 52.5L763.9 49.2L762.3 44.3L760.7 44.3L760.7 100L736.1 100Z
-              M839.3 1.6L844.3 1.6L844.3 0L924.6 0L924.6 23L895.1 23L895.1 68.9L895.1 98.4L893.4 98.4L893.4 100L868.9 100L868.9 23L839.3 23Z" />
-          </g>
-          <g class="aido-letter aido-letter-i">
-            <path d="M 0 0 H 24 V 100 H 0 Z" />
-          </g>
-        </g>
-        <g class="aido-word aido-word-d">
-          <g class="aido-tail-origin">
-            <path class="aido-tail" fill-rule="evenodd" d="
-              M104.9 0L177 0L177 1.6L178.7 1.6L178.7 23L131.1 23L131.1 36.1L129.5 36.1L131.1 39.3L173.8 39.3L173.8 60.7L134.4 60.7L131.1 60.7L131.1 65.6L129.5 65.6L129.5 77L178.7 77L178.7 100L113.1 100L113.1 98.4L106.6 93.4L106.6 90.2L104.9 90.2Z
-              M185.2 0L213.1 0L213.1 1.6L214.8 1.6L214.8 6.6L216.4 6.6L219.7 21.3L221.3 21.3L221.3 24.6L223 24.6L223 29.5L224.6 29.5L224.6 34.4L226.2 34.4L227.9 44.3L229.5 44.3L229.5 47.5L231.1 47.5L231.1 52.5L232.8 52.5L232.8 57.4L234.4 57.4L236.1 65.6L239.3 63.9L239.3 59L241 59L241 55.7L242.6 55.7L244.3 45.9L245.9 45.9L245.9 42.6L247.5 42.6L247.5 37.7L249.2 37.7L249.2 34.4L250.8 34.4L252.5 24.6L254.1 24.6L254.1 21.3L255.7 21.3L257.4 11.5L259 11.5L260.7 3.3L262.3 3.3L263.9 0L290.2 0L288.5 9.8L286.9 9.8L285.2 18L283.6 18L283.6 21.3L282 21.3L282 24.6L280.3 24.6L280.3 29.5L278.7 29.5L278.7 32.8L277 32.8L277 37.7L275.4 37.7L275.4 41L273.8 41L273.8 44.3L272.1 44.3L272.1 49.2L270.5 49.2L270.5 52.5L268.9 52.5L268.9 57.4L267.2 57.4L267.2 60.7L265.6 60.7L265.6 63.9L263.9 63.9L263.9 68.9L262.3 68.9L262.3 72.1L260.7 72.1L260.7 77L259 77L259 80.3L257.4 80.3L257.4 83.6L255.7 83.6L255.7 88.5L254.1 88.5L250.8 98.4L249.2 98.4L249.2 100L223 100L223 98.4L221.3 98.4L221.3 93.4L219.7 93.4L219.7 90.2L218 90.2L216.4 80.3L214.8 80.3L214.8 77L213.1 77L211.5 67.2L209.8 67.2L209.8 63.9L208.2 63.9L208.2 59L206.6 59L206.6 55.7L204.9 55.7L203.3 45.9L201.6 45.9L201.6 42.6L200 42.6L200 37.7L198.4 37.7L198.4 34.4L196.7 34.4L196.7 29.5L195.1 29.5L193.4 21.3L191.8 21.3L191.8 18L190.2 18L190.2 13.1L188.5 13.1L188.5 9.8L186.9 9.8Z
-              M298.4 1.6L300 1.6L300 0L372.1 0L372.1 1.6L373.8 1.6L373.8 23L324.6 23L324.6 39.3L368.9 39.3L368.9 60.7L327.9 60.7L324.6 60.7L324.6 77L326.2 77L326.2 78.7L327.9 78.7L327.9 77L373.8 77L373.8 78.7L375.4 78.7L375.4 100L306.6 100L306.6 98.4L301.6 95.1L301.6 91.8L300 91.8L300 88.5L298.4 88.5Z
-              M390.2 0L414.8 0L414.8 1.6L416.4 1.6L416.4 77L459 77L459 100L400 100L400 98.4L396.7 98.4L396.7 96.7L391.8 93.4L391.8 90.2L390.2 90.2Z
-              M463.9 39.3L465.6 39.3L465.6 32.8L467.2 32.8L467.2 29.5L468.9 29.5L468.9 24.6L472.1 23L472.1 19.7L473.8 19.7L483.6 8.2L486.9 8.2L486.9 6.6L490.2 6.6L490.2 4.9L493.4 4.9L493.4 3.3L498.4 3.3L498.4 1.6L504.9 1.6L504.9 0L531.1 0L531.1 1.6L537.7 1.6L537.7 3.3L542.6 3.3L542.6 4.9L552.5 8.2L552.5 9.8L565.6 21.3L567.2 29.5L568.9 29.5L568.9 32.8L570.5 32.8L570.5 41L572.1 41L572.1 60.7L570.5 60.7L570.5 67.2L568.9 67.2L568.9 70.5L567.2 70.5L563.9 80.3L562.3 80.3L550.8 93.4L547.5 93.4L547.5 95.1L544.3 95.1L544.3 96.7L539.3 96.7L539.3 98.4L534.4 98.4L534.4 100L501.6 100L501.6 98.4L495.1 98.4L495.1 96.7L485.2 93.4L483.6 90.2L480.3 90.2L480.3 88.5L473.8 83.6L473.8 80.3L470.5 78.7L470.5 75.4L468.9 75.4L468.9 72.1L467.2 72.1L467.2 67.2L465.6 67.2L465.6 62.3L463.9 62.3Z
-              M490.2 41L490.2 59L491.8 59L491.8 63.9L493.4 63.9L493.4 67.2L495.1 67.2L500 73.8L503.3 73.8L503.3 75.4L506.6 75.4L506.6 77L521.3 78.7L521.3 77L527.9 77L527.9 75.4L534.4 73.8L534.4 72.1L542.6 65.6L544.3 57.4L545.9 57.4L545.9 42.6L544.3 42.6L544.3 37.7L542.6 37.7L542.6 34.4L541 34.4L534.4 26.2L531.1 26.2L531.1 24.6L527.9 24.6L527.9 23L521.3 23L521.3 21.3L506.6 23L506.6 24.6L500 26.2L500 27.9L495.1 31.1L495.1 34.4L493.4 34.4L493.4 37.7L491.8 37.7L491.8 41Z
-              M585.2 1.6L586.9 1.6L586.9 0L588.5 0L588.5 1.6L590.2 1.6L590.2 0L634.4 0L634.4 1.6L644.3 1.6L644.3 3.3L654.1 6.6L654.1 8.2L662.3 14.8L662.3 18L663.9 18L663.9 21.3L665.6 21.3L665.6 26.2L667.2 26.2L667.2 41L665.6 41L663.9 50.8L662.3 50.8L662.3 54.1L660.7 54.1L655.7 60.7L652.5 60.7L650.8 63.9L642.6 65.6L642.6 67.2L637.7 67.2L634.4 67.2L634.4 68.9L609.8 68.9L609.8 100L585.2 100Z
-              M609.8 23L609.8 45.9L611.5 45.9L611.5 47.5L631.1 47.5L631.1 45.9L637.7 44.3L639.3 39.3L641 39.3L641 29.5L639.3 29.5L637.7 24.6L634.4 24.6L634.4 23Z" />
-          </g>
-          <g class="aido-letter aido-letter-d">
-            <path d="M 0 0 L 52 0 C 73 0 88 14 88 36 L 88 64 C 88 86 73 100 52 100 L 0 100 L 0 34 L 23 34 L 23 77 L 48 77 C 59 77 65 71 65 61 L 65 39 C 65 29 59 22 48 22 L 23 22 L 0 22 Z"
-              class="aido-outline-morph"
-              style='--aido-outline-start: path("M 0 0 L 52 0 C 73 0 88 14 88 36 L 88 64 C 88 86 73 100 52 100 L 0 100 L 0 34 L 23 34 L 23 77 L 48 77 C 59 77 65 71 65 61 L 65 39 C 65 29 59 22 48 22 L 23 22 L 0 22 Z"); --aido-outline-mono: path("M 0 0 L 52 0 C 73 0 88 14 88 36 L 88 64 C 88 86 73 100 52 100 L 0 100 L 0 22 L 23 22 L 23 77 L 48 77 C 59 77 65 71 65 61 L 65 39 C 65 29 59 22 48 22 L 23 22 L 0 22 Z");' />
-          </g>
-        </g>
-        <g class="aido-word aido-word-o">
-          <g class="aido-tail-origin">
-            <path class="aido-tail" fill-rule="evenodd" d="
-              M124.6 1.6L126.2 1.6L126.2 0L172.1 0L172.1 1.6L188.5 3.3L188.5 4.9L191.8 4.9L193.4 8.2L196.7 8.2L196.7 9.8L201.6 13.1L201.6 16.4L203.3 16.4L203.3 19.7L204.9 19.7L204.9 23L206.6 23L206.6 32.8L208.2 32.8L206.6 45.9L204.9 45.9L203.3 52.5L201.6 52.5L193.4 62.3L190.2 62.3L190.2 63.9L186.9 63.9L186.9 65.6L182 65.6L182 67.2L177 67.2L173.8 67.2L173.8 68.9L149.2 68.9L149.2 100L124.6 100Z
-              M149.2 23L149.2 45.9L150.8 45.9L150.8 47.5L168.9 47.5L168.9 45.9L177 44.3L178.7 39.3L180.3 39.3L180.3 29.5L178.7 29.5L177 24.6L173.8 24.6L173.8 23Z
-              M218 0L291.8 0L291.8 1.6L293.4 1.6L293.4 3.3L291.8 3.3L291.8 23L242.6 23L242.6 37.7L244.3 37.7L244.3 39.3L286.9 39.3L286.9 60.7L247.5 60.7L242.6 60.7L242.6 77L291.8 77L291.8 78.7L293.4 78.7L293.4 100L226.2 100L226.2 98.4L223 98.4L223 96.7L219.7 95.1L219.7 91.8L218 91.8Z
-              M308.2 0L360.7 0L360.7 1.6L370.5 1.6L370.5 3.3L378.7 4.9L380.3 8.2L383.6 8.2L383.6 9.8L390.2 14.8L390.2 18L391.8 18L391.8 21.3L393.4 21.3L393.4 29.5L395.1 29.5L393.4 45.9L391.8 45.9L390.2 52.5L388.5 52.5L380.3 62.3L375.4 63.9L375.4 67.2L378.7 68.9L378.7 72.1L380.3 72.1L380.3 75.4L383.6 77L385.2 83.6L386.9 83.6L388.5 88.5L391.8 90.2L395.1 100L382 100L365.6 100L365.6 96.7L362.3 95.1L360.7 88.5L357.4 86.9L355.7 80.3L352.5 78.7L350.8 72.1L349.2 72.1L345.9 67.2L334.4 67.2L334.4 98.4L332.8 98.4L332.8 100L308.2 100Z
-              M334.4 23L334.4 47.5L355.7 47.5L355.7 45.9L363.9 44.3L365.6 39.3L367.2 39.3L367.2 29.5L365.6 29.5L363.9 24.6L360.7 24.6L360.7 23Z
-              M401.6 96.7L403.3 96.7L403.3 93.4L404.9 93.4L404.9 90.2L406.6 90.2L406.6 85.2L408.2 85.2L408.2 82L409.8 82L409.8 78.7L411.5 78.7L411.5 75.4L413.1 75.4L413.1 72.1L414.8 72.1L414.8 68.9L416.4 68.9L416.4 65.6L418 65.6L418 60.7L419.7 60.7L419.7 57.4L421.3 57.4L421.3 54.1L423 54.1L423 50.8L424.6 50.8L424.6 47.5L426.2 47.5L426.2 44.3L427.9 44.3L427.9 39.3L429.5 39.3L429.5 36.1L431.1 36.1L431.1 32.8L432.8 32.8L432.8 29.5L434.4 29.5L434.4 26.2L436.1 26.2L436.1 23L437.7 23L437.7 19.7L439.3 19.7L439.3 16.4L441 16.4L441 13.1L442.6 13.1L442.6 8.2L444.3 8.2L444.3 4.9L445.9 4.9L447.5 0L470.5 0L470.5 1.6L472.1 1.6L472.1 4.9L473.8 4.9L473.8 8.2L475.4 8.2L475.4 13.1L477 13.1L477 16.4L478.7 16.4L478.7 19.7L480.3 19.7L480.3 24.6L482 24.6L482 27.9L483.6 27.9L483.6 31.1L485.2 31.1L485.2 36.1L486.9 36.1L490.2 45.9L491.8 50.8L493.4 50.8L493.4 54.1L495.1 54.1L495.1 57.4L496.7 57.4L496.7 62.3L498.4 62.3L498.4 65.6L500 65.6L500 68.9L501.6 68.9L501.6 73.8L503.3 73.8L503.3 77L504.9 77L504.9 80.3L506.6 80.3L506.6 83.6L508.2 83.6L508.2 88.5L509.8 88.5L509.8 91.8L511.5 91.8L513.1 100L486.9 100L485.2 95.1L483.6 95.1L483.6 91.8L482 91.8L482 86.9L480.3 86.9L478.7 80.3L437.7 80.3L429.5 100L401.6 100Z
-              M445.9 59L445.9 60.7L470.5 60.7L470.5 55.7L468.9 55.7L468.9 52.5L467.2 52.5L467.2 47.5L465.6 47.5L463.9 41L462.3 41L460.7 32.8L457.4 32.8L457.4 36.1L455.7 36.1L455.7 39.3L454.1 39.3L454.1 44.3L452.5 44.3L452.5 47.5L450.8 47.5L450.8 50.8L449.2 50.8L449.2 55.7L447.5 55.7L447.5 59Z
-              M503.3 1.6L504.9 1.6L504.9 0L590.2 0L590.2 23L559 23L559 67.2L559 100L534.4 100L534.4 23L503.3 23Z
-              M593.4 42.6L595.1 42.6L595.1 34.4L596.7 34.4L598.4 26.2L601.6 24.6L601.6 21.3L604.9 19.7L604.9 16.4L606.6 16.4L611.5 9.8L614.8 9.8L616.4 6.6L619.7 6.6L619.7 4.9L623 4.9L623 3.3L627.9 3.3L627.9 1.6L634.4 1.6L634.4 0L663.9 0L663.9 1.6L670.5 1.6L670.5 3.3L675.4 3.3L675.4 4.9L682 6.6L682 8.2L683.6 8.2L685.2 11.5L688.5 11.5L688.5 13.1L691.8 14.8L691.8 18L696.7 21.3L696.7 24.6L698.4 24.6L698.4 27.9L700 27.9L700 31.1L701.6 31.1L701.6 37.7L703.3 37.7L703.3 57.4L701.6 68.9L700 68.9L696.7 78.7L695.1 78.7L693.4 83.6L691.8 83.6L686.9 90.2L683.6 90.2L682 93.4L678.7 93.4L678.7 95.1L675.4 95.1L675.4 96.7L672.1 96.7L672.1 98.4L665.6 98.4L665.6 100L631.1 100L631.1 98.4L624.6 98.4L624.6 96.7L614.8 93.4L611.5 88.5L606.6 86.9L606.6 83.6L604.9 83.6L604.9 82L601.6 80.3L601.6 77L598.4 75.4L598.4 70.5L596.7 70.5L596.7 65.6L595.1 65.6L595.1 57.4L593.4 57.4Z
-              M621.3 39.3L621.3 60.7L623 60.7L623 65.6L626.2 67.2L626.2 70.5L627.9 70.5L629.5 73.8L632.8 73.8L632.8 75.4L636.1 75.4L636.1 77L647.5 77L647.5 78.7L649.2 78.7L649.2 77L663.9 75.4L665.6 72.1L668.9 72.1L668.9 70.5L672.1 68.9L672.1 65.6L675.4 63.9L675.4 59L677 59L677 41L675.4 41L673.8 34.4L670.5 32.8L670.5 29.5L665.6 27.9L665.6 26.2L660.7 24.6L660.7 23L650.8 23L650.8 21.3L647.5 21.3L647.5 23L637.7 23L637.7 24.6L631.1 26.2L631.1 27.9L624.6 32.8L624.6 36.1L623 36.1L623 39.3Z
-              M716.4 1.6L718 1.6L718 0L770.5 0L770.5 1.6L785.2 3.3L785.2 4.9L788.5 4.9L791.8 9.8L796.7 11.5L796.7 14.8L800 16.4L800 19.7L801.6 19.7L801.6 23L803.3 23L803.3 31.1L804.9 31.1L803.3 45.9L801.6 45.9L800 52.5L798.4 52.5L791.8 60.7L788.5 60.7L788.5 62.3L783.6 63.9L785.2 68.9L788.5 70.5L788.5 73.8L791.8 75.4L793.4 82L796.7 83.6L796.7 86.9L800 88.5L800 91.8L801.6 91.8L803.3 96.7L804.9 96.7L804.9 100L795.1 100L775.4 100L775.4 96.7L772.1 95.1L772.1 91.8L768.9 90.2L768.9 86.9L765.6 85.2L763.9 78.7L760.7 77L760.7 73.8L759 73.8L759 70.5L757.4 70.5L755.7 67.2L744.3 67.2L744.3 68.9L742.6 68.9L742.6 100L716.4 100Z
-              M742.6 23L742.6 45.9L759 47.5L759 45.9L770.5 45.9L772.1 42.6L777 39.3L777 29.5L775.4 29.5L773.8 24.6L770.5 24.6L770.5 23Z" />
-          </g>
-          <g class="aido-letter aido-letter-o">
-            <path d="M 39 0 H 93 L 71 22 H 40 C 30 22 23 30 23 40 V 60 C 23 70 30 77 40 77 H 60 C 70 77 77 70 77 60 V 33 L 100 9 V 61 C 100 83 84 100 61 100 H 39 C 16 100 0 83 0 61 V 39 C 0 16 16 0 39 0 Z" />
-          </g>
-        </g>
-      </g>
-    </svg>
+              aria-label="AGENTIC INTELLIGENT DEVELOP OPERATOR wird zu AIDO und dann zu MONO">
+              <g transform="translate(380 170)">
+                <g class="aido-word aido-word-a">
+                  <g class="aido-tail-origin">
+                    <path class="aido-tail" fill-rule="evenodd" d="
+                      M121.3 41L123 41L124.6 29.5L126.2 29.5L127.9 23L131.1 21.3L131.1 18L132.8 18L137.7 11.5L141 11.5L142.6 8.2L145.9 8.2L145.9 6.6L149.2 6.6L149.2 4.9L152.5 4.9L152.5 3.3L165.6 1.6L165.6 0L191.8 0L191.8 1.6L208.2 1.6L208.2 3.3L221.3 4.9L221.3 8.2L219.7 8.2L216.4 18L213.1 19.7L211.5 26.2L203.3 24.6L203.3 23L175.4 21.3L175.4 23L160.7 24.6L159 27.9L155.7 27.9L155.7 29.5L152.5 31.1L152.5 34.4L150.8 34.4L150.8 37.7L149.2 37.7L149.2 44.3L147.5 44.3L147.5 55.7L149.2 55.7L149.2 62.3L150.8 62.3L152.5 68.9L154.1 68.9L157.4 73.8L163.9 75.4L163.9 77L183.6 78.7L198.4 77L198.4 62.3L196.7 62.3L196.7 60.7L177 60.7L177 41L223 41L223 100L160.7 100L160.7 98.4L154.1 98.4L154.1 96.7L150.8 96.7L150.8 95.1L142.6 93.4L139.3 88.5L136.1 88.5L136.1 86.9L131.1 83.6L131.1 80.3L127.9 78.7L127.9 75.4L126.2 75.4L126.2 72.1L124.6 72.1L123 59L121.3 59Z
+                      M242.6 1.6L244.3 1.6L244.3 0L319.7 0L319.7 1.6L321.3 1.6L321.3 23L268.9 23L268.9 39.3L314.8 39.3L314.8 60.7L275.4 60.7L268.9 60.7L268.9 77L270.5 77L270.5 78.7L272.1 78.7L272.1 77L319.7 77L319.7 78.7L321.3 78.7L321.3 100L252.5 100L252.5 98.4L249.2 98.4L249.2 96.7L245.9 95.1L245.9 91.8L244.3 91.8L244.3 88.5L242.6 88.5Z
+                      M337.7 1.6L339.3 1.6L339.3 0L363.9 0L363.9 1.6L367.2 3.3L367.2 6.6L372.1 9.8L372.1 13.1L375.4 14.8L375.4 18L380.3 21.3L380.3 24.6L382 24.6L382 26.2L385.2 27.9L385.2 31.1L391.8 36.1L391.8 39.3L396.7 42.6L396.7 45.9L401.6 49.2L401.6 52.5L403.3 52.5L404.9 55.7L406.6 55.7L406.6 0L431.1 0L431.1 1.6L432.8 1.6L432.8 98.4L432.8 100L406.6 100L406.6 96.7L400 91.8L400 88.5L395.1 85.2L395.1 82L390.2 78.7L390.2 75.4L385.2 72.1L385.2 68.9L380.3 65.6L380.3 62.3L375.4 59L375.4 55.7L370.5 52.5L370.5 49.2L363.9 44.3L363.9 100L337.7 100Z
+                      M444.3 1.6L445.9 1.6L445.9 0L526.2 0L526.2 1.6L529.5 0L529.5 1.6L531.1 1.6L531.1 23L500 23L500 67.2L500 100L473.8 100L473.8 24.6L475.4 24.6L475.4 23L444.3 23Z
+                      M542.6 0L567.2 0L567.2 1.6L568.9 1.6L568.9 100L542.6 100Z
+                      M582 47.5L583.6 47.5L585.2 31.1L586.9 31.1L590.2 21.3L591.8 21.3L593.4 16.4L595.1 16.4L598.4 11.5L601.6 11.5L603.3 8.2L606.6 8.2L606.6 6.6L609.8 6.6L609.8 4.9L613.1 4.9L613.1 3.3L618 3.3L618 1.6L626.2 1.6L626.2 0L649.2 0L649.2 1.6L668.9 3.3L668.9 4.9L672.1 4.9L672.1 19.7L670.5 19.7L667.2 24.6L663.9 24.6L663.9 26.2L659 26.2L659 24.6L654.1 24.6L654.1 23L626.2 23L626.2 24.6L619.7 26.2L619.7 27.9L613.1 32.8L613.1 36.1L611.5 36.1L609.8 47.5L608.2 47.5L609.8 55.7L609.8 60.7L611.5 60.7L611.5 65.6L614.8 67.2L614.8 70.5L619.7 72.1L619.7 73.8L624.6 75.4L624.6 77L644.3 78.7L644.3 77L657.4 75.4L657.4 73.8L660.7 73.8L660.7 72.1L663.9 72.1L663.9 70.5L672.1 72.1L672.1 93.4L670.5 93.4L670.5 95.1L662.3 96.7L662.3 98.4L654.1 98.4L654.1 100L619.7 100L619.7 98.4L614.8 98.4L614.8 96.7L606.6 95.1L604.9 91.8L601.6 91.8L601.6 90.2L590.2 80.3L590.2 77L588.5 77L588.5 73.8L586.9 73.8L586.9 70.5L585.2 70.5L585.2 65.6L583.6 65.6Z" />
+                  </g>
+                  <g class="aido-letter aido-letter-a">
+                    <path d="M 0 100 L 45 0 L 68 0 L 41 61 L 70 61 L 63 45 L 74 19 L 109 100 L 85 100 L 76 80 L 34 80 L 25 100 Z"
+                      class="aido-outline-morph"
+                      style='--aido-outline-start: path("M 0 100 L 45 0 L 68 0 L 41 61 L 70 61 L 63 45 L 74 19 L 109 100 L 85 100 L 76 80 L 34 80 L 25 100 Z"); --aido-outline-mono: path("M 0 100 L 30 22 L 47 22 L 47 22 L 62 22 L 62 22 L 79 22 L 109 100 L 89 100 L 71 22 L 38 22 L 20 100 Z");' />
+                  </g>
+                </g>
+                <g class="aido-word aido-word-i">
+                  <g class="aido-tail-origin">
+                    <path class="aido-tail" fill-rule="evenodd" d="
+                      M45.9 0L70.5 0L70.5 1.6L77 6.6L77 9.8L80.3 11.5L80.3 14.8L85.2 18L85.2 21.3L90.2 24.6L90.2 27.9L95.1 31.1L95.1 34.4L100 37.7L100 41L104.9 44.3L104.9 47.5L109.8 50.8L109.8 54.1L113.1 54.1L113.1 1.6L114.8 1.6L114.8 0L116.4 0L116.4 1.6L126.2 1.6L126.2 0L137.7 0L137.7 1.6L139.3 1.6L139.3 96.7L137.7 96.7L137.7 98.4L137.7 100L113.1 100L111.5 95.1L106.6 91.8L106.6 88.5L104.9 88.5L104.9 86.9L101.6 85.2L101.6 82L98.4 80.3L98.4 77L96.7 77L96.7 75.4L93.4 73.8L93.4 70.5L88.5 67.2L88.5 63.9L82 59L82 55.7L77 52.5L77 49.2L70.5 44.3L70.5 100L45.9 100Z
+                      M150.8 1.6L152.5 1.6L152.5 0L236.1 0L236.1 1.6L237.7 1.6L237.7 23L208.2 23L208.2 68.9L208.2 98.4L206.6 98.4L206.6 100L182 100L182 23L150.8 23Z
+                      M249.2 0L323 0L323 23L273.8 23L273.8 39.3L316.4 39.3L316.4 60.7L277 60.7L273.8 60.7L273.8 77L323 77L323 100L257.4 100L257.4 98.4L250.8 93.4L250.8 90.2L249.2 90.2Z
+                      M337.7 0L362.3 0L362.3 1.6L363.9 1.6L363.9 65.6L362.3 65.6L362.3 77L404.9 77L404.9 78.7L406.6 78.7L406.6 98.4L406.6 100L345.9 100L345.9 98.4L339.3 93.4L339.3 90.2L337.7 90.2Z
+                      M414.8 1.6L416.4 1.6L416.4 0L439.3 0L439.3 1.6L441 1.6L441 77L482 77L482 78.7L483.6 78.7L483.6 98.4L483.6 100L424.6 100L423 96.7L419.7 96.7L419.7 93.4L416.4 91.8L416.4 86.9L414.8 86.9Z
+                      M493.4 0L495.1 0L495.1 1.6L496.7 1.6L496.7 0L518 0L518 1.6L519.7 1.6L519.7 98.4L519.7 100L493.4 100Z
+                      M532.8 39.3L534.4 39.3L534.4 32.8L536.1 32.8L536.1 29.5L537.7 29.5L541 19.7L542.6 19.7L550.8 9.8L554.1 9.8L555.7 6.6L559 6.6L559 4.9L562.3 4.9L562.3 3.3L575.4 1.6L575.4 0L603.3 0L603.3 1.6L614.8 1.6L614.8 3.3L627.9 4.9L627.9 9.8L626.2 9.8L626.2 13.1L624.6 13.1L624.6 16.4L621.3 18L621.3 21.3L619.7 21.3L618 26.2L608.2 24.6L608.2 23L575.4 23L575.4 24.6L572.1 24.6L570.5 27.9L567.2 27.9L565.6 32.8L563.9 32.8L562.3 37.7L560.7 37.7L560.7 44.3L559 44.3L560.7 63.9L562.3 63.9L562.3 67.2L563.9 67.2L570.5 75.4L573.8 75.4L573.8 77L582 77L582 78.7L604.9 77L604.9 60.7L583.6 60.7L583.6 45.9L585.2 45.9L583.6 41L631.1 41L631.1 42.6L629.5 42.6L629.5 44.3L631.1 44.3L631.1 52.5L629.5 52.5L629.5 54.1L631.1 54.1L631.1 63.9L629.5 63.9L629.5 73.8L631.1 73.8L629.5 100L568.9 100L568.9 98.4L559 96.7L559 95.1L555.7 95.1L554.1 91.8L550.8 91.8L550.8 90.2L542.6 83.6L542.6 80.3L539.3 78.7L539.3 75.4L537.7 75.4L537.7 72.1L536.1 72.1L536.1 67.2L534.4 67.2L534.4 60.7L532.8 60.7Z
+                      M645.9 1.6L647.5 1.6L647.5 0L719.7 0L719.7 23L670.5 23L670.5 37.7L672.1 37.7L672.1 39.3L714.8 39.3L714.8 60.7L675.4 60.7L670.5 60.7L670.5 77L678.7 77L678.7 78.7L680.3 78.7L680.3 77L719.7 77L719.7 100L655.7 100L655.7 98.4L652.5 98.4L652.5 96.7L649.2 95.1L649.2 91.8L647.5 91.8L647.5 88.5L645.9 88.5Z
+                      M736.1 0L759 0L759 1.6L762.3 1.6L762.3 4.9L763.9 4.9L763.9 6.6L767.2 8.2L767.2 11.5L772.1 14.8L772.1 18L775.4 19.7L775.4 23L780.3 26.2L780.3 29.5L785.2 32.8L785.2 36.1L790.2 39.3L790.2 42.6L791.8 42.6L793.4 47.5L800 52.5L800 55.7L803.3 55.7L803.3 0L826.2 0L826.2 1.6L827.9 1.6L827.9 100L801.6 100L800 95.1L796.7 93.4L796.7 90.2L791.8 86.9L791.8 83.6L786.9 80.3L786.9 77L783.6 75.4L783.6 72.1L778.7 68.9L778.7 65.6L773.8 62.3L773.8 59L768.9 55.7L768.9 52.5L763.9 49.2L762.3 44.3L760.7 44.3L760.7 100L736.1 100Z
+                      M839.3 1.6L844.3 1.6L844.3 0L924.6 0L924.6 23L895.1 23L895.1 68.9L895.1 98.4L893.4 98.4L893.4 100L868.9 100L868.9 23L839.3 23Z" />
+                  </g>
+                  <g class="aido-letter aido-letter-i">
+                    <path d="M 0 0 H 24 V 100 H 0 Z" />
+                  </g>
+                </g>
+                <g class="aido-word aido-word-d">
+                  <g class="aido-tail-origin">
+                    <path class="aido-tail" fill-rule="evenodd" d="
+                      M104.9 0L177 0L177 1.6L178.7 1.6L178.7 23L131.1 23L131.1 36.1L129.5 36.1L131.1 39.3L173.8 39.3L173.8 60.7L134.4 60.7L131.1 60.7L131.1 65.6L129.5 65.6L129.5 77L178.7 77L178.7 100L113.1 100L113.1 98.4L106.6 93.4L106.6 90.2L104.9 90.2Z
+                      M185.2 0L213.1 0L213.1 1.6L214.8 1.6L214.8 6.6L216.4 6.6L219.7 21.3L221.3 21.3L221.3 24.6L223 24.6L223 29.5L224.6 29.5L224.6 34.4L226.2 34.4L227.9 44.3L229.5 44.3L229.5 47.5L231.1 47.5L231.1 52.5L232.8 52.5L232.8 57.4L234.4 57.4L236.1 65.6L239.3 63.9L239.3 59L241 59L241 55.7L242.6 55.7L244.3 45.9L245.9 45.9L245.9 42.6L247.5 42.6L247.5 37.7L249.2 37.7L249.2 34.4L250.8 34.4L252.5 24.6L254.1 24.6L254.1 21.3L255.7 21.3L257.4 11.5L259 11.5L260.7 3.3L262.3 3.3L263.9 0L290.2 0L288.5 9.8L286.9 9.8L285.2 18L283.6 18L283.6 21.3L282 21.3L282 24.6L280.3 24.6L280.3 29.5L278.7 29.5L278.7 32.8L277 32.8L277 37.7L275.4 37.7L275.4 41L273.8 41L273.8 44.3L272.1 44.3L272.1 49.2L270.5 49.2L270.5 52.5L268.9 52.5L268.9 57.4L267.2 57.4L267.2 60.7L265.6 60.7L265.6 63.9L263.9 63.9L263.9 68.9L262.3 68.9L262.3 72.1L260.7 72.1L260.7 77L259 77L259 80.3L257.4 80.3L257.4 83.6L255.7 83.6L255.7 88.5L254.1 88.5L250.8 98.4L249.2 98.4L249.2 100L223 100L223 98.4L221.3 98.4L221.3 93.4L219.7 93.4L219.7 90.2L218 90.2L216.4 80.3L214.8 80.3L214.8 77L213.1 77L211.5 67.2L209.8 67.2L209.8 63.9L208.2 63.9L208.2 59L206.6 59L206.6 55.7L204.9 55.7L203.3 45.9L201.6 45.9L201.6 42.6L200 42.6L200 37.7L198.4 37.7L198.4 34.4L196.7 34.4L196.7 29.5L195.1 29.5L193.4 21.3L191.8 21.3L191.8 18L190.2 18L190.2 13.1L188.5 13.1L188.5 9.8L186.9 9.8Z
+                      M298.4 1.6L300 1.6L300 0L372.1 0L372.1 1.6L373.8 1.6L373.8 23L324.6 23L324.6 39.3L368.9 39.3L368.9 60.7L327.9 60.7L324.6 60.7L324.6 77L326.2 77L326.2 78.7L327.9 78.7L327.9 77L373.8 77L373.8 78.7L375.4 78.7L375.4 100L306.6 100L306.6 98.4L301.6 95.1L301.6 91.8L300 91.8L300 88.5L298.4 88.5Z
+                      M390.2 0L414.8 0L414.8 1.6L416.4 1.6L416.4 77L459 77L459 100L400 100L400 98.4L396.7 98.4L396.7 96.7L391.8 93.4L391.8 90.2L390.2 90.2Z
+                      M463.9 39.3L465.6 39.3L465.6 32.8L467.2 32.8L467.2 29.5L468.9 29.5L468.9 24.6L472.1 23L472.1 19.7L473.8 19.7L483.6 8.2L486.9 8.2L486.9 6.6L490.2 6.6L490.2 4.9L493.4 4.9L493.4 3.3L498.4 3.3L498.4 1.6L504.9 1.6L504.9 0L531.1 0L531.1 1.6L537.7 1.6L537.7 3.3L542.6 3.3L542.6 4.9L552.5 8.2L552.5 9.8L565.6 21.3L567.2 29.5L568.9 29.5L568.9 32.8L570.5 32.8L570.5 41L572.1 41L572.1 60.7L570.5 60.7L570.5 67.2L568.9 67.2L568.9 70.5L567.2 70.5L563.9 80.3L562.3 80.3L550.8 93.4L547.5 93.4L547.5 95.1L544.3 95.1L544.3 96.7L539.3 96.7L539.3 98.4L534.4 98.4L534.4 100L501.6 100L501.6 98.4L495.1 98.4L495.1 96.7L485.2 93.4L483.6 90.2L480.3 90.2L480.3 88.5L473.8 83.6L473.8 80.3L470.5 78.7L470.5 75.4L468.9 75.4L468.9 72.1L467.2 72.1L467.2 67.2L465.6 67.2L465.6 62.3L463.9 62.3Z
+                      M490.2 41L490.2 59L491.8 59L491.8 63.9L493.4 63.9L493.4 67.2L495.1 67.2L500 73.8L503.3 73.8L503.3 75.4L506.6 75.4L506.6 77L521.3 78.7L521.3 77L527.9 77L527.9 75.4L534.4 73.8L534.4 72.1L542.6 65.6L544.3 57.4L545.9 57.4L545.9 42.6L544.3 42.6L544.3 37.7L542.6 37.7L542.6 34.4L541 34.4L534.4 26.2L531.1 26.2L531.1 24.6L527.9 24.6L527.9 23L521.3 23L521.3 21.3L506.6 23L506.6 24.6L500 26.2L500 27.9L495.1 31.1L495.1 34.4L493.4 34.4L493.4 37.7L491.8 37.7L491.8 41Z
+                      M585.2 1.6L586.9 1.6L586.9 0L588.5 0L588.5 1.6L590.2 1.6L590.2 0L634.4 0L634.4 1.6L644.3 1.6L644.3 3.3L654.1 6.6L654.1 8.2L662.3 14.8L662.3 18L663.9 18L663.9 21.3L665.6 21.3L665.6 26.2L667.2 26.2L667.2 41L665.6 41L663.9 50.8L662.3 50.8L662.3 54.1L660.7 54.1L655.7 60.7L652.5 60.7L650.8 63.9L642.6 65.6L642.6 67.2L637.7 67.2L634.4 67.2L634.4 68.9L609.8 68.9L609.8 100L585.2 100Z
+                      M609.8 23L609.8 45.9L611.5 45.9L611.5 47.5L631.1 47.5L631.1 45.9L637.7 44.3L639.3 39.3L641 39.3L641 29.5L639.3 29.5L637.7 24.6L634.4 24.6L634.4 23Z" />
+                  </g>
+                  <g class="aido-letter aido-letter-d">
+                    <path d="M 0 0 L 52 0 C 73 0 88 14 88 36 L 88 64 C 88 86 73 100 52 100 L 0 100 L 0 34 L 23 34 L 23 77 L 48 77 C 59 77 65 71 65 61 L 65 39 C 65 29 59 22 48 22 L 23 22 L 0 22 Z"
+                      class="aido-outline-morph"
+                      style='--aido-outline-start: path("M 0 0 L 52 0 C 73 0 88 14 88 36 L 88 64 C 88 86 73 100 52 100 L 0 100 L 0 34 L 23 34 L 23 77 L 48 77 C 59 77 65 71 65 61 L 65 39 C 65 29 59 22 48 22 L 23 22 L 0 22 Z"); --aido-outline-mono: path("M 0 0 L 52 0 C 73 0 88 14 88 36 L 88 64 C 88 86 73 100 52 100 L 0 100 L 0 22 L 23 22 L 23 77 L 48 77 C 59 77 65 71 65 61 L 65 39 C 65 29 59 22 48 22 L 23 22 L 0 22 Z");' />
+                  </g>
+                </g>
+                <g class="aido-word aido-word-o">
+                  <g class="aido-tail-origin">
+                    <path class="aido-tail" fill-rule="evenodd" d="
+                      M124.6 1.6L126.2 1.6L126.2 0L172.1 0L172.1 1.6L188.5 3.3L188.5 4.9L191.8 4.9L193.4 8.2L196.7 8.2L196.7 9.8L201.6 13.1L201.6 16.4L203.3 16.4L203.3 19.7L204.9 19.7L204.9 23L206.6 23L206.6 32.8L208.2 32.8L206.6 45.9L204.9 45.9L203.3 52.5L201.6 52.5L193.4 62.3L190.2 62.3L190.2 63.9L186.9 63.9L186.9 65.6L182 65.6L182 67.2L177 67.2L173.8 67.2L173.8 68.9L149.2 68.9L149.2 100L124.6 100Z
+                      M149.2 23L149.2 45.9L150.8 45.9L150.8 47.5L168.9 47.5L168.9 45.9L177 44.3L178.7 39.3L180.3 39.3L180.3 29.5L178.7 29.5L177 24.6L173.8 24.6L173.8 23Z
+                      M218 0L291.8 0L291.8 1.6L293.4 1.6L293.4 3.3L291.8 3.3L291.8 23L242.6 23L242.6 37.7L244.3 37.7L244.3 39.3L286.9 39.3L286.9 60.7L247.5 60.7L242.6 60.7L242.6 77L291.8 77L291.8 78.7L293.4 78.7L293.4 100L226.2 100L226.2 98.4L223 98.4L223 96.7L219.7 95.1L219.7 91.8L218 91.8Z
+                      M308.2 0L360.7 0L360.7 1.6L370.5 1.6L370.5 3.3L378.7 4.9L380.3 8.2L383.6 8.2L383.6 9.8L390.2 14.8L390.2 18L391.8 18L391.8 21.3L393.4 21.3L393.4 29.5L395.1 29.5L393.4 45.9L391.8 45.9L390.2 52.5L388.5 52.5L380.3 62.3L375.4 63.9L375.4 67.2L378.7 68.9L378.7 72.1L380.3 72.1L380.3 75.4L383.6 77L385.2 83.6L386.9 83.6L388.5 88.5L391.8 90.2L395.1 100L382 100L365.6 100L365.6 96.7L362.3 95.1L360.7 88.5L357.4 86.9L355.7 80.3L352.5 78.7L350.8 72.1L349.2 72.1L345.9 67.2L334.4 67.2L334.4 98.4L332.8 98.4L332.8 100L308.2 100Z
+                      M334.4 23L334.4 47.5L355.7 47.5L355.7 45.9L363.9 44.3L365.6 39.3L367.2 39.3L367.2 29.5L365.6 29.5L363.9 24.6L360.7 24.6L360.7 23Z
+                      M401.6 96.7L403.3 96.7L403.3 93.4L404.9 93.4L404.9 90.2L406.6 90.2L406.6 85.2L408.2 85.2L408.2 82L409.8 82L409.8 78.7L411.5 78.7L411.5 75.4L413.1 75.4L413.1 72.1L414.8 72.1L414.8 68.9L416.4 68.9L416.4 65.6L418 65.6L418 60.7L419.7 60.7L419.7 57.4L421.3 57.4L421.3 54.1L423 54.1L423 50.8L424.6 50.8L424.6 47.5L426.2 47.5L426.2 44.3L427.9 44.3L427.9 39.3L429.5 39.3L429.5 36.1L431.1 36.1L431.1 32.8L432.8 32.8L432.8 29.5L434.4 29.5L434.4 26.2L436.1 26.2L436.1 23L437.7 23L437.7 19.7L439.3 19.7L439.3 16.4L441 16.4L441 13.1L442.6 13.1L442.6 8.2L444.3 8.2L444.3 4.9L445.9 4.9L447.5 0L470.5 0L470.5 1.6L472.1 1.6L472.1 4.9L473.8 4.9L473.8 8.2L475.4 8.2L475.4 13.1L477 13.1L477 16.4L478.7 16.4L478.7 19.7L480.3 19.7L480.3 24.6L482 24.6L482 27.9L483.6 27.9L483.6 31.1L485.2 31.1L485.2 36.1L486.9 36.1L490.2 45.9L491.8 50.8L493.4 50.8L493.4 54.1L495.1 54.1L495.1 57.4L496.7 57.4L496.7 62.3L498.4 62.3L498.4 65.6L500 65.6L500 68.9L501.6 68.9L501.6 73.8L503.3 73.8L503.3 77L504.9 77L504.9 80.3L506.6 80.3L506.6 83.6L508.2 83.6L508.2 88.5L509.8 88.5L509.8 91.8L511.5 91.8L513.1 100L486.9 100L485.2 95.1L483.6 95.1L483.6 91.8L482 91.8L482 86.9L480.3 86.9L478.7 80.3L437.7 80.3L429.5 100L401.6 100Z
+                      M445.9 59L445.9 60.7L470.5 60.7L470.5 55.7L468.9 55.7L468.9 52.5L467.2 52.5L467.2 47.5L465.6 47.5L463.9 41L462.3 41L460.7 32.8L457.4 32.8L457.4 36.1L455.7 36.1L455.7 39.3L454.1 39.3L454.1 44.3L452.5 44.3L452.5 47.5L450.8 47.5L450.8 50.8L449.2 50.8L449.2 55.7L447.5 55.7L447.5 59Z
+                      M503.3 1.6L504.9 1.6L504.9 0L590.2 0L590.2 23L559 23L559 67.2L559 100L534.4 100L534.4 23L503.3 23Z
+                      M593.4 42.6L595.1 42.6L595.1 34.4L596.7 34.4L598.4 26.2L601.6 24.6L601.6 21.3L604.9 19.7L604.9 16.4L606.6 16.4L611.5 9.8L614.8 9.8L616.4 6.6L619.7 6.6L619.7 4.9L623 4.9L623 3.3L627.9 3.3L627.9 1.6L634.4 1.6L634.4 0L663.9 0L663.9 1.6L670.5 1.6L670.5 3.3L675.4 3.3L675.4 4.9L682 6.6L682 8.2L683.6 8.2L685.2 11.5L688.5 11.5L688.5 13.1L691.8 14.8L691.8 18L696.7 21.3L696.7 24.6L698.4 24.6L698.4 27.9L700 27.9L700 31.1L701.6 31.1L701.6 37.7L703.3 37.7L703.3 57.4L701.6 68.9L700 68.9L696.7 78.7L695.1 78.7L693.4 83.6L691.8 83.6L686.9 90.2L683.6 90.2L682 93.4L678.7 93.4L678.7 95.1L675.4 95.1L675.4 96.7L672.1 96.7L672.1 98.4L665.6 98.4L665.6 100L631.1 100L631.1 98.4L624.6 98.4L624.6 96.7L614.8 93.4L611.5 88.5L606.6 86.9L606.6 83.6L604.9 83.6L604.9 82L601.6 80.3L601.6 77L598.4 75.4L598.4 70.5L596.7 70.5L596.7 65.6L595.1 65.6L595.1 57.4L593.4 57.4Z
+                      M621.3 39.3L621.3 60.7L623 60.7L623 65.6L626.2 67.2L626.2 70.5L627.9 70.5L629.5 73.8L632.8 73.8L632.8 75.4L636.1 75.4L636.1 77L647.5 77L647.5 78.7L649.2 78.7L649.2 77L663.9 75.4L665.6 72.1L668.9 72.1L668.9 70.5L672.1 68.9L672.1 65.6L675.4 63.9L675.4 59L677 59L677 41L675.4 41L673.8 34.4L670.5 32.8L670.5 29.5L665.6 27.9L665.6 26.2L660.7 24.6L660.7 23L650.8 23L650.8 21.3L647.5 21.3L647.5 23L637.7 23L637.7 24.6L631.1 26.2L631.1 27.9L624.6 32.8L624.6 36.1L623 36.1L623 39.3Z
+                      M716.4 1.6L718 1.6L718 0L770.5 0L770.5 1.6L785.2 3.3L785.2 4.9L788.5 4.9L791.8 9.8L796.7 11.5L796.7 14.8L800 16.4L800 19.7L801.6 19.7L801.6 23L803.3 23L803.3 31.1L804.9 31.1L803.3 45.9L801.6 45.9L800 52.5L798.4 52.5L791.8 60.7L788.5 60.7L788.5 62.3L783.6 63.9L785.2 68.9L788.5 70.5L788.5 73.8L791.8 75.4L793.4 82L796.7 83.6L796.7 86.9L800 88.5L800 91.8L801.6 91.8L803.3 96.7L804.9 96.7L804.9 100L795.1 100L775.4 100L775.4 96.7L772.1 95.1L772.1 91.8L768.9 90.2L768.9 86.9L765.6 85.2L763.9 78.7L760.7 77L760.7 73.8L759 73.8L759 70.5L757.4 70.5L755.7 67.2L744.3 67.2L744.3 68.9L742.6 68.9L742.6 100L716.4 100Z
+                      M742.6 23L742.6 45.9L759 47.5L759 45.9L770.5 45.9L772.1 42.6L777 39.3L777 29.5L775.4 29.5L773.8 24.6L770.5 24.6L770.5 23Z" />
+                  </g>
+                  <g class="aido-letter aido-letter-o">
+                    <path d="M 39 0 H 93 L 71 22 H 40 C 30 22 23 30 23 40 V 60 C 23 70 30 77 40 77 H 60 C 70 77 77 70 77 60 V 33 L 100 9 V 61 C 100 83 84 100 61 100 H 39 C 16 100 0 83 0 61 V 39 C 0 16 16 0 39 0 Z" />
+                  </g>
+                </g>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Layer 2: 3D WebGL Character Canvas & Pulsing Voice Ring -->
+          <div id="mono-3d-layer">
+            <div id="mono-voice-ring" aria-hidden="true"></div>
+            <canvas id="mono-3d-canvas" width="420" height="420" aria-label="AIDO-MONO 3D Charakter"></canvas>
           </div>
         </div>
 
-        <!-- Mode 3: 2D MONO Icon View -->
-        <div class="char-view-mode" id="mode-2d-view">
-          <div class="mono-2d-wrapper">
-            <img src="/assets/AIDO-MONO-Charakter.png" alt="AIDO-MONO Charakter Icon" class="mono-2d-img" />
+        <!-- Live State Pill & 7-State Selector Bar -->
+        <div class="character-status-block">
+          <div id="mono-state-badge">Bereit — Klicke oder sprich mit AIDO</div>
+
+          <div id="mono-state-selector" role="group" aria-label="Charakter-Zustände">
+            <button type="button" class="mono-state-pill" data-mono-state="sleep">Schlafen</button>
+            <button type="button" class="mono-state-pill active" data-mono-state="wake">Aufwachen</button>
+            <button type="button" class="mono-state-pill" data-mono-state="listen">Zuhören</button>
+            <button type="button" class="mono-state-pill" data-mono-state="think">Nachdenken</button>
+            <button type="button" class="mono-state-pill" data-mono-state="work">Arbeiten</button>
+            <button type="button" class="mono-state-pill" data-mono-state="success">Erfolg</button>
+            <button type="button" class="mono-state-pill" data-mono-state="error">Fehler</button>
+            <button type="button" id="btn-replay-morph" class="mono-state-pill">Morph</button>
           </div>
+
+          <p class="gesture-hint">
+            Klick: Gespräch · Gedrückt halten: Spracheingabe · Mittelklick: Bildschirmfoto · Rechtsklick: Menü · Ziehen: 360°
+          </p>
         </div>
 
-        <!-- Invisible compatibility hook for avatarOrb -->
-        <div class="avatar-orb" id="avatar-orb" style="display:none;"></div>
-      </div>
+        <!-- ChatGPT-Style Conversation & Composer Zone -->
+        <div class="agent-conversation-zone">
+          <div id="agent-chat-feed" aria-live="polite">
+            <div class="chat-msg aido">
+              <span class="chat-msg-role">AIDO</span>
+              <div class="chat-msg-text">
+                Hallo! Ich bin bereit. Klicke auf mich, halte die Maustaste zum Sprechen gedrückt oder schreibe mir direkt hier unten, wobei ich dir helfen soll.
+              </div>
+            </div>
+          </div>
 
-      <!-- Mode Switcher Bar -->
-      <div class="character-mode-bar">
-        <button class="mode-btn active" id="btn-mode-3d" data-mode="3d" title="Echtzeit 3D WebGL Mesh (AIDO-MONO.glb)">🧊 3D MONO (.glb)</button>
-        <button class="mode-btn" id="btn-mode-svg" data-mode="svg" title="Animierte AIDO Brand Transformation">✨ Morph-Animation</button>
-        <button class="mode-btn" id="btn-mode-2d" data-mode="2d" title="Offizielles 2D Charakter-Logo">🎯 2D Logo</button>
-      </div>
+          <div id="inline-approval-container" aria-live="assertive"></div>
 
-      <div class="gesture-help">
-        <strong>AIDO-MONO Charakter-Steuerung:</strong><br/>
-        • <b>Linksklick / Drag:</b> 3D Rotation &amp; Dialog-Fokus<br/>
-        • <b>Gedrückt halten:</b> Push-to-Talk (Whisper CUDA / Smaragd-Glow)<br/>
-        • <b>Mittelklick:</b> Screenshot-Kontext (Qwen Vision)<br/>
-        • <b>Mausrad / DblClick:</b> Zoom &amp; Kamera-Reset<br/>
-        • <b>Rechtsklick:</b> Kontextmenü &amp; Brand Studio
+          <div id="agent-reply-chips">
+            <button type="button" class="reply-chip" data-prompt="Projektstatus prüfen">Projektstatus prüfen</button>
+            <button type="button" class="reply-chip" data-prompt="Temporäre Dateien aufräumen">Temporäre Dateien aufräumen</button>
+            <button type="button" class="reply-chip" data-prompt="Handy steuern">Handy steuern</button>
+            <button type="button" class="reply-chip" data-prompt="Mehr erklären">Mehr erklären</button>
+          </div>
+
+          <div class="composer-box">
+            <div id="composer-attachment-pill" hidden>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="14" rx="2" />
+                <path d="M8 20h8M12 18v2" />
+              </svg>
+              <span id="composer-attachment-label">Bildschirmfoto angefügt</span>
+              <button id="btn-remove-attachment" type="button" title="Anhang entfernen" aria-label="Anhang entfernen">×</button>
+            </div>
+
+            <div class="composer-row">
+              <input
+                id="agent-chat-input"
+                type="text"
+                placeholder="Nachricht an AIDO…"
+                autocomplete="off"
+              />
+              <div class="composer-actions">
+                <button
+                  id="btn-capture-screenshot"
+                  class="composer-icon-btn"
+                  type="button"
+                  title="Bildschirmfoto als Kontext anfügen"
+                  aria-label="Bildschirmfoto als Kontext anfügen"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 7h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" />
+                    <circle cx="12" cy="13" r="3.5" />
+                  </svg>
+                </button>
+                <button
+                  id="btn-voice-ptt"
+                  class="composer-icon-btn"
+                  type="button"
+                  title="Gedrückt halten zum Sprechen"
+                  aria-label="Gedrückt halten zum Sprechen"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="3" width="6" height="11" rx="3" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
+                  </svg>
+                </button>
+                <button
+                  id="btn-send-chat"
+                  type="button"
+                  title="Nachricht senden"
+                  aria-label="Nachricht senden"
+                >
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 19V5M6 11l6-6 6 6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="main-panel">
-      <div class="card">
-        <h2>💬 Gespräch & Freigabe-Entscheidung (Permission Gateway)</h2>
-        <div class="chat-bubble" id="aido-message">
-          Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?
-        </div>
-        <div class="options-row" id="action-buttons">
-          <button id="btn-masterplan" data-action="masterplan" style="background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.38); color: #ffffff; font-weight: 600;">🏛️ Masterplan 100 % (7-Memory, Tasks, 8-Agents & Docker)</button>
-          <button id="btn-rea" data-action="rea" style="background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.32); color: #ffffff; font-weight: 600;">🔬 REA App Reverse Engineering & Steuerung</button>
-          <button id="btn-phone" data-action="phone" style="background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.32); color: #ffffff; font-weight: 600;">📲 Phone Agent (Android)</button>
-          <button id="btn-brand-studio" data-action="brand-studio" style="background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff;">🎨 AIDO-MONO 3D & Brand Studio</button>
-          <button id="btn-remote" data-action="remote" style="background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.28); color: #ffffff;">📱 Agent Remote (QR & Handy-Cockpit)</button>
-          <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
-          <button id="btn-proactive" data-action="proactive">💡 Proaktive Vorschläge</button>
-          <button id="btn-deep-cleanup" data-action="deep-cleanup">🧽 Deep Cleanup</button>
-          <button id="btn-release-check" data-action="release-check">🧩 Adapter-Sandbox & Release-Check</button>
-          <button id="btn-apps-projects">🧩 App Intelligence & Projekte</button>
-          <button id="btn-installer">🚀 Smart Installer (9-Phasen-Setup)</button>
-          <button id="btn-runtime-memory">⚡ Runtime & Memory-Kompaktierung</button>
-          <button id="btn-privacy-center">🔒 Privacy Center anzeigen</button>
-          <button id="btn-memory-center">🧠 Memory & Wissen (4-Stufen)</button>
+    <!-- 4. STAGE 2: #view-overview (HIDDEN BY DEFAULT) -->
+    <section id="view-overview" class="stage-view" hidden>
+      <div class="view-container">
+        <header class="view-header">
+          <h1>Overview</h1>
+          <p>Deine Projekte, Programme, Speicherbereinigung und das Gedächtnis von AIDO.</p>
+        </header>
+
+        <div class="overview-grid">
+          <!-- Card 1: Projekte & Arbeitsbereiche -->
+          <article class="surface-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+                </svg>
+                <h2>Projekte &amp; Arbeitsbereiche</h2>
+                <span id="projects-count-badge" class="count-badge">0</span>
+              </div>
+              <button id="btn-scan-projects" class="btn-pill" type="button">Aktualisieren</button>
+            </div>
+            <div id="overview-projects-list" class="stack-list"></div>
+          </article>
+
+          <!-- Card 2: Programme & Werkzeuge -->
+          <article class="surface-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                </svg>
+                <h2>Programme &amp; Werkzeuge</h2>
+                <span id="apps-count-badge" class="count-badge">0</span>
+              </div>
+            </div>
+            <div id="overview-apps-list" class="stack-list"></div>
+          </article>
+
+          <!-- Card 3: System & Aufräumen -->
+          <article class="surface-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 6h16M6 6v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+                <h2>System &amp; Aufräumen</h2>
+              </div>
+            </div>
+            <div id="overview-system-summary" class="stack-list"></div>
+            <div id="overview-cleanup-box" class="cleanup-box">
+              <div class="list-row-main">
+                <span class="list-row-title">Speicherplatz &amp; temporäre Dateien</span>
+                <span class="list-row-sub">Unnötige Zwischenspeicher sicher prüfen und freigeben.</span>
+              </div>
+              <button id="btn-trigger-cleanup" class="btn-pill" type="button">
+                Temporäre Dateien prüfen &amp; aufräumen
+              </button>
+            </div>
+          </article>
+
+          <!-- Card 4: Gedächtnis & Aufgaben -->
+          <article class="surface-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3a7 7 0 0 0-7 7c0 2.5 1.3 4.7 3.2 6v3a1 1 0 0 0 1 1h5.6a1 1 0 0 0 1-1v-3c1.9-1.3 3.2-3.5 3.2-6a7 7 0 0 0-7-7Z" />
+                  <path d="M9 22h6" />
+                </svg>
+                <h2>Gedächtnis &amp; Aufgaben</h2>
+              </div>
+            </div>
+            <input
+              id="memory-search-input"
+              class="search-input"
+              type="search"
+              placeholder="Im Gedächtnis suchen…"
+              autocomplete="off"
+            />
+            <div class="subsection-label">Gespeicherte Erinnerungen</div>
+            <div id="overview-memory-list" class="stack-list"></div>
+            <div class="subsection-label">Geplante &amp; aktive Aufgaben</div>
+            <div id="overview-tasks-list" class="stack-list"></div>
+          </article>
         </div>
       </div>
+    </section>
 
-      <div class="card">
-        <h2>📊 Live-Systemstatus & Lokale KI-Runtimes (RTX 5090)</h2>
-        <div class="metrics-grid">
-          <div class="metric-box">
-            <div class="metric-label">Hauptmodell (127.0.0.1:18434)</div>
-            <div class="metric-value" id="metric-model">Qwen3.8-27B-UD-Q4_K_M</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Vision & Speculative Decoding</div>
-            <div class="metric-value" id="metric-speed">mmproj-BF16 · 151.5 Tok/s</div>
-          </div>
-          <div class="metric-box">
-            <div class="metric-label">Spracheingabe (127.0.0.1:18080)</div>
-            <div class="metric-value" id="metric-asr">Whisper-small CUDA (0.34s)</div>
+    <!-- 5. STAGE 3: #view-phone (HIDDEN BY DEFAULT) -->
+    <section id="view-phone" class="stage-view" hidden>
+      <div class="view-container">
+        <header class="view-header">
+          <h1>Handy-Verbindung &amp; Steuerung</h1>
+          <p>Steuere dein verbundenes Android-Gerät oder kopple dein Smartphone per QR-Code.</p>
+        </header>
+
+        <div class="phone-grid">
+          <!-- Left Column: Minimalist Monochrome Phone Frame -->
+          <aside class="phone-preview-card">
+            <div class="phone-status-bar">
+              <div class="phone-status-top">
+                <span id="phone-device-name">Medium_Phone_API_37.0 · Verbunden</span>
+                <span id="phone-connection-badge">Bereit</span>
+              </div>
+              <div id="phone-active-app">Aktuelle Ansicht: Startbildschirm</div>
+            </div>
+
+            <div id="phone-screen-surface">
+              <div class="subsection-label">Sichtbare Elemente auf dem Bildschirm (Klicken zum Tippen)</div>
+              <div id="phone-ui-nodes-list"></div>
+            </div>
+
+            <div class="phone-hardware-bar">
+              <button id="btn-phone-observe" class="btn-pill" type="button">Bildschirm lesen</button>
+              <button id="btn-phone-back" class="btn-pill" type="button">Zurück</button>
+              <button id="btn-phone-home" class="btn-pill" type="button">Startbildschirm</button>
+            </div>
+          </aside>
+
+          <!-- Right Column: Phone Controls & Pairing -->
+          <div class="phone-controls-column">
+            <!-- Card A: Aufgabe an das Handy senden -->
+            <article class="surface-card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="7" y="2" width="10" height="20" rx="2" />
+                    <path d="M11 18h2" />
+                  </svg>
+                  <h2>Aufgabe an das Handy senden</h2>
+                </div>
+              </div>
+
+              <div class="input-action-row">
+                <input
+                  id="phone-goal-input"
+                  class="text-input"
+                  type="text"
+                  placeholder="z. B. Öffne Einstellungen, Öffne GitHub, Wische nach oben…"
+                  autocomplete="off"
+                />
+                <button id="btn-phone-run" class="btn-primary" type="button">Ausführen</button>
+              </div>
+
+              <div id="phone-quick-chips" class="chips-row">
+                <button type="button" class="reply-chip" data-phone-goal="Öffne Einstellungen">Öffne Einstellungen</button>
+                <button type="button" class="reply-chip" data-phone-goal="Öffne GitHub">Öffne GitHub</button>
+                <button type="button" class="reply-chip" data-phone-goal="Wische nach oben">Wische nach oben</button>
+                <button type="button" class="reply-chip" data-phone-goal="Schreibe Hallo AIDO">Schreibe Hallo AIDO</button>
+                <button type="button" class="reply-chip" data-phone-goal="Startbildschirm">Startbildschirm</button>
+              </div>
+
+              <div id="phone-action-feedback">Bereit für deine nächste Anweisung an das Smartphone.</div>
+
+              <div id="phone-approval-box" class="approval-card" hidden></div>
+            </article>
+
+            <!-- Card B: Smartphone koppeln (QR & WLAN) -->
+            <article class="surface-card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                    <path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 19h2v2h-2zM19 14h2v2h-2z" />
+                  </svg>
+                  <h2>Smartphone koppeln (QR &amp; WLAN)</h2>
+                </div>
+                <button id="btn-regenerate-qr" class="btn-pill" type="button">Neuen Code erzeugen</button>
+              </div>
+
+              <div class="qr-pairing-layout">
+                <div id="phone-qr-box" aria-label="QR-Code für Handy-Verbindung"></div>
+                <div class="pairing-details">
+                  <div class="list-row-main">
+                    <span class="list-row-title">Mobiler Begleiter im lokalen Netzwerk</span>
+                    <span class="list-row-sub">Scanne den QR-Code mit deiner Handykamera, um Spracheingabe und Schnellsteuerung auf dem Smartphone zu öffnen.</span>
+                  </div>
+                  <div id="phone-remote-url">http://192.168.178.42:5173/?remote=1</div>
+                </div>
+              </div>
+
+              <div class="subsection-label">Kabellose Verbindung im WLAN (IP &amp; Kopplungscode)</div>
+              <div class="wlan-pair-row">
+                <input
+                  id="phone-pair-ip"
+                  class="text-input"
+                  type="text"
+                  placeholder="IP:Port (z. B. 192.168.178.55:39123)"
+                  autocomplete="off"
+                />
+                <input
+                  id="phone-pair-code"
+                  class="text-input"
+                  type="text"
+                  placeholder="6-stelliger Code"
+                  autocomplete="off"
+                />
+                <button id="btn-phone-pair" class="btn-pill" type="button">Koppeln</button>
+              </div>
+            </article>
           </div>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>📜 Überprüfbares Sicherheits- & Memory-Protokoll (SQLite + FTS5)</h2>
-        <ul class="audit-list" id="audit-list">
-          <li>[System] AIDO Permission Gateway initialisiert: Alle externen Verbindungen gesperrt (nur 127.0.0.1 erlaubt).</li>
-          <li>[Runtime] Schlafmodus (--sleep-idle-seconds) aktiv: 22,7 GB VRAM werden nach Leerlauf automatisch freigegeben.</li>
-        </ul>
       </div>
     </section>
   </main>
 
-  <div class="context-menu" id="context-menu">
-    <div class="context-item" data-action="masterplan"><span>🏛️ Masterplan 100 % (7-Memory, Tasks, 8-Agents & Docker)</span></div>
-    <div class="context-item" data-action="rea"><span>🔬 REA App Reverse Engineering</span></div>
-    <div class="context-item" data-action="phone"><span>📲 Phone Agent (Android)</span></div>
-    <div class="context-item" data-action="brand-studio"><span>🎨 AIDO-MONO 3D & Brand Studio</span></div>
-    <div class="context-item" data-action="remote"><span>📱 Agent Remote (QR & Handy-Cockpit)</span></div>
-    <div class="context-item" data-action="health"><span>🔍 Systemanalyse starten</span></div>
-    <div class="context-item" data-action="cleanup"><span>🧹 Fast Cleanup (mit Vorschau)</span></div>
-    <div class="context-item" data-action="proactive"><span>💡 Proaktive Vorschläge</span></div>
-    <div class="context-item" data-action="deep-cleanup"><span>🧽 Deep Cleanup (Tiefenprüfung)</span></div>
-    <div class="context-item" data-action="release-check"><span>🧩 Adapter-Sandbox & Release-Check</span></div>
-    <div class="context-item" data-action="apps"><span>🧩 App Intelligence & Projekte</span></div>
-    <div class="context-item" data-action="installer"><span>🚀 Smart Installer (9-Phasen-Setup)</span></div>
-    <div class="context-item" data-action="runtime"><span>⚡ Runtime & Memory-Kompaktierung</span></div>
-    <div class="context-item" data-action="privacy"><span>🔒 Privacy Center (Offline)</span></div>
-    <div class="context-item" data-action="memory"><span>🧠 Memory & Wissen (4-Stufen)</span></div>
-    <div class="context-item" data-action="sleep"><span>💤 AIDO schlafen legen (VRAM frei)</span></div>
+  <!-- 3. RIGHT-CLICK CHARACTER CONTEXT MENU (#mono-context-menu) -->
+  <div id="mono-context-menu" role="menu" aria-label="AIDO Schnellmenü" hidden>
+    <button type="button" class="ctx-menu-item" data-ctx-action="focus-chat">
+      <span>Nachricht schreiben</span>
+    </button>
+    <button type="button" class="ctx-menu-item" data-ctx-action="voice-ptt">
+      <span>Spracheingabe starten</span>
+    </button>
+    <button type="button" class="ctx-menu-item" data-ctx-action="screenshot">
+      <span>Bildschirmfoto aufnehmen</span>
+    </button>
+    <div class="ctx-menu-divider"></div>
+    <button type="button" class="ctx-menu-item" data-ctx-action="replay-morph">
+      <span>Morph-Animation abspielen</span>
+    </button>
+    <button type="button" class="ctx-menu-item" data-ctx-action="open-overview">
+      <span>Overview-Dashboard öffnen</span>
+    </button>
+    <button type="button" class="ctx-menu-item" data-ctx-action="open-phone">
+      <span>Handy-Steuerung öffnen</span>
+    </button>
+    <div class="ctx-menu-divider"></div>
+    <button type="button" class="ctx-menu-item" data-ctx-action="toggle-theme">
+      <span>Farbmodus wechseln (W/S ⇄ S/W)</span>
+    </button>
   </div>
 
+  <!-- 6. SCRIPT TAG -->
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

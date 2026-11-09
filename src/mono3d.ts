@@ -8,16 +8,105 @@
  *   - Node 2: "MONO · I core" (68 Vertices, 276 Indices)
  * Total: 3.272 Vertices / 16.536 Indices
  *
- * Implements independent 3-node articulation and state animations:
- *   - 'idle': gentle vertical hover & soft breathing pulse
- *   - 'listening': attentive head tilt & emerald core glow (#10B981)
- *   - 'thinking': scanning yaw orbit & rapid cyan pulse (#38BDF8)
- *   - 'speaking': rhythmic head nod & warm speech cadence pulse
+ * Implements independent 3-node articulation and Masterplan Chapter 10 state animations:
+ *   - 'sleep': lowered O-head, deep slow sleep breathing, dimmed core
+ *   - 'wake': smooth upward head arc & welcoming nod, bright core flare
+ *   - 'idle': gentle vertical hover & crisp breathing pulse
+ *   - 'listen' / 'listening': attentive head tilt & responsive white/silver core pulse
+ *   - 'think' / 'thinking': thoughtful scanning yaw orbit & rhythmic core oscillation
+ *   - 'work': focused double-time articulation & precision core pulse
+ *   - 'speak' / 'speaking': natural speech cadence nod
+ *   - 'success': affirmative double-nod & upward lift
+ *   - 'error': clear horizontal head-shake & high-contrast alert pulse
  *
- * Interactive drag rotation (yaw/pitch), mouse wheel zoom, double-click reset.
+ * Pure Monochrome Studio Lighting (Light Mode #FFFFFF & Dark Mode #000000).
+ * Direct Character Mouse Gestures: Short Click, Hold (Push-to-Talk), Drag 360°, Middle-Click, Right-Click.
  */
 
-export type MonoState = "idle" | "listening" | "thinking" | "speaking";
+export type MonoState =
+  | "sleep"
+  | "wake"
+  | "idle"
+  | "listen"
+  | "listening"
+  | "think"
+  | "thinking"
+  | "work"
+  | "speak"
+  | "speaking"
+  | "success"
+  | "error";
+
+export interface MonoStateMeta {
+  id: MonoState;
+  label: string;
+  description: string;
+}
+
+export const MONO_STATES_META: MonoStateMeta[] = [
+  {
+    id: "sleep",
+    label: "Schlafen",
+    description: "Ruhezustand · Kopf gesenkt, ruhige Atmung",
+  },
+  {
+    id: "wake",
+    label: "Aufwachen",
+    description: "Aktivierung · Kopf hebt sich mit kurzem Nicken",
+  },
+  {
+    id: "idle",
+    label: "Bereit",
+    description: "Aufmerksam · Sanftes Schweben, bereit für Eingaben",
+  },
+  {
+    id: "listen",
+    label: "Zuhören",
+    description: "Sprachaufnahme · Kopf leicht geneigt, Kern pulsiert",
+  },
+  {
+    id: "think",
+    label: "Nachdenken",
+    description: "Analyse · Nachdenkliche Kopfbewegung, Kern oszilliert",
+  },
+  {
+    id: "work",
+    label: "Arbeiten",
+    description: "Ausführung · Fokussierte Artikulation bei aktiver Aufgabe",
+  },
+  {
+    id: "success",
+    label: "Erfolg",
+    description: "Bestätigung · Zufriedenes Nicken nach Abschluss",
+  },
+  {
+    id: "error",
+    label: "Fehlermeldung",
+    description: "Hinweis · Klares Kopfschütteln bei Rückfrage oder Fehler",
+  },
+];
+
+export function getMonoStateMeta(state: MonoState): MonoStateMeta {
+  const normalized: MonoState =
+    state === "listening"
+      ? "listen"
+      : state === "thinking"
+        ? "think"
+        : state === "speaking"
+          ? "idle"
+          : state;
+  return (
+    MONO_STATES_META.find((m) => m.id === normalized) || MONO_STATES_META[2]
+  );
+}
+
+export interface MonoGestureCallbacks {
+  onShortClick?: (event: MouseEvent | PointerEvent) => void;
+  onHoldStart?: (event: PointerEvent) => void;
+  onHoldEnd?: (event: PointerEvent, durationMs: number) => void;
+  onMiddleClick?: (event: MouseEvent | PointerEvent) => void;
+  onRightClick?: (event: MouseEvent) => void;
+}
 
 export interface NodeMeshStats {
   name: string;
@@ -235,6 +324,7 @@ uniform vec3 u_baseColor;
 uniform vec3 u_emissiveColor;
 uniform float u_metallic;
 uniform float u_roughness;
+uniform float u_rimIntensity;
 uniform vec3 u_cameraPos;
 
 void main() {
@@ -245,21 +335,21 @@ void main() {
     N = -N;
   }
 
-  // 3-Point Studio Lighting (Key, Fill, Rim)
+  // Pure Monochrome 3-Point Studio Lighting (Key, Fill, Rim)
   // Key Light: crisp upper-right-front
   vec3 L_key = normalize(vec3(1.4, 2.0, 2.2));
   vec3 C_key = vec3(1.0, 1.0, 1.0) * 1.15;
 
-  // Fill Light: cool graphite lower-left-front
+  // Fill Light: neutral monochrome lower-left-front
   vec3 L_fill = normalize(vec3(-1.8, -0.4, 1.2));
-  vec3 C_fill = vec3(0.55, 0.65, 0.78) * 0.55;
+  vec3 C_fill = vec3(0.72, 0.72, 0.74) * 0.58;
 
   // Rim Light: high sharp architectural back-light
   vec3 L_rim = normalize(vec3(0.0, 2.2, -2.4));
-  vec3 C_rim = vec3(0.9, 0.95, 1.0) * 0.9;
+  vec3 C_rim = vec3(1.0, 1.0, 1.0) * u_rimIntensity;
 
-  // Ambient lighting for satin graphite deep tones
-  vec3 ambient = vec3(0.18, 0.20, 0.25) * u_baseColor;
+  // Ambient lighting for architectural obsidian / satin titanium tones
+  vec3 ambient = vec3(0.24, 0.24, 0.25) * u_baseColor;
 
   // Diffuse components
   float diffKey = max(dot(N, L_key), 0.0);
@@ -268,15 +358,16 @@ void main() {
 
   // Specular Blinn-Phong highlights
   vec3 H_key = normalize(L_key + V);
-  float shininess = mix(90.0, 18.0, u_roughness);
+  float shininess = mix(95.0, 18.0, u_roughness);
   float specKey = pow(max(dot(N, H_key), 0.0), shininess);
-  vec3 specColor = mix(vec3(0.12), u_baseColor, u_metallic);
+  vec3 specColor = mix(vec3(0.18), u_baseColor, u_metallic);
   vec3 specular = specKey * C_key * specColor;
 
-  // Architectural Rim light (Fresnel factor)
-  float rimFactor = 1.0 - max(dot(N, V), 0.0);
-  rimFactor = pow(rimFactor, 2.4) * max(dot(N, L_rim), 0.0);
-  vec3 rim = rimFactor * C_rim;
+  // Architectural Rim light (Fresnel contour + back-light)
+  float fresnel = 1.0 - max(dot(N, V), 0.0);
+  float rimBack = pow(fresnel, 2.2) * max(dot(N, L_rim), 0.0);
+  float rimContour = pow(fresnel, 3.2) * 0.45;
+  vec3 rim = (rimBack + rimContour) * C_rim;
 
   vec3 finalColor = ambient + diffuse + specular + rim + u_emissiveColor;
   gl_FragColor = vec4(finalColor, 1.0);
@@ -291,6 +382,10 @@ export class Mono3DViewer {
 
   private meshes: ParsedNodeMesh[] = [];
   private state: MonoState = "idle";
+  private stateChangedAt = performance.now();
+  private theme: "light" | "dark" = "light";
+  private gestureCallbacks: MonoGestureCallbacks = {};
+
   private animFrameId: number | null = null;
   private startTime = performance.now();
 
@@ -303,6 +398,12 @@ export class Mono3DViewer {
   private targetZoom = 1.0;
   private autoRotate = true;
   private isDragging = false;
+  private pointerDown = false;
+  private pointerStartX = 0;
+  private pointerStartY = 0;
+  private pointerDownAt = 0;
+  private holdTimerId: number | null = null;
+  private isHolding = false;
   private lastMouseX = 0;
   private lastMouseY = 0;
 
@@ -315,6 +416,7 @@ export class Mono3DViewer {
   private uEmissiveLoc: WebGLUniformLocation | null = null;
   private uMetallicLoc: WebGLUniformLocation | null = null;
   private uRoughnessLoc: WebGLUniformLocation | null = null;
+  private uRimIntensityLoc: WebGLUniformLocation | null = null;
   private uCameraPosLoc: WebGLUniformLocation | null = null;
   private aPosLoc = -1;
   private aNormalLoc = -1;
@@ -370,6 +472,7 @@ export class Mono3DViewer {
     this.uEmissiveLoc = gl.getUniformLocation(prog, "u_emissiveColor");
     this.uMetallicLoc = gl.getUniformLocation(prog, "u_metallic");
     this.uRoughnessLoc = gl.getUniformLocation(prog, "u_roughness");
+    this.uRimIntensityLoc = gl.getUniformLocation(prog, "u_rimIntensity");
     this.uCameraPosLoc = gl.getUniformLocation(prog, "u_cameraPos");
 
     this.aPosLoc = gl.getAttribLocation(prog, "a_position");
@@ -539,10 +642,23 @@ export class Mono3DViewer {
 
   public setState(state: MonoState): void {
     this.state = state;
+    this.stateChangedAt = performance.now();
   }
 
   public getState(): MonoState {
     return this.state;
+  }
+
+  public setTheme(theme: "light" | "dark"): void {
+    this.theme = theme;
+  }
+
+  public getTheme(): "light" | "dark" {
+    return this.theme;
+  }
+
+  public setGestureCallbacks(callbacks: MonoGestureCallbacks): void {
+    this.gestureCallbacks = { ...this.gestureCallbacks, ...callbacks };
   }
 
   public resetCamera(): void {
@@ -573,36 +689,119 @@ export class Mono3DViewer {
     return this.autoRotate;
   }
 
+  private clearHoldTimer(): void {
+    if (this.holdTimerId !== null) {
+      window.clearTimeout(this.holdTimerId);
+      this.holdTimerId = null;
+    }
+  }
+
   private bindEvents(): void {
+    // Prevent middle-click auto-scroll on the canvas
+    this.canvas.addEventListener("mousedown", (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+      }
+    });
+
+    this.canvas.addEventListener("auxclick", (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        this.gestureCallbacks.onMiddleClick?.(e);
+      }
+    });
+
+    // Right-click custom context menu
+    this.canvas.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      this.gestureCallbacks.onRightClick?.(e);
+    });
+
     this.canvas.addEventListener("pointerdown", (e) => {
-      this.isDragging = true;
+      // Middle mouse button handled via auxclick/mousedown
+      if (e.button === 1) {
+        e.preventDefault();
+        return;
+      }
+      if (e.button !== 0) return;
+
+      this.pointerDown = true;
+      this.isDragging = false;
+      this.isHolding = false;
+      this.pointerStartX = e.clientX;
+      this.pointerStartY = e.clientY;
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
-      this.canvas.setPointerCapture(e.pointerId);
+      this.pointerDownAt = performance.now();
+
+      try {
+        this.canvas.setPointerCapture(e.pointerId);
+      } catch (_) {}
+
+      this.clearHoldTimer();
+      this.holdTimerId = window.setTimeout(() => {
+        this.holdTimerId = null;
+        if (this.pointerDown && !this.isDragging) {
+          this.isHolding = true;
+          this.gestureCallbacks.onHoldStart?.(e);
+        }
+      }, 380);
     });
 
     this.canvas.addEventListener("pointermove", (e) => {
-      if (!this.isDragging) return;
-      const dx = e.clientX - this.lastMouseX;
-      const dy = e.clientY - this.lastMouseY;
-      this.lastMouseX = e.clientX;
-      this.lastMouseY = e.clientY;
+      if (!this.pointerDown) return;
 
-      this.targetYaw += dx * 0.009;
-      this.targetPitch = Math.max(-0.65, Math.min(0.75, this.targetPitch + dy * 0.009));
+      const totalDx = e.clientX - this.pointerStartX;
+      const totalDy = e.clientY - this.pointerStartY;
+      const dist = Math.hypot(totalDx, totalDy);
+
+      if (!this.isDragging && dist > 6) {
+        this.isDragging = true;
+        this.clearHoldTimer();
+        if (this.isHolding) {
+          this.isHolding = false;
+          const durationMs = Math.max(0, performance.now() - this.pointerDownAt);
+          this.gestureCallbacks.onHoldEnd?.(e, durationMs);
+        }
+      }
+
+      if (this.isDragging) {
+        const dx = e.clientX - this.lastMouseX;
+        const dy = e.clientY - this.lastMouseY;
+        this.lastMouseX = e.clientX;
+        this.lastMouseY = e.clientY;
+
+        this.targetYaw += dx * 0.009;
+        this.targetPitch = Math.max(-0.65, Math.min(0.75, this.targetPitch + dy * 0.009));
+      }
     });
 
-    const stopDrag = (e: PointerEvent) => {
-      if (this.isDragging) {
-        this.isDragging = false;
-        try {
-          this.canvas.releasePointerCapture(e.pointerId);
-        } catch (_) {}
+    const stopPointer = (e: PointerEvent, isCancel: boolean) => {
+      if (!this.pointerDown) return;
+      this.pointerDown = false;
+      this.clearHoldTimer();
+
+      const durationMs = Math.max(0, performance.now() - this.pointerDownAt);
+      const totalDist = Math.hypot(
+        e.clientX - this.pointerStartX,
+        e.clientY - this.pointerStartY
+      );
+
+      if (this.isHolding) {
+        this.isHolding = false;
+        this.gestureCallbacks.onHoldEnd?.(e, durationMs);
+      } else if (!isCancel && !this.isDragging && totalDist <= 6 && durationMs < 380) {
+        this.gestureCallbacks.onShortClick?.(e);
       }
+
+      this.isDragging = false;
+      try {
+        this.canvas.releasePointerCapture(e.pointerId);
+      } catch (_) {}
     };
 
-    this.canvas.addEventListener("pointerup", stopDrag);
-    this.canvas.addEventListener("pointercancel", stopDrag);
+    this.canvas.addEventListener("pointerup", (e) => stopPointer(e, false));
+    this.canvas.addEventListener("pointercancel", (e) => stopPointer(e, true));
 
     this.canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
@@ -643,8 +842,8 @@ export class Mono3DViewer {
 
     gl.useProgram(this.program);
 
-    // Smooth camera inertia & auto-rotation
-    if (this.autoRotate && !this.isDragging) {
+    // Smooth camera inertia & auto-rotation (paused during sleep or dragging)
+    if (this.autoRotate && !this.isDragging && this.state !== "sleep") {
       this.targetYaw += 0.003;
     }
     this.yaw += (this.targetYaw - this.yaw) * 0.12;
@@ -661,12 +860,18 @@ export class Mono3DViewer {
     const up: [number, number, number] = [0, 1, 0];
     const viewMat = mat4LookAt(eye, center, up);
 
+    const isDark = this.theme === "dark";
+    const rimIntensity = isDark ? 1.15 : 0.92;
+
     gl.uniformMatrix4fv(this.uProjLoc, false, projMat);
     gl.uniformMatrix4fv(this.uViewLoc, false, viewMat);
+    gl.uniform1f(this.uRimIntensityLoc, rimIntensity);
     gl.uniform3f(this.uCameraPosLoc, eye[0], eye[1], eye[2]);
 
     // Elapsed animation time in seconds
-    const t = (performance.now() - this.startTime) * 0.001;
+    const now = performance.now();
+    const t = (now - this.startTime) * 0.001;
+    const stateElapsed = Math.max(0, (now - this.stateChangedAt) * 0.001);
 
     // Base character rotation & centering
     // The character is centered around Y' = 1.0 (from 0 to 2.0).
@@ -682,15 +887,23 @@ export class Mono3DViewer {
     // Maps raw (x, y, z) into Y-up (x, -z, y)
     const gltfNodeRot = mat4RotateX(Math.PI / 2);
 
+    // Pure Monochrome Material Palette (Light Mode #FFFFFF vs Dark Mode #000000)
+    const headBodyColor: [number, number, number] = isDark
+      ? [0.18, 0.18, 0.20] // Sculpted satin titanium on #000000
+      : [0.08, 0.08, 0.09]; // Deep architectural obsidian on #FFFFFF
+    const chassisBodyColor: [number, number, number] = isDark
+      ? [0.15, 0.15, 0.17]
+      : [0.06, 0.06, 0.07];
+
     // Compute independent 3-node articulation
     for (const mesh of this.meshes) {
       // Articulation matrix in Y-up character space
       let artMat = mat4Identity();
 
-      let baseColor: [number, number, number] = [0.12, 0.135, 0.17]; // Satin Graphite
+      let baseColor: [number, number, number] = headBodyColor;
       let emissiveColor: [number, number, number] = [0.0, 0.0, 0.0];
-      let metallic = 0.12;
-      let roughness = 0.42;
+      let metallic = isDark ? 0.22 : 0.14;
+      let roughness = isDark ? 0.36 : 0.40;
 
       if (mesh.nodeIndex === 0) {
         // --- NODE 0: MONO · O head ---
@@ -701,26 +914,61 @@ export class Mono3DViewer {
         let headYaw = 0;
         let headRoll = 0;
 
-        if (this.state === "idle") {
-          hoverY = Math.sin(t * 2.2) * 0.038;
+        if (this.state === "sleep") {
+          // Lowered head, tilted forward/down, very slow deep breathing
+          hoverY = -0.06 + Math.sin(t * 1.1) * 0.012;
+          headPitch = 0.28 + Math.sin(t * 1.1) * 0.015;
+          headYaw = 0;
+          headRoll = 0;
+        } else if (this.state === "wake") {
+          // Over the first 1.0s since stateChangedAt, rise along an arc from lowered (-0.06, pitch 0.25)
+          // up to upright (+0.03, pitch -0.05) with a gentle welcoming nod
+          const p = Math.min(1.0, stateElapsed / 1.0);
+          const easeOut = 1.0 - Math.pow(1.0 - p, 3);
+          const welcomeNod = Math.sin(p * Math.PI * 2.0) * 0.06 * (1.0 - p * 0.5);
+          hoverY = -0.06 + (0.03 - -0.06) * easeOut + Math.sin(t * 2.4) * 0.015 * easeOut;
+          headPitch = 0.25 + (-0.05 - 0.25) * easeOut + welcomeNod;
+          headYaw = Math.sin(p * Math.PI) * 0.04;
+        } else if (this.state === "idle") {
+          // Gentle vertical hover, subtle attentive head micro-movement
+          hoverY = Math.sin(t * 2.2) * 0.035;
           headPitch = Math.sin(t * 2.2) * 0.02;
           headYaw = Math.sin(t * 1.1) * 0.025;
-        } else if (this.state === "listening") {
-          // Attentive listening tilt: roll + pitch up
-          hoverY = Math.sin(t * 3.0) * 0.028;
-          headRoll = 0.09;
-          headPitch = 0.06;
-          headYaw = Math.sin(t * 1.5) * 0.03;
-        } else if (this.state === "thinking") {
-          // Scanning orbit left-to-right
-          hoverY = Math.sin(t * 3.6) * 0.032;
-          headYaw = Math.sin(t * 3.6) * 0.18;
-          headPitch = Math.sin(t * 1.8) * 0.035;
-        } else if (this.state === "speaking") {
-          // Rhythmic affirmative nod & speech bob
-          hoverY = Math.sin(t * 7.5) * 0.035;
+        } else if (this.state === "listen" || this.state === "listening") {
+          // Attentive head tilt, responsive vertical hover
+          hoverY = Math.sin(t * 3.4) * 0.03;
+          headRoll = 0.11;
+          headPitch = -0.06;
+          headYaw = Math.sin(t * 1.7) * 0.025;
+        } else if (this.state === "think" || this.state === "thinking") {
+          // Thoughtful scanning orbit
+          hoverY = Math.sin(t * 3.4) * 0.03;
+          headYaw = Math.sin(t * 3.8) * 0.20;
+          headPitch = Math.cos(t * 1.9) * 0.05;
+        } else if (this.state === "work") {
+          // Focused, purposeful double-time articulation
+          hoverY = Math.sin(t * 5.2) * 0.026;
+          headYaw = Math.sin(t * 5.2) * 0.12;
+          headPitch = Math.abs(Math.sin(t * 5.2)) * 0.08;
+          headRoll = Math.cos(t * 2.6) * 0.03;
+        } else if (this.state === "speak" || this.state === "speaking") {
+          // Natural speech cadence nod
+          hoverY = Math.sin(t * 7.5) * 0.032;
           headPitch = Math.sin(t * 7.5) * 0.075;
           headRoll = Math.sin(t * 3.75) * 0.02;
+        } else if (this.state === "success") {
+          // Affirmative double-nod of the O head + joyful upward lift
+          const decay = Math.exp(-stateElapsed * 0.8);
+          hoverY = 0.045 * decay + Math.sin(t * 2.4) * 0.025;
+          headPitch = Math.sin(stateElapsed * 9.0) * 0.14 * decay;
+          headRoll = Math.sin(stateElapsed * 4.5) * 0.03 * decay;
+        } else if (this.state === "error") {
+          // Clear horizontal head-shake + slight defensive tilt
+          const decay = Math.exp(-stateElapsed * 0.9);
+          hoverY = -0.015 * decay + Math.sin(t * 2.2) * 0.02;
+          headYaw = Math.sin(stateElapsed * 16.0) * 0.22 * decay;
+          headRoll = -0.06 * decay;
+          headPitch = 0.04 * decay;
         }
 
         const tNeck = mat4Translate(0, neckY, 0);
@@ -739,39 +987,83 @@ export class Mono3DViewer {
         mat4Multiply(artMat, artMat, tNegNeck);
         mat4Multiply(artMat, tHover, artMat);
 
-        baseColor = [0.13, 0.145, 0.18];
+        baseColor = headBodyColor;
       } else if (mesh.nodeIndex === 1) {
         // --- NODE 1: MONO · D chassis and A legs ---
-        // Subtle grounding breath
-        const breath = 1.0 + Math.sin(t * 2.0) * 0.005;
+        let breath = 1.0 + Math.sin(t * 2.0) * 0.005;
+        if (this.state === "sleep") {
+          breath = 1.0 + Math.sin(t * 1.1) * 0.003;
+        } else if (this.state === "work") {
+          breath = 1.0 + Math.sin(t * 5.2) * 0.008;
+        } else if (this.state === "wake") {
+          const p = Math.min(1.0, stateElapsed / 1.0);
+          breath = 1.0 + Math.sin(p * Math.PI) * 0.01;
+        }
         artMat = mat4Scale(breath, breath, breath);
 
-        baseColor = [0.10, 0.115, 0.145];
-        metallic = 0.09;
-        roughness = 0.44;
+        baseColor = chassisBodyColor;
+        metallic = isDark ? 0.18 : 0.10;
+        roughness = isDark ? 0.40 : 0.44;
       } else if (mesh.nodeIndex === 2) {
-        // --- NODE 2: MONO · I core ---
+        // --- NODE 2: MONO · I core (Strictly Monochrome Pure White / Silver Core) ---
         // Core centroid is at (0, 0.897, 0)
         const coreY = 0.897;
         let pulseScale = 1.0;
+        let glowIntensity = 0.45;
 
-        if (this.state === "idle") {
+        if (this.state === "sleep") {
+          // Dimmed, calm slow pulse
+          pulseScale = 0.92 + Math.sin(t * 1.1) * 0.02;
+          baseColor = [0.58, 0.58, 0.60];
+          glowIntensity = 0.08 + Math.sin(t * 1.1) * 0.03;
+        } else if (this.state === "wake") {
+          // Core flares brightly as character wakes
+          const p = Math.min(1.0, stateElapsed / 1.0);
+          const flare = Math.sin(p * Math.PI) * 0.14;
+          pulseScale = 0.95 + 0.12 * p + flare;
+          baseColor = [0.98, 0.98, 1.0];
+          glowIntensity = 0.55 + flare * 2.2;
+        } else if (this.state === "idle") {
+          // Crisp core breathing
           pulseScale = 1.0 + Math.sin(t * 2.5) * 0.045;
-          baseColor = [0.72, 0.78, 0.86]; // Crisp silver-white
-          emissiveColor = [0.16, 0.20, 0.28];
-        } else if (this.state === "listening") {
-          pulseScale = 1.08 + Math.sin(t * 4.2) * 0.06;
-          baseColor = [0.063, 0.725, 0.506]; // Emerald #10B981
-          emissiveColor = [0.18, 0.88, 0.58]; // Bright Emerald Core Glow
-        } else if (this.state === "thinking") {
-          pulseScale = 1.10 + Math.sin(t * 6.5) * 0.095;
-          baseColor = [0.22, 0.74, 0.97]; // Cyan #38BDF8
-          emissiveColor = [0.30, 0.82, 1.0]; // Vibrant Cyan Spark
-        } else if (this.state === "speaking") {
-          pulseScale = 1.07 + Math.sin(t * 7.5) * 0.085;
-          baseColor = [0.85, 0.96, 0.92]; // Warm White / Emerald
-          emissiveColor = [0.42, 0.92, 0.75];
+          baseColor = [0.95, 0.95, 0.97];
+          glowIntensity = 0.42 + Math.sin(t * 2.5) * 0.08;
+        } else if (this.state === "listen" || this.state === "listening") {
+          // High-contrast bright white/silver pulsing core
+          pulseScale = 1.12 + Math.sin(t * 5.0) * 0.07;
+          baseColor = [1.0, 1.0, 1.0];
+          glowIntensity = 0.72 + Math.sin(t * 5.0) * 0.18;
+        } else if (this.state === "think" || this.state === "thinking") {
+          // Rhythmic core oscillation
+          pulseScale = 1.08 + Math.sin(t * 6.8) * 0.09;
+          baseColor = [0.96, 0.96, 0.98];
+          glowIntensity = 0.62 + Math.sin(t * 6.8) * 0.22;
+        } else if (this.state === "work") {
+          // Rapid precision pulse
+          pulseScale = 1.14 + Math.sin(t * 9.0) * 0.08;
+          baseColor = [1.0, 1.0, 1.0];
+          glowIntensity = 0.76 + Math.sin(t * 9.0) * 0.20;
+        } else if (this.state === "speak" || this.state === "speaking") {
+          // Natural speech cadence pulse
+          pulseScale = 1.08 + Math.sin(t * 7.5) * 0.08;
+          baseColor = [0.98, 0.98, 1.0];
+          glowIntensity = 0.65 + Math.sin(t * 7.5) * 0.18;
+        } else if (this.state === "success") {
+          // Bright core illumination
+          const decay = Math.exp(-stateElapsed * 0.8);
+          pulseScale = 1.05 + 0.14 * decay;
+          baseColor = [1.0, 1.0, 1.0];
+          glowIntensity = 0.50 + 0.45 * decay;
+        } else if (this.state === "error") {
+          // Sharp high-contrast core pulse
+          const decay = Math.exp(-stateElapsed * 0.9);
+          const strobe = Math.abs(Math.sin(stateElapsed * 16.0)) * decay;
+          pulseScale = 1.02 + 0.16 * strobe;
+          baseColor = [0.96, 0.96, 0.98];
+          glowIntensity = 0.35 + 0.60 * strobe;
         }
+
+        emissiveColor = [glowIntensity, glowIntensity, glowIntensity];
 
         const tCore = mat4Translate(0, coreY, 0);
         const tNegCore = mat4Translate(0, -coreY, 0);
@@ -780,8 +1072,8 @@ export class Mono3DViewer {
         mat4Multiply(artMat, tCore, sCore);
         mat4Multiply(artMat, artMat, tNegCore);
 
-        metallic = 0.35;
-        roughness = 0.25;
+        metallic = 0.30;
+        roughness = 0.20;
       }
 
       // Final Model Matrix for this node:
@@ -818,6 +1110,7 @@ export class Mono3DViewer {
 
   public destroy(): void {
     this.isDestroyed = true;
+    this.clearHoldTimer();
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
