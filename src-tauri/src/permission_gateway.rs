@@ -27,6 +27,10 @@ pub enum ActionKind {
     FastCleanupPreview,
     /// State-modifying Fast Cleanup (requires explicit user ApprovalToken)
     FastCleanupExecute,
+    /// Read-only inspection of deep cleanup staging artifacts
+    DeepCleanupScan,
+    /// State-modifying Deep Cleanup of stale build/shader/crash artifacts (requires explicit user ApprovalToken)
+    DeepCleanupExecute,
     /// Unload idle local AI model slot on 127.0.0.1
     UnloadIdleModelSlot,
     /// Read-only discovery of installed apps and capabilities
@@ -54,6 +58,7 @@ impl ActionKind {
         matches!(
             self,
             ActionKind::FastCleanupExecute
+                | ActionKind::DeepCleanupExecute
                 | ActionKind::UnloadIdleModelSlot
                 | ActionKind::ExecuteAppAction
                 | ActionKind::LaunchProject
@@ -335,6 +340,7 @@ mod tests {
     fn action_kind_mutating_classification() {
         assert!(!ActionKind::SystemHealthCheck.is_mutating());
         assert!(!ActionKind::FastCleanupPreview.is_mutating());
+        assert!(!ActionKind::DeepCleanupScan.is_mutating());
         assert!(!ActionKind::DiscoverApps.is_mutating());
         assert!(!ActionKind::VerifyAppCapability.is_mutating());
         assert!(!ActionKind::ScanProjects.is_mutating());
@@ -342,6 +348,7 @@ mod tests {
         assert!(!ActionKind::ProbeLocalRuntimes.is_mutating());
 
         assert!(ActionKind::FastCleanupExecute.is_mutating());
+        assert!(ActionKind::DeepCleanupExecute.is_mutating());
         assert!(ActionKind::UnloadIdleModelSlot.is_mutating());
         assert!(ActionKind::ExecuteAppAction.is_mutating());
         assert!(ActionKind::LaunchProject.is_mutating());

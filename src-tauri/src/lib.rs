@@ -2,6 +2,7 @@ pub mod ai_client;
 pub mod app_intelligence;
 pub mod memory;
 pub mod permission_gateway;
+pub mod proactive_engine;
 pub mod project_intelligence;
 pub mod runtime_supervisor;
 pub mod smart_installer;

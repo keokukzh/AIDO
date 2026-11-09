@@ -55,6 +55,30 @@ pub struct FastCleanupResult {
     pub human_report: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DeepCleanupCategory {
+    StaleBuildArtifacts,
+    OrphanedCrashDumps,
+    ObsoleteShaderAndModelTemp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeepCleanupCandidate {
+    pub file_name: String,
+    pub category: DeepCleanupCategory,
+    pub size_bytes: u64,
+    pub reason_german: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeepCleanupScanReport {
+    pub scanned_at: String,
+    pub staging_dir: String,
+    pub candidates: Vec<DeepCleanupCandidate>,
+    pub total_reclaimable_bytes: u64,
+    pub human_summary: String,
+}
+
 pub struct WindowsBridge {
     gateway: PermissionGateway,
     safe_temp_dir: PathBuf,
@@ -74,6 +98,10 @@ impl WindowsBridge {
         &self.safe_temp_dir
     }
 
+    pub fn deep_cleanup_staging_dir(&self) -> PathBuf {
+        self.safe_temp_dir.join("deep_cleanup_staging")
+    }
+
     /// Populates benign temporary cache files inside AIDO's isolated scratch cache
     /// so that a Fast Cleanup demonstration has verifiable, safe artifacts to inspect and clean.
     pub fn seed_demo_cache_files(&self) -> Result<u64, BridgeError> {
@@ -87,6 +115,26 @@ impl WindowsBridge {
         for (name, size) in samples {
             let file_path = self.safe_temp_dir.join(name);
             let payload = vec![b'A'; size];
+            std::fs::write(&file_path, &payload)?;
+            total += size as u64;
+        }
+        Ok(total)
+    }
+
+    /// Populates safe demo artifacts inside the deep cleanup staging directory
+    /// (e.g. stale build artifacts, crash dump caches, obsolete shader/model caches).
+    pub fn seed_demo_deep_cleanup_files(&self) -> Result<u64, BridgeError> {
+        let staging = self.deep_cleanup_staging_dir();
+        std::fs::create_dir_all(&staging)?;
+        let samples = [
+            ("rust_incremental_old_target.old_build", 512 * 1024),
+            ("orphaned_webview_crash_dump.dmp_cache", 256 * 1024),
+            ("obsolete_cuda_compute_cache.shader_tmp", 384 * 1024),
+        ];
+        let mut total = 0u64;
+        for (name, size) in samples {
+            let file_path = staging.join(name);
+            let payload = vec![b'B'; size];
             std::fs::write(&file_path, &payload)?;
             total += size as u64;
         }
@@ -311,6 +359,158 @@ $procs | ForEach-Object { Write-Output "PROC:$_" }
             human_report,
         })
     }
+
+    /// Read-only scan of the deep cleanup staging directory for categorized cleanup candidates.
+    pub fn scan_deep_cleanup(&self) -> Result<DeepCleanupScanReport, BridgeError> {
+        self.gateway
+            .check_readonly_allowed(&ActionKind::DeepCleanupScan)?;
+
+        let staging = self.deep_cleanup_staging_dir();
+        let mut candidates = Vec::new();
+        let mut total_reclaimable_bytes = 0u64;
+
+        if staging.is_dir() {
+            for entry in std::fs::read_dir(&staging)? {
+                let entry = entry?;
+                let meta = entry.metadata()?;
+                if meta.is_file() {
+                    let file_name = entry.file_name().to_string_lossy().to_string();
+                    let size_bytes = meta.len();
+                    if file_name.ends_with(".old_build") {
+                        candidates.push(DeepCleanupCandidate {
+                            file_name,
+                            category: DeepCleanupCategory::StaleBuildArtifacts,
+                            size_bytes,
+                            reason_german: "Veralteter inkrementeller Build-Cache eines früheren Kompiliervorgangs.".to_string(),
+                        });
+                        total_reclaimable_bytes += size_bytes;
+                    } else if file_name.ends_with(".dmp_cache") {
+                        candidates.push(DeepCleanupCandidate {
+                            file_name,
+                            category: DeepCleanupCategory::OrphanedCrashDumps,
+                            size_bytes,
+                            reason_german: "Verwaister WebView-Crash-Dump ohne aktiven Fehlerbericht.".to_string(),
+                        });
+                        total_reclaimable_bytes += size_bytes;
+                    } else if file_name.ends_with(".shader_tmp") {
+                        candidates.push(DeepCleanupCandidate {
+                            file_name,
+                            category: DeepCleanupCategory::ObsoleteShaderAndModelTemp,
+                            size_bytes,
+                            reason_german: "Veralteter GPU-Shader- und Compute-Zwischenspeicher.".to_string(),
+                        });
+                        total_reclaimable_bytes += size_bytes;
+                    }
+                }
+            }
+        }
+
+        candidates.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+        let human_summary = format!(
+            "Deep Cleanup Scan abgeschlossen: {} verwaiste Cache-Artefakte gefunden ({} KB potenziell freigebbar).",
+            candidates.len(),
+            total_reclaimable_bytes / 1024
+        );
+
+        Ok(DeepCleanupScanReport {
+            scanned_at: Utc::now().to_rfc3339(),
+            staging_dir: staging.display().to_string(),
+            candidates,
+            total_reclaimable_bytes,
+            human_summary,
+        })
+    }
+
+    /// Prepares a Deep Cleanup proposal and requests explicit user approval via the Permission Gateway.
+    pub fn prepare_deep_cleanup(
+        &self,
+    ) -> Result<(DeepCleanupScanReport, ApprovalRequest), BridgeError> {
+        let scan = self.scan_deep_cleanup()?;
+        let target_names: Vec<String> =
+            scan.candidates.iter().map(|c| c.file_name.clone()).collect();
+        let explanation = format!(
+            "Ich werde {} verwaiste Build- und Shader-Artefakte ({} KB) im Bereinigungsordner '{}' entfernen. \
+             Deine persönlichen Daten und Quellcodes bleiben unberührt. Darf ich die Tiefenbereinigung jetzt ausführen?",
+            scan.candidates.len(),
+            scan.total_reclaimable_bytes / 1024,
+            self.deep_cleanup_staging_dir().display()
+        );
+
+        let approval_req = self.gateway.request_approval(
+            ActionKind::DeepCleanupExecute,
+            "AIDO Deep Cleanup (Tiefenbereinigung verwaister Build- & Shader-Caches)",
+            explanation,
+            target_names,
+            scan.total_reclaimable_bytes,
+            0,
+        )?;
+
+        Ok((scan, approval_req))
+    }
+
+    /// Executes Deep Cleanup ONLY if a valid one-time ApprovalToken from the user is provided.
+    pub fn execute_deep_cleanup(
+        &self,
+        token: &ApprovalToken,
+    ) -> Result<FastCleanupResult, BridgeError> {
+        // 1. Enforce Permission Gateway check (consumes one-time token)
+        self.gateway
+            .consume_approval_token(token, &ActionKind::DeepCleanupExecute)?;
+
+        // 2. Verify path boundary
+        let staging_dir = self.deep_cleanup_staging_dir();
+        if !staging_dir.exists() {
+            std::fs::create_dir_all(&staging_dir)?;
+        }
+        let canonical_dir = staging_dir.canonicalize()?;
+        let gpu_before = Self::query_gpu_status();
+
+        let mut removed_count = 0usize;
+        let mut freed_bytes = 0u64;
+
+        for entry in std::fs::read_dir(&canonical_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let canonical_file = path.canonicalize()?;
+            if !canonical_file.starts_with(&canonical_dir) {
+                return Err(BridgeError::UnsafeCleanupPath(
+                    canonical_file.display().to_string(),
+                ));
+            }
+            let meta = entry.metadata()?;
+            if meta.is_file() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".old_build")
+                    || name.ends_with(".dmp_cache")
+                    || name.ends_with(".shader_tmp")
+                {
+                    let len = meta.len();
+                    std::fs::remove_file(&canonical_file)?;
+                    removed_count += 1;
+                    freed_bytes += len;
+                }
+            }
+        }
+
+        let gpu_after = Self::query_gpu_status();
+        let human_report = format!(
+            "Deep Cleanup erfolgreich abgeschlossen: {} veraltete Build- und Shader-Dateien ({} KB) wurden bereinigt. \
+             VRAM-Status: {} MiB frei von {} MiB.",
+            removed_count,
+            freed_bytes / 1024,
+            gpu_after.vram_free_mib,
+            gpu_after.vram_total_mib
+        );
+
+        Ok(FastCleanupResult {
+            executed_at: Utc::now().to_rfc3339(),
+            removed_files_count: removed_count,
+            freed_disk_bytes: freed_bytes,
+            vram_before_mib: gpu_before.vram_used_mib,
+            vram_after_mib: gpu_after.vram_used_mib,
+            human_report,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -348,6 +548,45 @@ mod tests {
 
         // Verify non-tmp file is untouched
         assert!(keep_file.exists());
+
+        let _ = std::fs::remove_dir_all(&temp_root);
+    }
+
+    #[test]
+    fn deep_cleanup_end_to_end_requires_approval_and_preserves_user_files() {
+        let temp_root =
+            std::env::temp_dir().join(format!("aido_deep_bridge_test_{}", uuid::Uuid::new_v4()));
+        let gw = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let bridge = WindowsBridge::new(gw.clone(), &temp_root).unwrap();
+
+        let seeded_bytes = bridge.seed_demo_deep_cleanup_files().unwrap();
+        assert_eq!(seeded_bytes, (512 + 256 + 384) * 1024);
+
+        let staging_dir = bridge.deep_cleanup_staging_dir();
+        let user_file = staging_dir.join("wichtiges_projekt.rs");
+        std::fs::write(&user_file, b"fn main() { println!(\"Safe\"); }").unwrap();
+
+        let (scan, req) = bridge.prepare_deep_cleanup().unwrap();
+        assert_eq!(scan.candidates.len(), 3);
+        assert_eq!(scan.total_reclaimable_bytes, seeded_bytes);
+        assert_eq!(req.target_summary.len(), 3);
+
+        // Approve
+        let token = gw
+            .approve_request(req.request_id, Some("Deep Cleanup freigeben".into()))
+            .unwrap();
+
+        // Execute
+        let res = bridge.execute_deep_cleanup(&token).unwrap();
+        assert_eq!(res.removed_files_count, 3);
+        assert_eq!(res.freed_disk_bytes, seeded_bytes);
+        assert!(res.human_report.starts_with("Deep Cleanup erfolgreich abgeschlossen:"));
+
+        // User file preserved
+        assert!(user_file.exists());
+
+        // Replay token fails
+        assert!(bridge.execute_deep_cleanup(&token).is_err());
 
         let _ = std::fs::remove_dir_all(&temp_root);
     }
