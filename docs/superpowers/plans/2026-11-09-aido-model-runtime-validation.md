@@ -8,7 +8,7 @@ Dieser Plan führt zunächst Prüfungen an vorhandenen Installationen aus. Er le
 
 ## Ausgangslage
 
-LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Dateien, einen separaten Bildprojektor und Nomic Embed Text v1.5. Ein Qwen-Texttest gelang. Für Embeddings verlangt der lokale LM-Studio-Server ein API-Token. Die gelisteten Qwen-Dateien tragen `vision: false`; Bild-Eingang ist offen. Ollamas Modellliste war zwischen Serverzuständen unterschiedlich. Es wurden keine neuen Modelle installiert.
+LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Dateien, einen separaten Bildprojektor und Nomic Embed Text v1.5. Ein Qwen-Texttest und später ein einzelner autorisierter Embedding-Funktionstest gelangen. Der lokale LM-Studio-Server verlangt ein API-Token. Die gelisteten Qwen-Dateien tragen `vision: false`; Bild-Eingang ist offen. Ollamas Benutzer-Modellpfad ist identifiziert, doch `qwen3.8:latest` kann wegen eines fehlenden Blobs nicht geladen werden. Es wurden keine neuen Modelle installiert.
 
 ## Arbeitsregeln
 
@@ -26,7 +26,7 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 
 **Abnahme:** Ein wiederholter Modell-Listentest zeigt beim selben Serverzustand dieselben Modelle. Der verwendete Modellpfad ist dokumentiert. Falls der frühere Serverzustand nicht rekonstruierbar ist, bleibt Ollama vorläufig außerhalb der Vergleichsmessung.
 
-**Ausführungsstand:** Aufgabe 1 abgeschlossen mit Einschränkung. Embedding-API-Test durch Tokenpflicht und blockierten separaten Testserver offen. Bild- und Audiotests offen. Einzelheiten: [Modellinventar](../../MODEL_RUNTIME_INVENTORY.md).
+**Ausführungsstand:** Aufgabe 1 mit Einschränkung abgeschlossen. Der frühe Embedding-Aufruf ohne Token scheiterte; später gelang ein autorisierter Funktionstest über LM Studio. Bild- und Audiotests sind offen. Einzelheiten: [Modellinventar](../../MODEL_RUNTIME_INVENTORY.md).
 
 ## Aufgabe 2: Embedding lokal prüfen
 
@@ -35,9 +35,9 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 - [x] Mit einer kleinen, vom Team selbst geschriebenen Sammlung prüfen, ob ähnliche Projekttexte näher zueinander liegen als ein themenfremder Text. Kosinusähnlichkeit: 0,8036 gegenüber 0,5959.
 - [x] Modell wieder entladen; ein früherer Ladevorgang dauerte laut LM Studio 2,96 s. Ein reproduzierter Kaltstart-Benchmark steht noch aus.
 
-**Abnahme:** Lokale API liefert reproduzierbar gültige Vektoren; ein einfacher semantischer Abruf findet den erwarteten Text. Fehlt ein autorisierter Zugang, wird nur dieser Test pausiert, ohne die Tokenpflicht abzuschalten. Qwen3-Embedding-0.6B wird erst bei Qualitätsbedarf als Vergleich hinzugezogen.
+**Abnahme:** Die einmalige lokale Funktionsprobe lieferte drei 768-dimensionale Vektoren; der erwartete Vergleich ähnlicher und unähnlicher Sätze gelang. Reproduzierbarkeit, eine vollständige Prüfung aller Vektorwerte und Qualität auf einem echten Suchkorpus bleiben offen. Qwen3-Embedding-0.6B wird erst bei Qualitätsbedarf als Vergleich hinzugezogen.
 
-**Ausführungsstand:** Der autorisierte Embedding-Funktionstest ist bestanden. Der temporär bereitgestellte Zugang wurde nicht gespeichert; wegen Offenlegung im Chat muss er widerrufen werden. Qualitäts- und Kaltstart-Benchmarks bleiben offen.
+**Ausführungsstand:** Der autorisierte Embedding-Funktionstest ist einmalig bestanden. Der temporär bereitgestellte Zugang wurde nicht gespeichert; wegen Offenlegung im Chat muss er widerrufen werden. Qualitäts-, Reproduzierbarkeits-, Kaltstart- und Offline-Prüfungen bleiben offen.
 
 ## Aufgabe 3: Bild-Eingang der konkreten Qwen-Datei prüfen
 
