@@ -17,7 +17,7 @@ Die Phasen sind in Abhängigkeitsreihenfolge geplant. Es gibt keine belastbaren 
 ## Unmittelbare nächste Schritte
 
 1. Den punktuellen Ist-Check in [DEVELOPMENT_SETUP.md](DEVELOPMENT_SETUP.md) um Ubuntu-Benutzer, Docker-Integration und GPU-Passthrough ergänzen; Änderungen erst nach gesicherter Ausgangslage durchführen.
-2. Vorhandene Ollama-, LM-Studio- und mögliche llama.cpp-Installationen samt Modellformaten prüfen; danach die lokale Qwen-Ableitung ausdrücklich mit Bild-Eingang testen.
+2. Das [Modellinventar](MODEL_RUNTIME_INVENTORY.md) um Ollamas abweichende Modellansichten ergänzen; die lokale Qwen-Ableitung mit passendem Projektor ausdrücklich mit Bild-Eingang testen.
 3. Einen minimalen Modell-Spike definieren: Hauptmodell, Text-Embedding und Spracheingabe getrennt testen; Sprachausgabe erst für die Voice-Oberfläche auswählen.
 4. Eine kleine, messbare Nutzeraufgabe für den ersten Prototyp wählen.
 5. Aktionsschema, Freigabegrenzen und lokale Protokollierung spezifizieren.
