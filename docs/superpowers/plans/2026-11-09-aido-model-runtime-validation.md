@@ -8,7 +8,7 @@ Dieser Plan führt zunächst Prüfungen an vorhandenen Installationen aus. Er le
 
 ## Ausgangslage
 
-LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Dateien, einen separaten Bildprojektor und Nomic Embed Text v1.5. Ein Qwen-Texttest und später ein einzelner autorisierter Embedding-Funktionstest gelangen. Der lokale LM-Studio-Server verlangt ein API-Token. Die gelisteten Qwen-Dateien tragen `vision: false`; Bild-Eingang ist offen. Ollamas Benutzer-Modellpfad ist identifiziert, doch `qwen3.8:latest` kann wegen eines fehlenden Blobs nicht geladen werden. Es wurden keine neuen Modelle installiert.
+LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Dateien, einen separaten Bildprojektor und Nomic Embed Text v1.5. Ein Qwen-Texttest und später ein einzelner autorisierter Embedding-Funktionstest gelangen. Der lokale LM-Studio-Server verlangt ein API-Token. Die gelisteten Qwen-Dateien tragen `vision: false`; Bild-Eingang ist offen. Ollamas Benutzer-Modellpfad ist identifiziert, doch `qwen3.8:latest` kann wegen eines fehlenden Blobs nicht geladen werden. Später wurde für die Spracheingabe ein mehrsprachiges Whisper-small-Modell heruntergeladen und per SHA-1 geprüft; die Transkription ist weiterhin offen.
 
 ## Arbeitsregeln
 
@@ -58,7 +58,7 @@ LM Studio enthält eine CUDA-fähige llama.cpp-Engine, mehrere Qwen3.8-GGUF-Date
 
 **Abnahme:** Spracheingabe liefert ein verständliches deutsches Transkript ohne externe Anfrage. Embeddings werden ausschließlich für Suche und Memory verwendet. Ein zusätzlicher Download erfolgt erst nach Inventur und Kandidatenentscheidung.
 
-**Ausführungsstand:** Eine vorhandene `whisper-server.exe` ist bekannt. Die gezielte Suche in mehreren Modellverzeichnissen fand kein passendes Sprachmodell; ein ASR-Test und die TTS-Inventur sind noch offen.
+**Ausführungsstand:** Zunächst fand die gezielte Suche in mehreren Modellverzeichnissen kein passendes Sprachmodell. Danach wurde das mehrsprachige Whisper-`small` (487.601.967 Byte) aus der offiziellen whisper.cpp-Modellsammlung heruntergeladen; SHA-1 stimmt mit der Modellkarte überein. Die vorhandene `whisper-server.exe` lud das Modell, fand jedoch keine GPU und lief auf CPU. Ein deutsches Test-WAV wurde lokal erzeugt, aber auf Nutzerwunsch vor der Audioanfrage gestoppt. Der Server wurde beendet; Port `127.0.0.1:18080` ist geschlossen. Ein Transkriptions- und Offline-Test sowie eine vollständige TTS-Bewertung sind offen. Deutsche Windows-Stimmen sind vorhanden. Kein ASR- oder TTS-Abnahmekriterium ist erfüllt.
 
 ## Aufgabe 5: Hauptmodell und Laufzeit vergleichen
 
