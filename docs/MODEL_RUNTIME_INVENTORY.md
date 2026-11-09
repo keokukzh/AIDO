@@ -43,10 +43,10 @@ Bild-Eingang, Audio, Tool-Aufrufe, Offline-Datenfluss, VRAM-Spitzen und Wiederla
 1. Ollamas Server- und Modellpfade ohne Veränderung bestehender Modelle klären (punktuell erledigt; fehlender Blob verhindert derzeit Ollama-Vergleich).
 2. LM Studios Embedding-API mit autorisiertem Zugang testen (Funktionsprobe erledigt; Schlüsselwiderruf nach Offenlegung im Chat erforderlich).
 3. Die Bildfähigkeit einer konkreten Qwen-Datei mit zugehörigem Projektor und Testbild verifizieren.
-4. Kurze reproduzierbare Tests für Text, Embedding und später ASR ausführen. Startzeit, Tokenrate, VRAM, CPU/RAM, Idle-Entladung und Fehler dokumentieren.
+4. Kurze reproduzierbare Tests für Text, Embedding und ASR ausführen. Startzeit, Tokenrate, VRAM, CPU/RAM, Idle-Entladung und Fehler dokumentieren.
 5. Erst danach über zusätzliche Downloads oder eine andere primäre Runtime entscheiden. Endnutzer-Installer sollen benötigte Modelle je nach gewählten Funktionen erkennen, wiederverwenden oder nach Zustimmung installieren.
 
-Es wurde keine neue Modell- oder Runtime-Installation vorgenommen.
+Bis zu diesem Inventarstand wurde keine neue Modell- oder Runtime-Installation vorgenommen; der spätere Whisper-Modell-Download ist unten dokumentiert.
 
 ## Ausführung des Prüfplans am 9. November 2026
 
@@ -67,3 +67,9 @@ Nach Bereitstellung eines temporären lokalen API-Zugangs lieferte das vorhanden
 In LM Studio 0.4.28 wurde `gamedev-qwen3.8-v2-rea@q4_k_m` über den Chat geladen. Die angezeigten erweiterten Ladeparameter enthielten keine Option, den separat katalogisierten `GameDev-Qwen3.8-v2-REA-mmproj.gguf` zuzuordnen. Der Chat bot bei „Attach file“ einen Dialog für dokumentbasiertes RAG mit PDF, DOCX, TXT und CSV; ein Bildanhang war über diesen Weg nicht möglich. Es wurden keine Bilddaten an das Modell gesendet und keine Bildantwort erzeugt. Das Modell wurde wieder entladen; `lms ps --json` zeigte danach `[]`. Ein künstliches rotes Quadrat liegt nur als lokaler Testentwurf im Arbeitsverzeichnis und wurde nicht ins Repository übernommen. Die [LM-Studio-Dokumentation zu Bildeingaben](https://lmstudio.ai/docs/typescript/llm-prediction/image-input) setzt ein als Vision-Modell erkanntes Modell voraus. Damit bleibt die installierte Q4-Ableitung in LM Studio für AIDO-Bildverarbeitung **nicht nachgewiesen**; ein anderer Runtime-Pfad wurde dadurch weder bestätigt noch widerlegt.
 
 Für Spracheingabe wurde die vorhandene `whisper-server.exe` erneut bestätigt. Eine gezielte Dateisuche in `D:\\AI_Models\\audio_encoders`, `huggingface`, `gguf`, `llm`, `unsloth\\whisper.cpp` und dem lokalen Hugging-Face-Cache fand keine nach dem üblichen Whisper/ggml-Schema benannte Sprachmodell-Datei; Treffer mit „whisper“ waren Programmdateien oder Dokumentationsbilder. Dies ist keine vollständige Suche auf allen Laufwerken. Ein deutscher ASR-Test bleibt mangels verifiziertem Modell offen; es wurde nichts heruntergeladen oder installiert.
+
+## Fortsetzung: Sprachmodell bereitgestellt, Test angehalten
+
+Auf ausdrücklichen Wunsch nach Fortsetzung wurde das mehrsprachige Whisper-`small`-Modell von der [whisper.cpp-Modellsammlung](https://huggingface.co/ggerganov/whisper.cpp) als `D:\\AI_Models\\unsloth\\whisper.cpp\\models\\ggml-small.bin` lokal gespeichert. Die Datei hat 487.601.967 Byte; ihr SHA-1-Wert `55356645c2b361a969dfd0ef2c5a50d530afd8d5` stimmt mit dem Wert der Modellkarte überein. Quelle war die dort referenzierte, auf Revision `90a64d80ea254cf67575b41a5971f972c79f7b45` fixierte Datei. Die vorhandene `whisper-server.exe` konnte das Modell laden und meldete `small` mit 99 Sprachen; sie fand dabei **keine GPU** und nutzte CPU. Der Server lauschte kurz ausschließlich auf `127.0.0.1:18080`, wurde auf Nutzerwunsch vor einer Audioanfrage beendet und der Port war danach nicht mehr offen.
+
+Ein deutsches WAV-Testaudio wurde mit der bereits installierten Windows-Stimme „Microsoft Hedda Desktop“ lokal im Arbeitsverzeichnis erzeugt. Es wurde **nicht** an Whisper gesendet. Daher gibt es noch kein Transkriptions-, Qualitäts-, Latenz- oder Offline-Ergebnis. Weitere installierte deutsche Windows-Stimmen wurden gefunden; deren Eignung als AIDO-Sprachausgabe ist nicht getestet. Der Nutzer hat die Ausführung hier gestoppt. Das Modell bleibt als Datei für eine spätere autorisierte Prüfung vorhanden; es wurden keine Modellbestände gelöscht.
