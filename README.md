@@ -21,10 +21,11 @@ AIDO ist ein geplantes Produkt für Windows 11: ein animierter Desktop-Begleiter
 | [Anforderungen](docs/REQUIREMENTS.md) | Geplante Funktionen und Schutzanforderungen |
 | [Architektur](docs/ARCHITECTURE.md) | Komponenten und technische Kandidaten |
 | [Projektstatus](docs/PROJECT_STATUS.md) | Verifizierter Stand und offene Quellen |
+| [Entwicklungsumgebung](docs/DEVELOPMENT_SETUP.md) | Früher Docker-Plan, aktueller Ist-Check und Übernahme für AIDO |
 | [Roadmap](docs/ROADMAP.md) | Entwicklungsreihenfolge und Abnahme |
 | [Entscheidungen](docs/DECISIONS.md) | Beschlüsse und ausdrücklich offene Fragen |
 
-Die Dokumente beruhen auf den AIDO-Interviews und der Produktplanung vom 9. November 2026. Technische Bibliotheken und Modellnamen sind Kandidaten, keine fest eingebauten Abhängigkeiten. Ein im Auftrag erwähnter Docker-Anhang war in der verfügbaren Chat-Referenz nicht abrufbar; Docker-spezifische Befunde werden deshalb nicht behauptet.
+Die Dokumente beruhen auf den AIDO-Interviews und der Produktplanung vom 9. November 2026. Technische Bibliotheken und Modellnamen sind Kandidaten, keine fest eingebauten Abhängigkeiten. Der frühere Docker-Plan und der davor liegende Produktgedanke wurden nachgereicht und in der Entwicklungsumgebung eingeordnet. Aussagen über das Referenzsystem sind dort als punktuelle Beobachtungen markiert.
 
 ## Mitarbeit und Lizenz
 
