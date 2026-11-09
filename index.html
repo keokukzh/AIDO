@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIDO — Dein persönlicher, lokaler Desktop-Begleiter</title>
+  <title>AIDO (Artificial Intelligence Development Operator) — Dein persönlicher, lokaler Desktop-Begleiter</title>
   <style>
     :root {
       --bg-dark: #0b0f19;
@@ -38,7 +38,7 @@
       margin-bottom: 20px;
     }
     .brand { display: flex; align-items: center; gap: 12px; }
-    .brand h1 { font-size: 1.2rem; font-weight: 700; letter-spacing: 0.5px; }
+    .brand h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.5px; }
     .slogan { font-size: 0.82rem; color: var(--muted); }
     .badges { display: flex; gap: 10px; align-items: center; }
     .badge {
@@ -147,6 +147,8 @@
       font-size: 0.94rem;
       line-height: 1.55;
       margin-bottom: 14px;
+      max-height: 520px;
+      overflow-y: auto;
     }
     .options-row {
       display: flex;
@@ -186,13 +188,156 @@
     .metric-label { font-size: 0.75rem; color: var(--muted); }
     .metric-value { font-size: 1.05rem; font-weight: 700; margin-top: 4px; color: #f9fafb; }
 
+    /* App Intelligence & Project Catalog Styles */
+    .intel-section {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .intel-heading {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #c7d2fe;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 6px;
+      margin-bottom: 4px;
+    }
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 12px;
+    }
+    .app-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .app-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .app-name {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: #f3f4f6;
+    }
+    .app-meta {
+      font-size: 0.74rem;
+      color: var(--muted);
+      word-break: break-all;
+    }
+    .app-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+      cursor: pointer;
+    }
+    .app-toggle input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+    }
+    .cap-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .cap-badge {
+      font-size: 0.72rem;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cap-badge.low { color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+    .cap-badge.medium { color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+    .cap-badge.high { color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+    .project-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .project-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #34d399;
+    }
+    .project-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tag {
+      font-size: 0.74rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+    .tag.branch { background: rgba(52, 211, 153, 0.12); color: #6ee7b7; border-color: rgba(52, 211, 153, 0.3); }
+    .tag.dirty { background: rgba(245, 158, 11, 0.12); color: #fcd34d; border-color: rgba(245, 158, 11, 0.3); }
+    .tag.action { background: rgba(168, 85, 247, 0.15); color: #d8b4fe; border-color: rgba(168, 85, 247, 0.3); font-family: monospace; }
+    .btn-launch {
+      align-self: flex-start;
+      background: rgba(16, 185, 129, 0.25);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+      padding: 7px 14px;
+      font-size: 0.82rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .btn-launch:hover {
+      background: var(--success);
+      color: #052e16;
+    }
+
     .context-menu {
       position: fixed;
       background: #111827;
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 6px;
-      width: 230px;
+      width: 250px;
       box-shadow: 0 12px 30px rgba(0,0,0,0.6);
       display: none;
       z-index: 1000;
@@ -218,7 +363,7 @@
   <header class="header-bar">
     <div class="brand">
       <div>
-        <h1>AIDO Desktop-Begleiter (MVP v0.1)</h1>
+        <h1>AIDO (Artificial Intelligence Development Operator)</h1>
         <div class="slogan">„AIDO denkt für dich. Nicht du für AIDO.“ · „Dein PC. Dein AIDO. Deine Daten.“</div>
       </div>
     </div>
@@ -231,7 +376,7 @@
   <main class="workspace">
     <section class="character-stage" id="character-stage">
       <span class="state-pill" id="char-state">Zustand: Bereit (Lokal)</span>
-      <div class="avatar-orb" id="avatar-orb" title="Linksklick: Sprechen | Gedrückt halten: Push-to-Talk | Mittelklick: Screenshot | Rechtsklick: Menü">
+      <div class="avatar-orb" id="avatar-orb" title="Linksklick: Dialog | Gedrückt halten: Push-to-Talk | Mittelklick: Screenshot | Rechtsklick: Menü">
         <div class="avatar-eyes">
           <div class="eye"></div>
           <div class="eye"></div>
@@ -251,10 +396,11 @@
       <div class="card">
         <h2>💬 Gespräch & Freigabe-Entscheidung (Permission Gateway)</h2>
         <div class="chat-bubble" id="aido-message">
-          Hallo! Ich bin AIDO. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen schnellen System-Gesundheitscheck durchführen oder temporäre Caches bereinigen?
+          Hallo! Ich bin <b>AIDO (Artificial Intelligence Development Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?
         </div>
         <div class="options-row" id="action-buttons">
           <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
+          <button id="btn-apps-projects">🧩 App Intelligence & Projekte</button>
           <button id="btn-privacy-center">🔒 Privacy Center anzeigen</button>
           <button id="btn-memory-center">🧠 Memory & Audit-Log</button>
         </div>
@@ -291,6 +437,7 @@
   <div class="context-menu" id="context-menu">
     <div class="context-item" data-action="health"><span>🔍 Systemanalyse starten</span></div>
     <div class="context-item" data-action="cleanup"><span>🧹 Fast Cleanup (mit Vorschau)</span></div>
+    <div class="context-item" data-action="apps"><span>🧩 App Intelligence & Projekte</span></div>
     <div class="context-item" data-action="privacy"><span>🔒 Privacy Center (Offline)</span></div>
     <div class="context-item" data-action="memory"><span>🧠 Memory & Wissen</span></div>
     <div class="context-item" data-action="sleep"><span>💤 AIDO schlafen legen (VRAM frei)</span></div>

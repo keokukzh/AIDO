@@ -4,7 +4,99 @@ interface ApprovalProposal {
   explanation: string;
   files: string[];
   bytes: number;
+  actionKind?: string;
 }
+
+interface AppCapability {
+  capabilityId: string;
+  titleDe: string;
+  risk: "Low" | "Medium" | "High";
+  requiresApproval: boolean;
+}
+
+interface AppItem {
+  appId: string;
+  displayName: string;
+  publisher: string;
+  installPath: string;
+  preferredControl: string;
+  userEnabled: boolean;
+  capabilities: AppCapability[];
+}
+
+interface ProjectItem {
+  name: string;
+  canonicalPath: string;
+  stack: string[];
+  gitBranch: string;
+  gitStatus: string;
+  recommendedAction: string;
+  humanSummary: string;
+}
+
+const appsData: AppItem[] = [
+  {
+    appId: "docker-desktop",
+    displayName: "Docker Desktop",
+    publisher: "Docker Inc.",
+    installPath: "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe",
+    preferredControl: "Cli",
+    userEnabled: true,
+    capabilities: [
+      { capabilityId: "open_app", titleDe: "Docker Desktop öffnen", risk: "Low", requiresApproval: false },
+      { capabilityId: "list_containers", titleDe: "Laufende Container auflisten", risk: "Low", requiresApproval: false },
+      { capabilityId: "start_stop_container", titleDe: "Container starten / stoppen", risk: "Medium", requiresApproval: true },
+      { capabilityId: "prune_volumes", titleDe: "Ungenutzte Volumes bereinigen", risk: "High", requiresApproval: true }
+    ]
+  },
+  {
+    appId: "cursor-ide",
+    displayName: "Cursor / VS Code",
+    publisher: "Anysphere / Microsoft",
+    installPath: "C:\\Users\\keoku\\AppData\\Local\\Programs\\cursor\\Cursor.exe",
+    preferredControl: "Cli",
+    userEnabled: true,
+    capabilities: [
+      { capabilityId: "open_app", titleDe: "Editor öffnen", risk: "Low", requiresApproval: false },
+      { capabilityId: "open_project", titleDe: "Projektordner öffnen", risk: "Low", requiresApproval: true }
+    ]
+  },
+  {
+    appId: "lm-studio",
+    displayName: "LM Studio",
+    publisher: "Element Labs, Inc.",
+    installPath: "C:\\Program Files\\LM Studio\\LM Studio.exe",
+    preferredControl: "NativeApi",
+    userEnabled: true,
+    capabilities: [
+      { capabilityId: "query_models", titleDe: "Verfügbare Modelle abfragen", risk: "Low", requiresApproval: false },
+      { capabilityId: "load_unload_model", titleDe: "Modell laden / entladen", risk: "Medium", requiresApproval: true }
+    ]
+  },
+  {
+    appId: "google-chrome",
+    displayName: "Google Chrome",
+    publisher: "Google LLC",
+    installPath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    preferredControl: "UiAutomation",
+    userEnabled: true,
+    capabilities: [
+      { capabilityId: "open_url", titleDe: "URL im Browser öffnen", risk: "Low", requiresApproval: true }
+    ]
+  }
+];
+
+const projectsData: ProjectItem[] = [
+  {
+    name: "AIDO",
+    canonicalPath: "C:\\Users\\keoku\\Desktop\\AIDO",
+    stack: ["Node.js/TypeScript", "Rust"],
+    gitBranch: "main",
+    gitStatus: "dirty",
+    recommendedAction: "npm run dev",
+    humanSummary: "Projekt 'AIDO' (Stack: Node.js/TypeScript, Rust) auf Branch 'main' [dirty]"
+  }
+];
 
 const avatarOrb = document.getElementById("avatar-orb") as HTMLDivElement;
 const charState = document.getElementById("char-state") as HTMLSpanElement;
@@ -38,6 +130,10 @@ function renderDefaultButtons(): void {
   btnCheck.textContent = "🔍 Systemcheck & Fast Cleanup prüfen";
   btnCheck.onclick = () => startSystemHealthAndCleanupPreview();
 
+  const btnApps = document.createElement("button");
+  btnApps.textContent = "🧩 App Intelligence & Projekte";
+  btnApps.onclick = () => showAppIntelligenceAndProjects();
+
   const btnPrivacy = document.createElement("button");
   btnPrivacy.textContent = "🔒 Privacy Center anzeigen";
   btnPrivacy.onclick = () => showPrivacyCenter();
@@ -46,7 +142,7 @@ function renderDefaultButtons(): void {
   btnMemory.textContent = "🧠 Memory & Audit-Log";
   btnMemory.onclick = () => showMemorySummary();
 
-  actionButtons.append(btnCheck, btnPrivacy, btnMemory);
+  actionButtons.append(btnCheck, btnApps, btnPrivacy, btnMemory);
 }
 
 function startSystemHealthAndCleanupPreview(): void {
@@ -61,7 +157,8 @@ function startSystemHealthAndCleanupPreview(): void {
       "aido_whisper_chunk_01.tmp (128 KB)",
       "aido_slot_prompt_cache.tmp (256 KB)"
     ],
-    bytes: 448 * 1024
+    bytes: 448 * 1024,
+    actionKind: "FastCleanup"
   };
 
   setCharacterState("Warte auf deine Freigabe", false);
@@ -124,6 +221,208 @@ function rejectCleanup(): void {
   renderDefaultButtons();
 }
 
+function showAppIntelligenceAndProjects(): void {
+  setCharacterState("App- & Projekt-Intelligenz aktiv", false);
+
+  let html = `
+    <strong>🧩 AIDO (Artificial Intelligence Development Operator) — App Intelligence & Projekte</strong><br/>
+    Hier ist die Übersicht deiner erkannten Desktop-Apps und deines kanonischen Projektkatalogs auf diesem PC. Alle Aktionen erfordern eine explizite Nutzer-Freigabe über das Permission Gateway.
+    
+    <div class="intel-section">
+      <div class="intel-heading">📱 Erkannte Windows-Programme & Geprüfte Fähigkeiten</div>
+      <div class="apps-grid">
+  `;
+
+  for (const app of appsData) {
+    const capsHtml = app.capabilities
+      .map((c) => {
+        const riskClass = c.risk.toLowerCase();
+        const approvalBadge = c.requiresApproval ? "🛡️ Freigabepflicht" : "⚡ Direkt";
+        return `<span class="cap-badge ${riskClass}" title="${c.titleDe}">• ${c.capabilityId} (${approvalBadge})</span>`;
+      })
+      .join("");
+
+    html += `
+      <div class="app-card">
+        <div class="app-header">
+          <div class="app-title-group">
+            <span class="app-name">${app.displayName}</span>
+            <span class="tag">${app.preferredControl}</span>
+          </div>
+          <label class="app-toggle">
+            <input type="checkbox" data-app-id="${app.appId}" ${app.userEnabled ? "checked" : ""} />
+            <span>${app.userEnabled ? "Aktiv" : "Aus"}</span>
+          </label>
+        </div>
+        <div class="app-meta">Herausgeber: ${app.publisher} · Pfad: <code>${app.installPath}</code></div>
+        <div class="cap-list">
+          ${capsHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  html += `
+      </div>
+      <div class="intel-heading" style="margin-top: 10px;">📁 Kanonischer Projektkatalog</div>
+  `;
+
+  for (const proj of projectsData) {
+    const stackTags = proj.stack.map((s) => `<span class="tag">${s}</span>`).join(" ");
+    html += `
+      <div class="project-card">
+        <div class="project-header">
+          <span class="project-title">${proj.name}</span>
+          <div class="tags-row">
+            <span class="tag branch">Branch: ${proj.gitBranch}</span>
+            <span class="tag dirty">Status: ${proj.gitStatus}</span>
+          </div>
+        </div>
+        <div class="project-meta">Kanonischer Pfad: <code>${proj.canonicalPath}</code></div>
+        <div class="tags-row">
+          <span class="tag" style="color: #cbd5e1;">Stack:</span> ${stackTags}
+          <span class="tag action">Empfohlene Aktion: ${proj.recommendedAction}</span>
+        </div>
+        <button class="btn-launch" id="btn-launch-aido">🚀 Projekt-Start vorbereiten (Freigabe anfordern)</button>
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+
+  aidoMessage.innerHTML = html;
+
+  // Add event listeners to app checkboxes
+  const checkboxes = aidoMessage.querySelectorAll<HTMLInputElement>("input[type='checkbox']");
+  checkboxes.forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const target = e.target as HTMLInputElement;
+      const appId = target.dataset.appId;
+      const app = appsData.find((a) => a.appId === appId);
+      if (app) {
+        app.userEnabled = target.checked;
+        const labelSpan = target.parentElement?.querySelector("span");
+        if (labelSpan) {
+          labelSpan.textContent = app.userEnabled ? "Aktiv" : "Aus";
+        }
+        appendAudit(
+          `[AppIntelligence] App '${app.displayName}' ${app.userEnabled ? "aktiviert" : "deaktiviert"} (Nutzer-Einstellung).`
+        );
+      }
+    });
+  });
+
+  // Add event listener to project launch button
+  const launchBtn = aidoMessage.querySelector<HTMLButtonElement>("#btn-launch-aido");
+  if (launchBtn) {
+    launchBtn.addEventListener("click", () => {
+      prepareProjectLaunchPreview("AIDO");
+    });
+  }
+
+  appendAudit(
+    `[AppIntelligence] Umgebungserkennung geladen: ${appsData.length} bekannte Apps & ${projectsData.length} Projekt(e) im Katalog.`
+  );
+
+  // Render contextual action buttons
+  actionButtons.innerHTML = "";
+  const btnLaunchQuick = document.createElement("button");
+  btnLaunchQuick.textContent = "🚀 AIDO Projekt-Start anfordern";
+  btnLaunchQuick.onclick = () => prepareProjectLaunchPreview("AIDO");
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "🔙 Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Artificial Intelligence Development Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnLaunchQuick, btnBack);
+}
+
+function prepareProjectLaunchPreview(projectName: string): void {
+  const project = projectsData.find((p) => p.name === projectName) || projectsData[0];
+  setCharacterState("Warte auf deine Freigabe", false);
+
+  currentProposal = {
+    requestId: crypto.randomUUID(),
+    title: `Projekt-Start: ${project.name}`,
+    explanation: `Ich habe dein Projekt '${project.name}' gefunden (Stack: ${project.stack.join(", ")}). Ich würde die Arbeitsumgebung prüfen und den Startbefehl '${project.recommendedAction}' im Verzeichnis '${project.canonicalPath}' vorbereiten. Soll ich das für dich ausführen?`,
+    files: [project.canonicalPath, project.recommendedAction],
+    bytes: 0,
+    actionKind: "LaunchProject"
+  };
+
+  const reqId = currentProposal.requestId.slice(0, 8);
+
+  aidoMessage.innerHTML = `
+    <strong>${currentProposal.title} (Permission Gateway Freigabe)</strong><br/>
+    ${currentProposal.explanation}<br/><br/>
+    <div class="tags-row" style="margin-top: 6px;">
+      <span class="tag">Ziel: ${project.canonicalPath}</span>
+      <span class="tag action">Befehl: ${project.recommendedAction}</span>
+      <span class="tag branch">Branch: ${project.gitBranch} [${project.gitStatus}]</span>
+    </div>
+  `;
+
+  appendAudit(
+    `[PermissionGateway] Freigabe-Anfrage ${reqId} erstellt (LaunchProject, Projekt: '${project.name}').`
+  );
+
+  actionButtons.innerHTML = "";
+  const btnApprove = document.createElement("button");
+  btnApprove.className = "approve";
+  btnApprove.textContent = "✅ Ja, Projekt starten";
+  btnApprove.onclick = () => executeApprovedLaunch(project);
+
+  const btnReject = document.createElement("button");
+  btnReject.className = "reject";
+  btnReject.textContent = "❌ Nein, abbrechen";
+  btnReject.onclick = () => rejectLaunch();
+
+  actionButtons.append(btnApprove, btnReject);
+}
+
+function executeApprovedLaunch(project: ProjectItem): void {
+  if (!currentProposal) return;
+  const reqId = currentProposal.requestId.slice(0, 8);
+  setCharacterState("Starte Projektumgebung...", true);
+
+  setTimeout(() => {
+    setCharacterState("Projektumgebung aktiv", false);
+    aidoMessage.innerHTML = `
+      <strong>🚀 Projekt '${project.name}' erfolgreich gestartet!</strong><br/>
+      AIDO hat die Arbeitsumgebung für <strong>${project.name}</strong> vorbereitet und die Entwicklungsdienste initialisiert.<br/><br/>
+      <em>Verzeichnis:</em> <code>${project.canonicalPath}</code><br/>
+      <em>Ausgeführter Startbefehl:</em> <code>${project.recommendedAction}</code><br/>
+      <em>Status:</em> Entwicklungs-Server aktiv, Fenster bereit.
+    `;
+    appendAudit(
+      `[WindowsBridge] LaunchProject mit Einmal-Token für Anfrage ${reqId} ausgeführt (${project.recommendedAction} in ${project.canonicalPath}).`
+    );
+    appendAudit(
+      `[MemoryEngine] SystemMemory gespeichert: 'Projekt-Start ${project.name} freigegeben & ausgeführt'.`
+    );
+    currentProposal = null;
+    renderDefaultButtons();
+  }, 350);
+}
+
+function rejectLaunch(): void {
+  if (!currentProposal) return;
+  const reqId = currentProposal.requestId.slice(0, 8);
+  setCharacterState("Bereit (Keine Änderung)", false);
+  aidoMessage.textContent =
+    "Projekt-Start abgebrochen. Keine Prozesse gestartet und keine Dateien verändert.";
+  appendAudit(
+    `[PermissionGateway] Anfrage ${reqId} für Projekt-Start vom Nutzer abgelehnt — keine Ausführung.`
+  );
+  currentProposal = null;
+  renderDefaultButtons();
+}
+
 function showPrivacyCenter(): void {
   setCharacterState("Privacy Center aktiv", false);
   aidoMessage.innerHTML = `
@@ -143,7 +442,7 @@ function showMemorySummary(): void {
   aidoMessage.innerHTML = `
     <strong>🧠 AIDO Lokales Gedächtnis (SQLite + FTS5)</strong><br/>
     • <b>System Memory:</b> Predator Orion 7000 · RTX 5090 (32 GB VRAM) · 64 GB RAM · Windows 11<br/>
-    • <b>Procedural Memory:</b> Geprüfter Ablauf für 'System-Gesundheitscheck & Fast Cleanup'<br/>
+    • <b>Procedural Memory:</b> Geprüfter Ablauf für 'System-Gesundheitscheck & Fast Cleanup' und 'App/Project Launch'<br/>
     • <b>Kontrolle:</b> Alle Erinnerungen sind lokal gespeichert, mit Quelle & Zeitstempel versehen und jederzeit einsehbar oder löschbar.
   `;
   renderDefaultButtons();
@@ -190,6 +489,8 @@ contextMenu.addEventListener("click", (e) => {
   const action = target.dataset.action;
   if (action === "health" || action === "cleanup") {
     startSystemHealthAndCleanupPreview();
+  } else if (action === "apps") {
+    showAppIntelligenceAndProjects();
   } else if (action === "privacy") {
     showPrivacyCenter();
   } else if (action === "memory") {

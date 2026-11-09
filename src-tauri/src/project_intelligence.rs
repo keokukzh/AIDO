@@ -210,10 +210,8 @@ fn detect_git_info(dir: &Path) -> (String, String) {
         .current_dir(dir)
         .output()
     {
-        if output.status.success() {
-            if !output.stdout.is_empty() {
-                status = "dirty".to_string();
-            }
+        if output.status.success() && !output.stdout.is_empty() {
+            status = "dirty".to_string();
         }
     }
 
@@ -731,7 +729,7 @@ mod tests {
 
         // Index the roots
         let discovered = engine
-            .index_roots(&gateway, &[temp_base.clone()], 3)
+            .index_roots(&gateway, std::slice::from_ref(&temp_base), 3)
             .expect("index_roots failed");
 
         assert_eq!(discovered.len(), 4, "Should find exactly 4 projects, ignoring node_modules");
@@ -798,7 +796,7 @@ mod tests {
         std::fs::create_dir_all(&tauri_dir).unwrap();
         std::fs::write(tauri_dir.join("Cargo.toml"), "[package]\nname=\"aido_core\"\n").unwrap();
 
-        engine.index_roots(&gateway, &[temp_base.clone()], 2).unwrap();
+        engine.index_roots(&gateway, std::slice::from_ref(&temp_base), 2).unwrap();
 
         let (project, approval_req) = engine
             .prepare_project_launch(&gateway, "AIDO")
@@ -840,7 +838,7 @@ mod tests {
 
         // Indexing is allowed in read-only mode because ActionKind::ScanProjects is read-only
         let readonly_gateway = PermissionGateway::new(AccessMode::ReadOnly, PrivacyMode::PrivateOffline);
-        let scan_res = engine.index_roots(&readonly_gateway, &[temp_base.clone()], 2);
+        let scan_res = engine.index_roots(&readonly_gateway, std::slice::from_ref(&temp_base), 2);
         assert!(scan_res.is_ok(), "ReadOnly mode should permit scanning");
 
         // prepare_project_launch creates an ApprovalRequest for ActionKind::LaunchProject, which is mutating
