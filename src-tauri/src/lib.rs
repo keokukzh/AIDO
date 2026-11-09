@@ -2,6 +2,7 @@ pub mod ai_client;
 pub mod app_intelligence;
 pub mod memory;
 pub mod permission_gateway;
+pub mod project_intelligence;
 pub mod windows_bridge;
 
 use ai_client::{AiResponseWithOptions, LocalAiClient};
