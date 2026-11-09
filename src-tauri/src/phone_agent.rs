@@ -58,6 +58,13 @@ impl RuleBasedPhonePlanner {
             "maps" | "karten" | "google maps" => Some("com.google.android.apps.maps"),
             "telefon" | "phone" | "anrufe" => Some("com.google.android.dialer"),
             "nachrichten" | "messages" | "sms" => Some("com.google.android.apps.messaging"),
+            "play store" | "playstore" | "google play" => Some("com.android.vending"),
+            "gmail" | "mail" | "e-mail" => Some("com.google.android.gm"),
+            "fotos" | "photos" | "galerie" | "gallery" => Some("com.google.android.apps.photos"),
+            "rechner" | "calculator" => Some("com.google.android.calculator"),
+            "uhr" | "clock" | "wecker" => Some("com.google.android.deskclock"),
+            "kalender" | "calendar" => Some("com.google.android.calendar"),
+            "dateien" | "files" => Some("com.google.android.apps.nbu.files"),
             _ => None,
         }
     }
@@ -99,7 +106,11 @@ impl PhonePlanner for RuleBasedPhonePlanner {
                         summary: format!("Webadresse '{}' erfolgreich aufgerufen", url),
                     };
                 }
-                PhoneAction::TapNode { .. } | PhoneAction::Tap { .. } | PhoneAction::Key { .. } => {
+                PhoneAction::TapNode { .. }
+                | PhoneAction::Tap { .. }
+                | PhoneAction::Key { .. }
+                | PhoneAction::Swipe { .. }
+                | PhoneAction::TypeText { .. } => {
                     return PhoneAction::Done {
                         summary: format!("Aktion für Ziel '{}' erfolgreich ausgeführt", trimmed_goal),
                     };
@@ -108,7 +119,83 @@ impl PhonePlanner for RuleBasedPhonePlanner {
             }
         }
 
-        // 1. App Launch: "öffne <app>", "starte <app>", "open <app>"
+        // 1. Open URL: "öffne <url>", "open <url>", "http://...", "https://...", "www...."
+        let is_url = lower.starts_with("http://")
+            || lower.starts_with("https://")
+            || lower.starts_with("öffne http://")
+            || lower.starts_with("öffne https://")
+            || lower.starts_with("open http://")
+            || lower.starts_with("open https://")
+            || lower.starts_with("öffne www.")
+            || lower.starts_with("open www.")
+            || lower.starts_with("www.");
+
+        if is_url {
+            let raw_url = if let Some(u) = trimmed_goal.strip_prefix("öffne ") {
+                u.trim()
+            } else if let Some(u) = trimmed_goal.strip_prefix("open ") {
+                u.trim()
+            } else {
+                trimmed_goal
+            };
+            let url = if raw_url.starts_with("www.") {
+                format!("https://{}", raw_url)
+            } else {
+                raw_url.to_string()
+            };
+            return PhoneAction::OpenUrl { url };
+        }
+
+        // 2. Swipes and Scrolling: "wische nach oben", "scroll down", etc.
+        if lower == "wische nach oben" || lower == "swipe up" || lower == "nach unten scrollen" || lower == "scroll down" {
+            return PhoneAction::Swipe { x1: 540, y1: 1600, x2: 540, y2: 600, duration_ms: 300 };
+        }
+        if lower == "wische nach unten" || lower == "swipe down" || lower == "nach oben scrollen" || lower == "scroll up" {
+            return PhoneAction::Swipe { x1: 540, y1: 600, x2: 540, y2: 1600, duration_ms: 300 };
+        }
+        if lower == "wische nach links" || lower == "swipe left" {
+            return PhoneAction::Swipe { x1: 800, y1: 1200, x2: 200, y2: 1200, duration_ms: 300 };
+        }
+        if lower == "wische nach rechts" || lower == "swipe right" {
+            return PhoneAction::Swipe { x1: 200, y1: 1200, x2: 800, y2: 1200, duration_ms: 300 };
+        }
+
+        // 3. Text Typing: "schreibe <text>", "tippe text <text> ein", "type <text>"
+        let type_prefixes = &[
+            "schreibe text ", "schreibe ", "tippe text ", "type text ", "type ", "gebe ein ", "eingabe von "
+        ];
+        for prefix in type_prefixes {
+            if let Some(text_to_type) = trimmed_goal.strip_prefix(prefix) {
+                let clean_text = text_to_type.trim();
+                if !clean_text.is_empty() {
+                    return PhoneAction::TypeText { text: clean_text.to_string() };
+                }
+            }
+        }
+
+        // 4. Hardware keys: "zurück", "back", "home", "recents", "enter"
+        if lower == "zurück" || lower == "zurueck" || lower == "back" {
+            return PhoneAction::Key {
+                key: PhoneKey::Back,
+            };
+        }
+        if lower == "home" || lower == "startbildschirm" || lower == "hauptbildschirm" {
+            return PhoneAction::Key {
+                key: PhoneKey::Home,
+            };
+        }
+        if lower == "recents" || lower == "apps" || lower == "app-übersicht" || lower == "übersicht" {
+            return PhoneAction::Key {
+                key: PhoneKey::Recents,
+            };
+        }
+        if lower == "enter" || lower == "eingabe" || lower == "bestätigen" || lower == "bestaetigen" {
+            return PhoneAction::Key {
+                key: PhoneKey::Enter,
+            };
+        }
+
+        // 5. App Launch: "öffne <app>", "starte <app>", "open <app>"
         let app_prefixes = &["öffne ", "oeffne ", "starte ", "open ", "launch "];
         for prefix in app_prefixes {
             if let Some(rest) = lower.strip_prefix(prefix) {
@@ -129,24 +216,7 @@ impl PhonePlanner for RuleBasedPhonePlanner {
             }
         }
 
-        // 2. Hardware keys: "zurück", "back", "home", "recents"
-        if lower == "zurück" || lower == "zurueck" || lower == "back" {
-            return PhoneAction::Key {
-                key: PhoneKey::Back,
-            };
-        }
-        if lower == "home" || lower == "startbildschirm" || lower == "hauptbildschirm" {
-            return PhoneAction::Key {
-                key: PhoneKey::Home,
-            };
-        }
-        if lower == "recents" || lower == "apps" || lower == "app-übersicht" || lower == "übersicht" {
-            return PhoneAction::Key {
-                key: PhoneKey::Recents,
-            };
-        }
-
-        // 3. Phone calls: "rufe <nummer> an", "call <nummer>"
+        // 6. Phone calls: "rufe <nummer> an", "call <nummer>"
         if lower.starts_with("rufe ") && lower.ends_with(" an") {
             let number = &trimmed_goal[5..trimmed_goal.len() - 3].trim();
             return PhoneAction::StartCall {
@@ -159,7 +229,7 @@ impl PhonePlanner for RuleBasedPhonePlanner {
             };
         }
 
-        // 4. SMS sending: "sms an <nummer>: <text>", "text <nummer>: <text>"
+        // 7. SMS sending: "sms an <nummer>: <text>", "text <nummer>: <text>"
         if let Some(rest) = lower.strip_prefix("sms an ") {
             if let Some(colon) = rest.find(':') {
                 let number = rest[..colon].trim().to_string();
@@ -175,25 +245,7 @@ impl PhonePlanner for RuleBasedPhonePlanner {
             }
         }
 
-        // 5. Open URL: "öffne <url>", "open <url>"
-        if lower.starts_with("öffne http")
-            || lower.starts_with("open http")
-            || lower.starts_with("http://")
-            || lower.starts_with("https://")
-        {
-            let url = if let Some(u) = trimmed_goal.strip_prefix("öffne ") {
-                u.trim()
-            } else if let Some(u) = trimmed_goal.strip_prefix("open ") {
-                u.trim()
-            } else {
-                trimmed_goal
-            };
-            return PhoneAction::OpenUrl {
-                url: url.to_string(),
-            };
-        }
-
-        // 6. Tap on text: "tippe auf <text>", "klicke <text>", "tap on <text>"
+        // 8. Tap on text: "tippe auf <text>", "klicke <text>", "tap on <text>"
         let tap_prefixes = &["tippe auf ", "tippe ", "klicke auf ", "klicke ", "tap on ", "tap ", "click "];
         for prefix in tap_prefixes {
             if let Some(target) = lower.strip_prefix(prefix) {
@@ -754,6 +806,34 @@ mod tests {
         let obs_in_settings = mock_obs("com.android.settings");
         let a_done = planner.next_action("Öffne Einstellungen", &obs_in_settings, &[step_record]);
         assert!(matches!(a_done, PhoneAction::Done { .. }));
+
+        // 8. Open URL (prioritized before app launch)
+        assert_eq!(
+            planner.next_action("öffne https://github.com/keokukzh/AIDO", &obs, &[]),
+            PhoneAction::OpenUrl {
+                url: "https://github.com/keokukzh/AIDO".into()
+            }
+        );
+
+        // 9. Swiping and scrolling
+        assert_eq!(
+            planner.next_action("wische nach oben", &obs, &[]),
+            PhoneAction::Swipe {
+                x1: 540,
+                y1: 1600,
+                x2: 540,
+                y2: 600,
+                duration_ms: 300
+            }
+        );
+
+        // 10. Typing text
+        assert_eq!(
+            planner.next_action("schreibe Hallo Welt", &obs, &[]),
+            PhoneAction::TypeText {
+                text: "Hallo Welt".into()
+            }
+        );
     }
 
     #[test]
