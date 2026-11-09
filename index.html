@@ -1809,6 +1809,95 @@
       color: rgba(9, 9, 11, 0.9);
     }
 
+    /* =========================================================================
+       Phase 12: REA Reverse Engineering Studio
+       ========================================================================= */
+    .rea-studio-box {
+      background: rgba(15, 18, 25, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .rea-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .rea-badge.kind-gui {
+      background: rgba(56, 189, 248, 0.14);
+      color: #38bdf8;
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .rea-badge.kind-cli {
+      background: rgba(16, 185, 129, 0.14);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+    .rea-badge.kind-electron {
+      background: rgba(168, 85, 247, 0.14);
+      color: #c084fc;
+      border-color: rgba(168, 85, 247, 0.35);
+    }
+    .rea-badge.risk-low {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+    .rea-badge.risk-medium {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+    .rea-badge.risk-high {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.35);
+    }
+    .rea-dll-chip {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-family: monospace;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+    .rea-cap-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      text-align: left;
+    }
+    .rea-cap-table th {
+      background: rgba(255, 255, 255, 0.06);
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .rea-cap-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text);
+      vertical-align: middle;
+    }
+    .rea-cap-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
   </style>
 </head>
 <body>
@@ -1964,6 +2053,7 @@
         </div>
         <div class="options-row" id="action-buttons">
           <button id="btn-masterplan" data-action="masterplan" style="background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.38); color: #ffffff; font-weight: 600;">🏛️ Masterplan 100 % (7-Memory, Tasks, 8-Agents & Docker)</button>
+          <button id="btn-rea" data-action="rea" style="background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.32); color: #ffffff; font-weight: 600;">🔬 REA App Reverse Engineering & Steuerung</button>
           <button id="btn-brand-studio" data-action="brand-studio" style="background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff;">🎨 AIDO-MONO 3D & Brand Studio</button>
           <button id="btn-remote" data-action="remote" style="background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.28); color: #ffffff;">📱 Agent Remote (QR & Handy-Cockpit)</button>
           <button id="btn-health-check">🔍 Systemcheck & Fast Cleanup prüfen</button>
@@ -2008,6 +2098,7 @@
 
   <div class="context-menu" id="context-menu">
     <div class="context-item" data-action="masterplan"><span>🏛️ Masterplan 100 % (7-Memory, Tasks, 8-Agents & Docker)</span></div>
+    <div class="context-item" data-action="rea"><span>🔬 REA App Reverse Engineering</span></div>
     <div class="context-item" data-action="brand-studio"><span>🎨 AIDO-MONO 3D & Brand Studio</span></div>
     <div class="context-item" data-action="remote"><span>📱 Agent Remote (QR & Handy-Cockpit)</span></div>
     <div class="context-item" data-action="health"><span>🔍 Systemanalyse starten</span></div>

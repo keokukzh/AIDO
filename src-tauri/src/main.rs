@@ -73,6 +73,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let report = core.evaluate_masterplan_completion()?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        "rea" => {
+            let target_path = args.get(2).map(PathBuf::from).unwrap_or_else(|| {
+                let notepad = PathBuf::from(r"C:\Windows\System32\notepad.exe");
+                if notepad.exists() {
+                    notepad
+                } else {
+                    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("aido-cli.exe"))
+                }
+            });
+            let report = core.rea.inspect_binary(&target_path)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         "demo" => {
             println!("=== AIDO (Agentic Intelligent Developing Operator) — Kern-Prototyp & Systemcheck ===");
             println!(
@@ -84,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Seed 3 harmless temporary cache files in AIDO's isolated staging folder
             let seeded = core.bridge.seed_demo_cache_files()?;
             println!(
-                "[1/11] Test-Staging vorbereitet: {} KB in '{}'",
+                "[1/12] Test-Staging vorbereitet: {} KB in '{}'",
                 seeded / 1024,
                 core.bridge.safe_temp_dir().display()
             );
@@ -92,7 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Step 1: Read-only health check + AI proposal + Permission Gateway request
             let api_key = std::env::var("AIDO_LOCAL_API_KEY").ok();
             let inspection = core.inspect_and_propose_fast_cleanup(api_key.as_deref())?;
-            println!("\n[2/11] AIDO Erklärungs- & Freigabevorschlag:");
+            println!("\n[2/12] AIDO Erklärungs- & Freigabevorschlag:");
             println!("  Modell: {}", inspection.ai_proposal.model_id);
             println!("  Nachricht: {}", inspection.ai_proposal.message);
             println!(
@@ -109,14 +121,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 inspection.approval_request.request_id,
                 Some("Nutzer hat im Dialog auf 'Ja, jetzt bereinigen' geklickt.".into()),
             )?;
-            println!("\n[3/11] Ausführung nach Freigabe:");
+            println!("\n[3/12] Ausführung nach Freigabe:");
             println!("  {}", cleanup_result.human_report);
 
             // Step 3: Verify SQLite/FTS5 Memory & Audit Log recall
             let memories = core.memory.search_memory("Fast AND Cleanup", 5)?;
             let audits = core.memory.list_audit_log(5)?;
             println!(
-                "\n[4/11] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
+                "\n[4/12] Memory-Abruf (SQLite + FTS5): {} passende Erinnerungen, {} Audit-Einträge.",
                 memories.len(),
                 audits.len()
             );
@@ -125,7 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 5: App Intelligence & Projektkatalog
-            println!("\n[5/11] App Intelligence & Projektkatalog:");
+            println!("\n[5/12] App Intelligence & Projektkatalog:");
             let aido_dir = PathBuf::from(r"C:\Users\keoku\Desktop\AIDO");
             let (discovered_apps, discovered_projects) =
                 core.discover_and_register_environment(&[aido_dir])?;
@@ -176,7 +188,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 6: Smart Installer & Modell-Wiederverwendung
-            println!("\n[6/11] Smart Installer & Modell-Wiederverwendung:");
+            println!("\n[6/12] Smart Installer & Modell-Wiederverwendung:");
             let plan = core.evaluate_smart_installer_plan(4, 1)?;
             let total_models = plan.models.len();
             let reused_models = plan.eta.reused_models_count;
@@ -213,7 +225,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Step 7: Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung
-            println!("\n[7/11] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
+            println!("\n[7/12] Live-Runtime-Supervisor, Vision/ASR & 4-Stufen-Memory-Kompaktierung:");
             // Store a second episodic memory so compaction threshold (min_entries = 2) is met
             core.memory.store_memory(
                 "EpisodicMemory",
@@ -275,7 +287,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Step 8: Proaktive Vordenker-Engine & Deep Cleanup
-            println!("\n[8/11] Proaktive Vordenker-Engine & Deep Cleanup:");
+            println!("\n[8/12] Proaktive Vordenker-Engine & Deep Cleanup:");
             let seeded_deep = core.bridge.seed_demo_deep_cleanup_files()?;
             println!(
                 "  Test-Staging für Tiefenbereinigung vorbereitet: {} KB in '{}'",
@@ -339,7 +351,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    {}", dc_result.human_report);
 
             // Step 9: Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8)
-            println!("\n[9/11] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
+            println!("\n[9/12] Isolierte Adapter-Prüfbank (Phase 7) & Release/Uninstaller-Check (Phase 8):");
             let p78_report = core.evaluate_adapter_sandbox_and_release_readiness(
                 "obs-studio",
                 "OBS Studio",
@@ -405,7 +417,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Statusbericht: {}", p78_report.release_readiness.human_summary);
 
             // Step 10: Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität)
-            println!("\n[10/11] Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität):");
+            println!("\n[10/12] Agent Remote (QR-Pairing, 4-Zonen-Smartphone-Cockpit, AIDO-Blick & 100 % PC-Parität):");
             let challenge = core.start_remote_pairing_challenge()?;
             println!("  1. Pairing-Challenge generiert:");
             println!("    • Challenge-ID: {}", challenge.challenge_id);
@@ -435,7 +447,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("    • Zone 4 (Daumen-Aktionen): Pending Approvals = {}, Reply-Chips: {:?}", cockpit.pending_approvals_count, cockpit.reply_chips_de);
 
             // Step 11: Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes)
-            println!("\n[11/11] Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes):");
+            println!("\n[11/12] Masterplan-Abschluss (7-Ebenen-Memory, Persistente Task Engine mit Desktop-Lock-Weiche, 8 Spezialisten, Admin Broker & WSL2/Docker-Sandboxes):");
             let mp_report = core.evaluate_masterplan_completion()?;
             println!("  1. 7-Ebenen-Gedächtnis & Procedural Skills:");
             println!(
@@ -515,9 +527,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             println!("    • Hinweis: {}", mp_report.docker_audit.remediation_hint_de);
+
+            // Step 12: REA Universelle App-Reverse-Engineering & Adapter-Synthese (morluto/rea)
+            println!("\n[12/12] REA Universelle App-Reverse-Engineering & Adapter-Synthese (morluto/rea):");
+            let target_exe = {
+                let notepad = PathBuf::from(r"C:\Windows\System32\notepad.exe");
+                if notepad.exists() {
+                    notepad
+                } else {
+                    std::env::current_exe().unwrap_or_else(|_| PathBuf::from("aido-cli.exe"))
+                }
+            };
+            let (rea_report, rea_entry) = core.inspect_and_register_app_with_rea(
+                &target_exe,
+                "windows-notepad",
+                "Windows Editor (Notepad)",
+                "Microsoft Corporation",
+            )?;
+            println!("  1. Binär-Inspektion & Provenance (Zero-Panic PE/ASAR Parser):");
+            println!("    • Ziel-Datei: {}", rea_report.target_path);
+            println!("    • SHA-256 Provenance: {}", rea_report.evidence_provenance_sha256);
+            println!("    • Binärtyp: {:?}", rea_report.binary_kind);
+            if let Some(pe) = &rea_report.pe_meta {
+                println!(
+                    "    • PE-Header: Architektur '{}', Subsystem '{}', Manifest: {}",
+                    pe.architecture, pe.subsystem, pe.has_embedded_manifest
+                );
+                println!(
+                    "    • Importierte DLLs ({}): {}",
+                    pe.imported_dlls.len(),
+                    pe.imported_dlls.join(", ")
+                );
+                println!(
+                    "    • Sektionen ({}): {}",
+                    pe.sections.len(),
+                    pe.sections.join(", ")
+                );
+            }
+            if let Some(electron) = &rea_report.electron_meta {
+                println!(
+                    "    • Electron-Metadaten: App '{}', Version '{}', Script '{}', IPC: {:?}",
+                    electron.app_name, electron.version, electron.main_script, electron.ipc_channels
+                );
+            }
+            println!("  2. Evidenz-basierte Fähigkeiten & Risikotrennung:");
+            for cap in &rea_entry.capabilities {
+                let req_tag = if cap.requires_approval { "Erfordert Freigabe" } else { "Harmlos / Direkt" };
+                println!(
+                    "    • [{:?}] {} (Risiko: {:?}, Status: {:?})",
+                    cap.risk, cap.title_de, cap.risk, cap.status
+                );
+                println!("        ID: {} ({})", cap.capability_id, req_tag);
+            }
+            println!("  3. Adapter-Synthese & Persistenz:");
+            println!("    • App-ID in SQLite: {}", rea_entry.app_id);
+            println!("    • Bevorzugte Steuerung: {:?}", rea_entry.preferred_control);
+            println!("    • Herkunft: {:?}", rea_entry.adapter_origin);
+            println!("    • Zusammenfassung: {}", rea_report.human_summary_de);
         }
         _ => {
-            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check | remote | masterplan]");
+            println!("Verwendung: aido-cli [demo | health | apps | projects | installer | runtime | proactive | release-check | remote | masterplan | rea]");
         }
     }
 

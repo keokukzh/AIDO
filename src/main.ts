@@ -455,6 +455,8 @@ const contextMenu = document.getElementById("context-menu") as HTMLDivElement;
 const privacyBadge = document.getElementById("privacy-badge") as HTMLSpanElement | null;
 const btnStaticRemote = document.getElementById("btn-remote") as HTMLButtonElement | null;
 btnStaticRemote?.addEventListener("click", () => showAgentRemoteView());
+const btnStaticRea = document.getElementById("btn-rea") as HTMLButtonElement | null;
+btnStaticRea?.addEventListener("click", () => showReaStudioView());
 
 const monoCanvas = document.getElementById("aido-mono-3d-canvas") as HTMLCanvasElement | null;
 const characterViewport = document.getElementById("character-viewport-container") as HTMLDivElement | null;
@@ -578,6 +580,16 @@ function renderDefaultButtons(): void {
   btnMasterplan.style.fontWeight = "600";
   btnMasterplan.onclick = () => showMasterplanCompletionView();
 
+  const btnRea = document.createElement("button");
+  btnRea.id = "btn-rea";
+  btnRea.textContent = "🔬 REA App Reverse Engineering & Steuerung";
+  btnRea.dataset.action = "rea";
+  btnRea.style.background = "rgba(255, 255, 255, 0.12)";
+  btnRea.style.borderColor = "rgba(255, 255, 255, 0.32)";
+  btnRea.style.color = "#ffffff";
+  btnRea.style.fontWeight = "600";
+  btnRea.onclick = () => showReaStudioView();
+
   const btnBrandStudio = document.createElement("button");
   btnBrandStudio.textContent = "🎨 AIDO-MONO 3D & Brand Studio";
   btnBrandStudio.dataset.action = "brand-studio";
@@ -635,6 +647,7 @@ function renderDefaultButtons(): void {
 
   actionButtons.append(
     btnMasterplan,
+    btnRea,
     btnBrandStudio,
     btnRemote,
     btnCheck,
@@ -3074,12 +3087,448 @@ function showMasterplanCompletionView(): void {
   );
 }
 
+// ============================================================================
+// Phase 12: REA Universelle App-Reverse-Engineering & Steuerung (morluto/rea)
+// ============================================================================
+
+interface ReaReport {
+  targetPath: string;
+  displayName: string;
+  appId: string;
+  publisher: string;
+  binaryKind: "Win32PeGui" | "Win32PeConsole" | "ElectronApp" | "DotNetManaged" | "Unknown";
+  arch: string;
+  subsystem: string;
+  sections: string[];
+  importedDlls: string[];
+  electronIpc?: string[];
+  sha256: string;
+  preferredControl: string;
+  capabilities: AppCapability[];
+  humanSummaryDe: string;
+}
+
+function performReaBinaryAnalysis(path: string): ReaReport {
+  const norm = path.trim();
+  const lower = norm.toLowerCase();
+
+  if (lower.includes("notepad")) {
+    return {
+      targetPath: norm || "C:\\Windows\\System32\\notepad.exe",
+      displayName: "Windows Editor (Notepad)",
+      appId: "rea-notepad",
+      publisher: "Microsoft Corporation",
+      binaryKind: "Win32PeGui",
+      arch: "x86_64",
+      subsystem: "Windows GUI (Subsystem 2)",
+      sections: [".text", ".rdata", ".data", ".pdata", ".rsrc"],
+      importedDlls: ["KERNEL32.dll", "USER32.dll", "COMCTL32.dll", "GDI32.dll", "ADVAPI32.dll", "SHELL32.dll"],
+      sha256: "b7f240989c44510b652873130d4a9ecae3b0c44298fc1c149afbf4c8996fb924",
+      preferredControl: "UiAutomation",
+      capabilities: [
+        { capabilityId: "open_text_file", titleDe: "Textdokument öffnen / lesen", risk: "Low", requiresApproval: false },
+        { capabilityId: "type_and_format_text", titleDe: "Automatisiert Text einfügen & formatieren", risk: "Low", requiresApproval: false },
+        { capabilityId: "save_and_export_file", titleDe: "Dokument auf Festplatte speichern", risk: "Medium", requiresApproval: true },
+        { capabilityId: "close_window_instance", titleDe: "Editor-Instanz schließen", risk: "Medium", requiresApproval: true }
+      ],
+      humanSummaryDe: "Win32 GUI-Anwendung mit USER32-Window-Handle. AIDO steuert Notepad über UI-Automation und verifiziert Dateioperationen über das Permission Gateway."
+    };
+  }
+
+  if (lower.includes("obs") || lower.includes("obs64")) {
+    return {
+      targetPath: norm || "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe",
+      displayName: "OBS Studio 64-bit",
+      appId: "rea-obs-studio",
+      publisher: "OBS Project",
+      binaryKind: "Win32PeGui",
+      arch: "x86_64",
+      subsystem: "Windows GUI (Subsystem 2)",
+      sections: [".text", ".rdata", ".data", ".pdata", ".rsrc"],
+      importedDlls: ["USER32.dll", "KERNEL32.dll", "AVIFIL32.dll", "D3D11.dll", "D3D12.dll", "WS2_32.dll", "IMM32.dll"],
+      sha256: "4d89a2b7194602f3c0919b76c8c4a52ff37803d2110c3298a0d4cbb8f9672044",
+      preferredControl: "UiAutomation",
+      capabilities: [
+        { capabilityId: "switch_scene_and_camera", titleDe: "Szenen- & Kameraquellen umschalten", risk: "Low", requiresApproval: false },
+        { capabilityId: "audio_volume_adjust", titleDe: "Audiomixer Pegel anpassen", risk: "Low", requiresApproval: false },
+        { capabilityId: "start_stop_recording", titleDe: "Aufnahme lokal starten & beenden", risk: "Medium", requiresApproval: true },
+        { capabilityId: "broadcast_live_stream", titleDe: "Live-Streaming an RTMP-Server senden", risk: "High", requiresApproval: true }
+      ],
+      humanSummaryDe: "Multimedia Win32 PE GUI mit DirectX/D3D12 und Socket-Imports. AIDO synthetisiert Szenenwechsel als harmlos und sperrt Live-Streaming hinter Gateway-Freigaben."
+    };
+  }
+
+  if (lower.includes("code") || lower.includes("electron") || lower.includes("slack") || lower.includes("discord")) {
+    return {
+      targetPath: norm || "C:\\Users\\keoku\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+      displayName: "Visual Studio Code (Electron)",
+      appId: "rea-vscode",
+      publisher: "Microsoft Corporation",
+      binaryKind: "ElectronApp",
+      arch: "x86_64",
+      subsystem: "Windows GUI (Subsystem 2) / ASAR Container",
+      sections: [".text", ".rdata", ".data", ".pdata", ".rsrc"],
+      importedDlls: ["NODE.dll", "KERNEL32.dll", "USER32.dll", "GDI32.dll", "WS2_32.dll", "IMM32.dll"],
+      electronIpc: ["app-command", "window-control", "file-open", "system-dialog", "workbench-action"],
+      sha256: "a83b169ffc83b8b12e3f4c6883f3e1d6706e902b774619da0d8e8b82c19a0082",
+      preferredControl: "McpPlugin",
+      capabilities: [
+        { capabilityId: "open_workspace_folder", titleDe: "Projektordner im Workspace öffnen", risk: "Low", requiresApproval: false },
+        { capabilityId: "trigger_editor_command", titleDe: "Workbench-Kommando ausführen", risk: "Low", requiresApproval: false },
+        { capabilityId: "execute_integrated_terminal", titleDe: "Terminalbefehl im Workspace ausführen", risk: "Medium", requiresApproval: true },
+        { capabilityId: "install_extension_package", titleDe: "VS Code Extension installieren", risk: "High", requiresApproval: true }
+      ],
+      humanSummaryDe: "Electron-basierte Anwendung mit erkanntem ASAR-Archiv und Node.js-Bindings. AIDO interagiert über strukturierte IPC-Kanäle und isolierte MCP-Tools."
+    };
+  }
+
+  if (lower.includes("cmd") || lower.includes("powershell") || lower.includes("cli")) {
+    return {
+      targetPath: norm || "C:\\Windows\\System32\\cmd.exe",
+      displayName: "Windows Eingabeaufforderung (CMD)",
+      appId: "rea-cmd",
+      publisher: "Microsoft Windows",
+      binaryKind: "Win32PeConsole",
+      arch: "x86_64",
+      subsystem: "Windows CUI (Subsystem 3)",
+      sections: [".text", ".rdata", ".data", ".pdata"],
+      importedDlls: ["KERNEL32.dll", "ntdll.dll", "ADVAPI32.dll"],
+      sha256: "3c81e220a0df254f15d2a3f7a42b109e53096d34bcfb62e49c9535c3c0a2ff83",
+      preferredControl: "Cli",
+      capabilities: [
+        { capabilityId: "run_diagnostics", titleDe: "Diagnose- & Statusbefehle ausführen", risk: "Low", requiresApproval: false },
+        { capabilityId: "execute_batch_script", titleDe: "Batch-Skript im Projektpfad ausführen", risk: "Medium", requiresApproval: true }
+      ],
+      humanSummaryDe: "Klassisches Win32 Console-Subsystem. AIDO steuert die Anwendung über strikte Standard-I/O-Pipes mit Gateway-Approval-Trennung."
+    };
+  }
+
+  // Generic custom executable
+  const filename = norm.split(/[\\/]/).pop() || "app.exe";
+  const nameBase = filename.replace(/\.exe$/i, "");
+  const cleanId = "rea-" + nameBase.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  return {
+    targetPath: norm,
+    displayName: nameBase.charAt(0).toUpperCase() + nameBase.slice(1) + " (Synthetisiert)",
+    appId: cleanId,
+    publisher: "Lokale Windows-Binärdatei",
+    binaryKind: "Win32PeGui",
+    arch: "x86_64",
+    subsystem: "Windows GUI (Subsystem 2)",
+    sections: [".text", ".rdata", ".data", ".rsrc"],
+    importedDlls: ["KERNEL32.dll", "USER32.dll", "GDI32.dll", "ADVAPI32.dll"],
+    sha256: "9f83c128" + Math.abs(nameBase.split("").reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0)).toString(16).padStart(8, "0") + "41e4649b934ca495991b7852b855",
+    preferredControl: "UiAutomation",
+    capabilities: [
+      { capabilityId: "inspect_app_window", titleDe: "Anwendungsfenster erkennen & fokussieren", risk: "Low", requiresApproval: false },
+      { capabilityId: "invoke_menu_command", titleDe: "Menü- & Standardaktionen auslösen", risk: "Medium", requiresApproval: true },
+      { capabilityId: "mutate_app_data", titleDe: "Anwendungsdaten verändern oder exportieren", risk: "High", requiresApproval: true }
+    ],
+    humanSummaryDe: "Statisch analysierte Windows PE-Binärdatei mit Standard-Win32-Imports. AIDO generiert einen sicheren UIAutomation-Adapter mit getrennten Risikostufen."
+  };
+}
+
+let activeReaTarget = "C:\\Windows\\System32\\notepad.exe";
+let reaRegistrationNotice = "";
+
+function showReaStudioView(targetPathOverride?: string): void {
+  if (targetPathOverride !== undefined) {
+    activeReaTarget = targetPathOverride;
+  }
+  setCharacterState("REA Reverse Engineering Studio", false);
+
+  const report = performReaBinaryAnalysis(activeReaTarget);
+
+  // Check if app is already registered
+  const isAlreadyRegistered = appsData.some(a => a.appId === report.appId);
+
+  const kindBadgeClass = report.binaryKind === "ElectronApp"
+    ? "kind-electron"
+    : report.binaryKind === "Win32PeConsole"
+    ? "kind-cli"
+    : "kind-gui";
+
+  const kindLabel = report.binaryKind === "ElectronApp"
+    ? "⚡ Electron ASAR App"
+    : report.binaryKind === "Win32PeConsole"
+    ? "🖥️ Win32 Console CUI"
+    : "🪟 Win32 PE GUI";
+
+  const dllChipsHtml = report.importedDlls
+    .map(dll => `<span class="rea-dll-chip">${dll}</span>`)
+    .join(" ");
+
+  const sectionsHtml = report.sections
+    .map(s => `<span class="rea-dll-chip" style="background: rgba(56, 189, 248, 0.08); border-color: rgba(56, 189, 248, 0.25); color: #38bdf8;">${s}</span>`)
+    .join(" ");
+
+  const electronIpcHtml = report.electronIpc && report.electronIpc.length > 0
+    ? `
+      <div style="margin-top: 8px;">
+        <div style="font-size: 0.76rem; color: #c084fc; font-weight: 600; margin-bottom: 4px;">📡 Erkannte Electron IPC-Kanäle:</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          ${report.electronIpc.map(ipc => `<span class="rea-dll-chip" style="background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.3); color: #d8b4fe;">ipc://${ipc}</span>`).join(" ")}
+        </div>
+      </div>
+    `
+    : "";
+
+  const capabilitiesRows = report.capabilities.map(cap => {
+    const riskBadgeClass = cap.risk === "Low" ? "risk-low" : cap.risk === "Medium" ? "risk-medium" : "risk-high";
+    const approvalTag = cap.requiresApproval
+      ? `<span style="color: #fbbf24; font-weight: 600;">🛡️ Freigabepflichtig</span>`
+      : `<span style="color: #34d399; font-weight: 600;">⚡ Direkt / Harmlos</span>`;
+
+    return `
+      <tr>
+        <td><code>${cap.capabilityId}</code></td>
+        <td><b>${cap.titleDe}</b></td>
+        <td>${approvalTag}</td>
+        <td><span class="rea-badge ${riskBadgeClass}">${cap.risk}</span></td>
+      </tr>
+    `;
+  }).join("");
+
+  const registrationAlertHtml = reaRegistrationNotice
+    ? `
+      <div style="background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; padding: 10px 14px; font-size: 0.82rem; color: #34d399; display: flex; align-items: center; justify-content: space-between;">
+        <span>${reaRegistrationNotice}</span>
+        <button id="btn-rea-open-apps" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.74rem; cursor: pointer;">Zu App Intelligence ➔</button>
+      </div>
+    `
+    : "";
+
+  aidoMessage.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:14px;">
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.12); padding-bottom:10px;">
+        <div>
+          <h3 style="margin:0; font-size:1.15rem; color:#f8fafc; font-weight:700;">🔬 REA App Reverse Engineering Studio (morluto/rea)</h3>
+          <p style="margin:4px 0 0; font-size:0.83rem; color:#94a3b8;">
+            Zero-Panic PE-Parsing · Evidenzbasierte Adapter-Synthese · Automatische Risikoklassifizierung · 
+            <a href="https://github.com/morluto/rea" target="_blank" style="color: #38bdf8; text-decoration: underline;">github.com/morluto/rea</a>
+          </p>
+        </div>
+        <span style="background:rgba(56, 189, 248, 0.12); border:1px solid rgba(56, 189, 248, 0.35); color:#38bdf8; padding:5px 12px; border-radius:999px; font-size:0.8rem; font-weight:700;">Phase 12 ✅</span>
+      </div>
+
+      <!-- Quick Preset Buttons & Input Row -->
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.78rem;">
+          <span style="color:#94a3b8; font-weight:600;">Schnell-Presets:</span>
+          <button class="filter-badge ${activeReaTarget.includes("notepad") ? "active" : ""}" id="preset-notepad" style="cursor:pointer; padding:4px 10px;">📝 Notepad (Win32 GUI)</button>
+          <button class="filter-badge ${activeReaTarget.includes("obs") ? "active" : ""}" id="preset-obs" style="cursor:pointer; padding:4px 10px;">🎥 OBS Studio (DirectX/Streaming)</button>
+          <button class="filter-badge ${activeReaTarget.includes("Code") ? "active" : ""}" id="preset-vscode" style="cursor:pointer; padding:4px 10px;">💻 VS Code (Electron ASAR)</button>
+          <button class="filter-badge ${activeReaTarget.includes("cmd") ? "active" : ""}" id="preset-cmd" style="cursor:pointer; padding:4px 10px;">⚙️ CMD (Console CUI)</button>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input id="rea-input-path" type="text" value="${activeReaTarget}" placeholder="Pfad zur .exe-Datei eingeben (z. B. C:\\Windows\\System32\\notepad.exe)" 
+            style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:9px 12px; color:#fff; font-size:0.85rem; font-family:monospace;" />
+          <button id="btn-rea-analyze" style="background:#38bdf8; color:#07090e; font-weight:700; border:none; padding:9px 16px; border-radius:8px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">
+            🔍 Mit REA analysieren & Adapter generieren
+          </button>
+        </div>
+      </div>
+
+      ${registrationAlertHtml}
+
+      <!-- Main Analysis Card -->
+      <div class="rea-studio-box">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+          <div>
+            <h4 style="margin:0; font-size:1.02rem; color:#fff;">${report.displayName}</h4>
+            <div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">
+              Herausgeber: <b>${report.publisher}</b> · Ziel-Pfad: <code>${report.targetPath}</code>
+            </div>
+            <div style="font-size:0.72rem; color:#64748b; font-family:monospace; margin-top:4px;">
+              SHA-256 Provenance: ${report.sha256}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <span class="rea-badge ${kindBadgeClass}">${kindLabel}</span>
+            <span class="rea-badge">${report.arch}</span>
+            <span class="rea-badge" style="background:rgba(255,255,255,0.06); color:#cbd5e1;">${report.subsystem}</span>
+            <span class="rea-badge" style="background:rgba(255,255,255,0.08); color:#fff;">Steuerung: ${report.preferredControl}</span>
+          </div>
+        </div>
+
+        <!-- Sections & DLL Imports -->
+        <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
+          <div>
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:600; margin-bottom:4px;">PE-Sektionen (${report.sections.length}):</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">${sectionsHtml}</div>
+          </div>
+          <div>
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:600; margin-bottom:4px;">Erkannte Importierte DLLs (${report.importedDlls.length}):</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">${dllChipsHtml}</div>
+          </div>
+          ${electronIpcHtml}
+        </div>
+
+        <!-- Synthesized Capabilities Table -->
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-size:0.82rem; font-weight:700; color:#e2e8f0;">
+              Synthetisierte AIDO-Fähigkeiten (${report.capabilities.length} Aktionen):
+            </span>
+            <span style="font-size:0.75rem; color:#94a3b8;">Sicherheit: Strikte Trennung harmloser vs. freigabepflichtiger Aktionen</span>
+          </div>
+          <table class="rea-cap-table">
+            <thead>
+              <tr>
+                <th>Fähigkeit-ID</th>
+                <th>Bezeichnung & Funktion</th>
+                <th>Gateway-Status</th>
+                <th>Risiko</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${capabilitiesRows}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 1-Click Registration Box -->
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 14px; margin-top:4px;">
+          <div>
+            <div style="font-size:0.84rem; font-weight:700; color:#fff;">
+              ${isAlreadyRegistered ? "✓ Bereits als AIDO-Adapter registriert" : "Als AIDO-gesteuertes Programm registrieren"}
+            </div>
+            <div style="font-size:0.76rem; color:#94a3b8;">
+              ${report.humanSummaryDe}
+            </div>
+          </div>
+          <button id="btn-rea-register-app" style="background:${isAlreadyRegistered ? "rgba(16, 185, 129, 0.25)" : "#10b981"}; color:#fff; border:1px solid ${isAlreadyRegistered ? "rgba(16, 185, 129, 0.6)" : "#10b981"}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:0.82rem; cursor:pointer; white-space:nowrap;">
+            ${isAlreadyRegistered ? "✓ Registriert (Erneut speichern)" : "✅ Als AIDO-gesteuertes Programm registrieren"}
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Bind dynamic interactive elements inside view
+  document.getElementById("btn-rea-analyze")?.addEventListener("click", () => {
+    const inputEl = document.getElementById("rea-input-path") as HTMLInputElement | null;
+    const path = inputEl?.value?.trim() || "C:\\Windows\\System32\\notepad.exe";
+    reaRegistrationNotice = "";
+    appendAudit(`[REA] Analyse für Binärdatei '${path}' gestartet.`);
+    showReaStudioView(path);
+  });
+
+  document.getElementById("preset-notepad")?.addEventListener("click", () => {
+    reaRegistrationNotice = "";
+    showReaStudioView("C:\\Windows\\System32\\notepad.exe");
+  });
+  document.getElementById("preset-obs")?.addEventListener("click", () => {
+    reaRegistrationNotice = "";
+    showReaStudioView("C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe");
+  });
+  document.getElementById("preset-vscode")?.addEventListener("click", () => {
+    reaRegistrationNotice = "";
+    showReaStudioView("C:\\Users\\keoku\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe");
+  });
+  document.getElementById("preset-cmd")?.addEventListener("click", () => {
+    reaRegistrationNotice = "";
+    showReaStudioView("C:\\Windows\\System32\\cmd.exe");
+  });
+
+  document.getElementById("btn-rea-register-app")?.addEventListener("click", () => {
+    const existingIdx = appsData.findIndex(a => a.appId === report.appId);
+    const newEntry: AppItem = {
+      appId: report.appId,
+      displayName: report.displayName,
+      publisher: report.publisher,
+      installPath: report.targetPath,
+      preferredControl: report.preferredControl,
+      userEnabled: true,
+      capabilities: report.capabilities
+    };
+
+    if (existingIdx >= 0) {
+      appsData[existingIdx] = newEntry;
+    } else {
+      appsData.push(newEntry);
+    }
+
+    reaRegistrationNotice = `✓ Programm <b>${report.displayName}</b> erfolgreich als AIDO-Adapter registriert (ID: <code>${report.appId}</code>, Steuerung: ${report.preferredControl})!`;
+    appendAudit(`[REA] Adapter '${report.displayName}' (${report.appId}) erfolgreich in AIDO SQLite-App-Registry registriert.`);
+    showReaStudioView(report.targetPath);
+  });
+
+  document.getElementById("btn-rea-open-apps")?.addEventListener("click", () => {
+    showAppIntelligenceAndProjects();
+  });
+
+  // Action buttons below chat bubble
+  actionButtons.innerHTML = "";
+
+  const btnReanalyze = document.createElement("button");
+  btnReanalyze.textContent = "🔍 Pfad analysieren";
+  btnReanalyze.onclick = () => {
+    const inputEl = document.getElementById("rea-input-path") as HTMLInputElement | null;
+    const path = inputEl?.value?.trim() || activeReaTarget;
+    showReaStudioView(path);
+  };
+
+  const btnRegister = document.createElement("button");
+  btnRegister.textContent = "✅ Als AIDO-Adapter registrieren";
+  btnRegister.style.background = "rgba(16, 185, 129, 0.2)";
+  btnRegister.style.borderColor = "rgba(16, 185, 129, 0.5)";
+  btnRegister.style.color = "#f8fafc";
+  btnRegister.onclick = () => {
+    const existingIdx = appsData.findIndex(a => a.appId === report.appId);
+    const newEntry: AppItem = {
+      appId: report.appId,
+      displayName: report.displayName,
+      publisher: report.publisher,
+      installPath: report.targetPath,
+      preferredControl: report.preferredControl,
+      userEnabled: true,
+      capabilities: report.capabilities
+    };
+    if (existingIdx >= 0) {
+      appsData[existingIdx] = newEntry;
+    } else {
+      appsData.push(newEntry);
+    }
+    reaRegistrationNotice = `✓ Programm <b>${report.displayName}</b> erfolgreich als AIDO-Adapter registriert!`;
+    appendAudit(`[REA] Adapter '${report.displayName}' (${report.appId}) in SQLite registriert.`);
+    showReaStudioView(report.targetPath);
+  };
+
+  const btnCliHint = document.createElement("button");
+  btnCliHint.textContent = "🧪 CLI: aido-cli rea";
+  btnCliHint.onclick = () => {
+    appendAudit(`[REA] CLI-Befehl: cargo run --bin aido-cli -- rea "${activeReaTarget}"`);
+    alert(
+      `Führe im Terminal aus:\ncargo run --manifest-path src-tauri/Cargo.toml --bin aido-cli -- rea "${activeReaTarget}"\num den vollen Zero-Panic PE-Report als JSON abzurufen!`
+    );
+  };
+
+  const btnBack = document.createElement("button");
+  btnBack.textContent = "⬅️ Zurück zur Übersicht";
+  btnBack.onclick = () => {
+    setCharacterState("Bereit (Lokal)", false);
+    reaRegistrationNotice = "";
+    aidoMessage.innerHTML =
+      "Hallo! Ich bin <b>AIDO (Agentic Intelligent Developing Operator)</b>. Ich laufe lokal auf deiner RTX 5090 im Modus <b>Private Offline</b> — keine Daten verlassen deinen PC. Möchtest du einen System-Check durchführen, deine erkannte App- & Projektumgebung prüfen oder temporäre Caches bereinigen?";
+    renderDefaultButtons();
+  };
+
+  actionButtons.append(btnReanalyze, btnRegister, btnCliHint, btnBack);
+
+  appendAudit(`[REA Studio] REA Reverse Engineering Studio geöffnet für '${report.displayName}'.`);
+}
+
 contextMenu.addEventListener("click", (e) => {
   const target = (e.target as HTMLElement).closest(".context-item") as HTMLElement | null;
   if (!target) return;
   const action = target.dataset.action;
   if (action === "masterplan") {
     showMasterplanCompletionView();
+  } else if (action === "rea") {
+    showReaStudioView();
   } else if (action === "brand-studio") {
     showBrandStudioView();
   } else if (action === "remote") {

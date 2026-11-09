@@ -42,7 +42,7 @@ AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architekto
   - `AIDO-Ausgeschriebener-Name.png` (2.172 × 724 px)
   - `AIDO-MONO.glb` (140.924 Bytes)
 
-## Projektstand (9. November 2026 — Phasen 0 bis 11 abgeschlossen, 100 % Masterplan)
+## Projektstand (9. November 2026 — Phasen 0 bis 12 abgeschlossen, 100 % Masterplan & REA App-Steuerung)
 
 1. **Lokale Modell- & Runtime-Kette verifiziert (Phase 0 & 1 abgeschlossen):**
    - **Hauptmodell & Vision:** `Qwen3.8-27B-UD-Q4_K_M.gguf` + `mmproj-Qwen3.8-27B-BF16.gguf` + `Qwen3.8-27B-DFlash2-Q4_K_M.gguf` auf `llama-server.exe` (`v0.9.0-dev` Build 12176, CUDA 13.4) mit **151,54 Token/s** (Text warm), **102,70 Token/s** (Vision) und automatischer VRAM-Freigabe im Schlafmodus (`--sleep-idle-seconds`, **22,7 GB VRAM** werden im Leerlauf automatisch freigegeben).
@@ -70,20 +70,28 @@ AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architekto
    - **8 Interne Spezialisten:** Strukturierte Delegation an Spezialisten (`AidoCore`, `SystemExpert`, `AppExpert`, `ProjectExpert`, `MemoryCurator`, `AutomationExpert`, `SecurityExpert`, `ResearchExpert`) ohne Permission-Selbstvergabe.
    - **Admin Broker & DPAPI-Vault:** UAC-Isolationsbroker verhindert Prompt-Elevation-Angriffe hart und versiegelt Anmeldedaten im Windows DPAPI Vault (Zero Plaintext).
    - **Power-User WSL2 & RTX 5090 Sandboxes:** Stellt 3 getrennte Vorlagen (`01-fullstack-sandbox`, `02-ai-gpu-sandbox`, `03-automation-stack`) unter ext4 bereit; für Standardnutzer bleibt Docker rein optional.
+6. **Phase 12: REA Universelle App-Reverse-Engineering & Steuerung (`src-tauri/src/rea_bridge.rs`, [morluto/rea](https://github.com/morluto/rea), ✅ Abgeschlossen):**
+   - **Zero-Panic PE-Parsing & ASAR-Extraktion:** Parst PE-Header beliebiger Windows `.exe`-Dateien (Architektur, GUI/CUI-Subsystem, Sektionen, Manifest) sowie Electron ASAR Archive ohne externe Laufzeit-Abstürze.
+   - **Evidenz-basierte Fähigkeiten & SHA-256 Provenance:** Extrahiert importierte DLLs (`USER32.dll`, `KERNEL32.dll`, `D3D12.dll` etc.) und synthetisiert daraus verifizierte AIDO-Fähigkeiten mit strikter Trennung harmloser Aktionen von freigabepflichtigen Gateway-Operationen.
+   - **1-Klick Adapter-Registrierung:** Persistiert neu analysierte Programme direkt in AIDOs SQLite-App-Registry (`app_registry`), ordnet die beste Steuerungsmethode zu (`UiAutomation`, `McpPlugin`, `Cli`) und protokolliert lückenlose Audits.
+   - **Interaktives REA Studio im Frontend:** Integrierte Studio-Ansicht (`#btn-rea`) mit Schnell-Presets (Notepad, OBS Studio, VS Code, CMD), Live-Header-Inspektion, Chip-Badges und 1-Klick-Registrierung.
 
 ## Schnellstart (Kern-Prototyp & Tests)
 
 ```powershell
-# Rust Unit- & Integrationstests ausführen (56 Tests über alle 11 Phasen)
+# Rust Unit- & Integrationstests ausführen (70 Tests über alle 12 Phasen)
 cd src-tauri
 $env:PATH = "C:\Users\keoku\.cargo\bin;" + $env:PATH
 cargo test
 
-# 11-stufige End-to-End-Demo (Systemcheck -> Fast Cleanup -> Memory -> Apps -> Projekte -> Installer -> Runtime -> Proaktive Vordenker-Engine & Deep Cleanup -> Adapter-Sandbox & Release-Check -> Agent Remote -> Masterplan-Abschluss)
+# 12-stufige End-to-End-Demo (Systemcheck -> Fast Cleanup -> Memory -> Apps -> Projekte -> Installer -> Runtime -> Proaktive Vordenker-Engine & Deep Cleanup -> Adapter-Sandbox & Release-Check -> Agent Remote -> Masterplan-Abschluss -> REA App Reverse Engineering)
 cargo run --bin aido-cli -- demo
 
 # Vollständigen Masterplan-Report als JSON abrufen
 cargo run --bin aido-cli -- masterplan
+
+# REA App-Inspektion für beliebige Binärdateien ausführen
+cargo run --bin aido-cli -- rea "C:\Windows\System32\notepad.exe"
 
 # Einzelne JSON-Berichte abrufen
 cargo run --bin aido-cli -- health
@@ -115,5 +123,5 @@ Die [animierte AIDO-Landingpage](landingpage/index.html) lässt sich direkt im B
 | [Projektstatus](docs/PROJECT_STATUS.md) | Verifizierter Stand und Testergebnisse |
 | [Entwicklungsumgebung](docs/DEVELOPMENT_SETUP.md) | Früher Docker-Plan, Ist-Check und Übernahme für AIDO |
 | [Modellinventar](docs/MODEL_RUNTIME_INVENTORY.md) | Verifizierte Laufzeiten, SHA-256-Prüfsummen und Benchmarks |
-| [Roadmap](docs/ROADMAP.md) | Entwicklungsreihenfolge und Abnahme (Phasen 0 bis 11 abgeschlossen) |
+| [Roadmap](docs/ROADMAP.md) | Entwicklungsreihenfolge und Abnahme (Phasen 0 bis 12 abgeschlossen) |
 | [Entscheidungen](docs/DECISIONS.md) | Beschlüsse aus den AIDO-Interviews |
