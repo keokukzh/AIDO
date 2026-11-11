@@ -2,7 +2,7 @@ use crate::ai_client::{
     loopback_agent, read_model_json, ChatMessage, ChatRole, LocalAiClient, LLAMA_URL, QWEN_MODEL_ID,
 };
 use crate::permission_gateway::{AccessMode, PermissionGateway, PrivacyMode};
-use std::net::{Ipv4Addr, SocketAddrV4, TcpStream};
+use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,6 +22,7 @@ pub struct CompanionRuntime {
 struct OwnedServer {
     process: Child,
     key: String,
+    url: String,
 }
 
 impl Drop for OwnedServer {
@@ -48,10 +49,10 @@ impl CompanionRuntime {
             .request
             .try_lock()
             .map_err(|_| "Eine Anfrage läuft bereits.")?;
-        let (model_id, key) = self.ensure_server()?;
+        let (url, model_id, key) = self.ensure_server()?;
         let client = LocalAiClient::with_endpoints(
             PermissionGateway::new(AccessMode::ReadOnly, PrivacyMode::PrivateOffline),
-            LLAMA_URL,
+            url,
             "http://127.0.0.1:18080",
             model_id,
         );
@@ -69,8 +70,8 @@ impl CompanionRuntime {
         drop(self.owned().take());
     }
 
-    fn ensure_server(&self) -> Result<(String, Option<String>), String> {
-        let (key, newly_started) = {
+    fn ensure_server(&self) -> Result<(String, String, Option<String>), String> {
+        let (url, key, newly_started) = {
             let mut owned = self.owned();
             if self.stopping.load(Ordering::Acquire) {
                 return Err("AIDO wird beendet.".into());
@@ -86,16 +87,30 @@ impl CompanionRuntime {
                 }
             }
             if let Some(server) = owned.as_ref() {
-                (Some(server.key.clone()), false)
-            } else if TcpStream::connect_timeout(&LLAMA_ADDRESS.into(), Duration::from_millis(250))
-                .is_ok()
-            {
-                (std::env::var("AIDO_LOCAL_API_KEY").ok(), false)
+                (server.url.clone(), server.key.clone(), false)
             } else {
-                let server = start_server()?;
-                let key = server.key.clone();
+                let port = if TcpStream::connect_timeout(
+                    &LLAMA_ADDRESS.into(),
+                    Duration::from_millis(250),
+                )
+                .is_ok()
+                {
+                    let key = std::env::var("AIDO_LOCAL_API_KEY").ok();
+                    if let Some(model_id) = find_qwen(LLAMA_URL, key.as_deref()) {
+                        return Ok((LLAMA_URL.into(), model_id, key));
+                    }
+                    // Keep the other service running and reserve a candidate loopback port.
+                    TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                        .and_then(|listener| listener.local_addr())
+                        .map_err(|error| format!("Kein freier lokaler Port für Qwen: {error}"))?
+                        .port()
+                } else {
+                    LLAMA_ADDRESS.port()
+                };
+                let server = start_server(port)?;
+                let connection = (server.url.clone(), server.key.clone(), true);
                 *owned = Some(server);
-                (Some(key), true)
+                connection
             }
         };
 
@@ -104,12 +119,13 @@ impl CompanionRuntime {
             if self.stopping.load(Ordering::Acquire) {
                 return Err("AIDO wird beendet.".into());
             }
-            let result = find_qwen(key.as_deref());
-            if let Ok(model_id) = result {
-                return Ok((model_id, key));
+            if let Some(model_id) = find_qwen(&url, Some(&key)) {
+                return Ok((url, model_id, Some(key)));
             }
             if !newly_started {
-                return result.map(|model_id| (model_id, key));
+                return Err(
+                    "Der AIDO-Modelldienst ist gerade nicht bereit. Versuche es erneut.".into(),
+                );
             }
             {
                 let mut owned = self.owned();
@@ -158,38 +174,28 @@ fn validate_conversation(messages: &[ChatMessage]) -> Result<(), String> {
     Ok(())
 }
 
-fn find_qwen(key: Option<&str>) -> Result<String, String> {
+fn find_qwen(url: &str, key: Option<&str>) -> Option<String> {
     let mut request = loopback_agent()
-        .get(&format!("{LLAMA_URL}/v1/models"))
+        .get(&format!("{url}/v1/models"))
         .timeout(Duration::from_secs(2));
     if let Some(key) = key {
         request = request.set("Authorization", &format!("Bearer {key}"));
     }
-    let response = request.call().map_err(|error| {
-        if matches!(error, ureq::Error::Status(401 | 403, _)) {
-            "Der vorhandene lokale Modelldienst benötigt einen gültigen AIDO_LOCAL_API_KEY."
-                .to_owned()
-        } else {
-            "Der lokale Modelldienst antwortet auf Port 18434 noch nicht.".to_owned()
-        }
-    })?;
-    let response = read_model_json(response).map_err(|error| error.to_string())?;
+    let response = read_model_json(request.call().ok()?).ok()?;
     let mut ids = response["data"]
         .as_array()
         .into_iter()
         .flatten()
         .filter_map(|entry| entry["id"].as_str());
     let file_name = format!("{QWEN_MODEL_ID}.gguf");
-    ids
-        .find(|id| {
-            let name = id.rsplit(['/', '\\']).next().unwrap_or(id);
-            name.eq_ignore_ascii_case(QWEN_MODEL_ID) || name.eq_ignore_ascii_case(&file_name)
-        })
-        .map(str::to_owned)
-        .ok_or_else(|| "Der Dienst auf Port 18434 stellt AIDOs Qwen-Modell nicht bereit.".into())
+    ids.find(|id| {
+        let name = id.rsplit(['/', '\\']).next().unwrap_or(id);
+        name.eq_ignore_ascii_case(QWEN_MODEL_ID) || name.eq_ignore_ascii_case(&file_name)
+    })
+    .map(str::to_owned)
 }
 
-fn start_server() -> Result<OwnedServer, String> {
+fn start_server(port: u16) -> Result<OwnedServer, String> {
     let binary = PathBuf::from(LLAMA_BINARY);
     let model = std::env::var_os("AIDO_MODEL_PATH")
         .map(PathBuf::from)
@@ -213,7 +219,9 @@ fn start_server() -> Result<OwnedServer, String> {
         }
     }
     command
-        .args(["--host", "127.0.0.1", "--port", "18434", "--model"])
+        .args(["--host", "127.0.0.1", "--port"])
+        .arg(port.to_string())
+        .arg("--model")
         .arg(model)
         .args([
             "--alias",
@@ -240,5 +248,9 @@ fn start_server() -> Result<OwnedServer, String> {
     let process = command
         .spawn()
         .map_err(|error| format!("Qwen konnte nicht gestartet werden: {error}"))?;
-    Ok(OwnedServer { process, key })
+    Ok(OwnedServer {
+        process,
+        key,
+        url: format!("http://127.0.0.1:{port}"),
+    })
 }

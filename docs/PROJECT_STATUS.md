@@ -6,8 +6,9 @@
 
 - **Build und Start:** `npm run tauri -- build --no-bundle -- --locked` baut `src-tauri\target\release\AIDO.exe`. Die EXE startete auf dem Windows-11-Referenz-PC ohne Vite. MONO renderte animiert, öffnete per Klick den separaten Chat und blieb sichtbar, nachdem das Chatfenster geschlossen wurde.
 - **Qwen-Chat:** Ein absichtlich fehlender GGUF-Pfad führte zu einer Fehlermeldung mit «Erneut versuchen». Nachdem der Modellpfad wieder erreichbar war, startete AIDO den lokalen Server auf `127.0.0.1:18434` und zeigte eine echte Qwen-Antwort. Dieser Durchlauf lief auf der CPU. Der Desktop-Start übernimmt jetzt den vorhandenen CUDA-Bibliothekspfad. Die Runtime erkannte mit diesem Pfad die RTX 5090 bei der separaten Geräteprüfung.
+- **Paralleler Betrieb mit Hermes:** Mit aktivem, authentifiziertem Hermes-Dienst auf Port 18434 startete AIDO einen eigenen Qwen-Dienst auf einem freien Loopback-Port. AIDO verwendete die RTX 5090 und beantwortete die Rechenfrage und die anschliessende Rückfrage mit `391` und `392`. Hermes lief auf seinem bisherigen Port weiter.
 - **Regression:** Der Frontend-Build, die Browser-Aufwachanimation und der separate CLI-Start wurden geprüft. 87 von 88 Rust-Tests bestanden. `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` scheitert weiterhin, weil `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` am Referenzpfad fehlt.
-- **Offene Abnahme:** GPU-Chat mit dem finalen Build, die Rechenfrage und ihre Rückfrage sowie die Bedienung im Windows-Infobereich und die Prozessbereinigung beim Beenden bleiben offen. Mikrofon, Screenshot-Kontext, Android-Steuerung, Systemaktionen und Windows-Autostart gehören zu späteren Desktop-Integrationen.
+- **Offene Abnahme:** Die Bedienung im Windows-Infobereich und die Prozessbereinigung beim Beenden bleiben offen. Mikrofon, Screenshot-Kontext, Android-Steuerung, Systemaktionen und Windows-Autostart gehören zu späteren Desktop-Integrationen.
 
 ## Historischer Stand vom 9. November 2026
 

@@ -97,7 +97,7 @@ npm run tauri -- build --no-bundle -- --locked
 
 Öffne `src-tauri\target\release\AIDO.exe` per Doppelklick. Ziehe MONO am Griff und klicke die Figur an, um den lokalen Chat zu öffnen. Im Windows-Infobereich kannst du MONO ausblenden, wieder anzeigen und AIDO beenden.
 
-Der erste Chat startet bei Bedarf den vorhandenen `llama-server.exe` mit dem lokalen Qwen-Modell auf `127.0.0.1:18434`. Mit `AIDO_MODEL_PATH` kann der GGUF-Pfad für den gestarteten Prozess gesetzt werden. Bei einem vorhandenen authentifizierten Qwen-Dienst liest AIDO dessen Schlüssel aus `AIDO_LOCAL_API_KEY`. Die native App unterstützt in diesem Meilenstein Textchat. Die Browser-Vorschau mit `npm start` und die Rust-CLI bleiben separat verfügbar. [Aktuelle Abnahme](docs/PROJECT_STATUS.md)
+Der erste Chat sucht auf `127.0.0.1:18434` nach einem nutzbaren lokalen Qwen-Dienst. Ist der Port durch einen anderen oder nicht zugänglichen Dienst belegt, startet AIDO sein Modell auf einem freien Port auf `127.0.0.1`. Mit `AIDO_MODEL_PATH` kann der GGUF-Pfad für den gestarteten Prozess gesetzt werden. Für einen vorhandenen authentifizierten Qwen-Dienst kann der Schlüssel über `AIDO_LOCAL_API_KEY` bereitgestellt werden. Die native App unterstützt in diesem Meilenstein Textchat. Die Browser-Vorschau mit `npm start` und die Rust-CLI bleiben separat verfügbar. [Aktuelle Abnahme](docs/PROJECT_STATUS.md)
 
 ## Schnellstart (Kern-Prototyp & Tests)
 
