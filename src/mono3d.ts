@@ -498,8 +498,8 @@ export class Mono3DViewer {
     return shader;
   }
 
-  public async load(): Promise<void> {
-    if (!this.gl || !this.program) return;
+  public async load(): Promise<boolean> {
+    if (!this.gl || !this.program) return false;
 
     try {
       const response = await fetch(this.glbUrl);
@@ -508,10 +508,13 @@ export class Mono3DViewer {
       }
       const arrayBuffer = await response.arrayBuffer();
       this.parseAndUploadGLB(arrayBuffer);
+      if (this.meshes.length === 0 || this.gl.isContextLost()) return false;
       this.isLoaded = true;
       this.startLoop();
+      return true;
     } catch (err) {
       console.error("[Mono3DViewer] Error loading GLB model:", err);
+      return false;
     }
   }
 

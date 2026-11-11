@@ -2,6 +2,8 @@ pub mod admin_broker;
 pub mod agent_remote;
 pub mod ai_client;
 pub mod app_intelligence;
+#[cfg(feature = "desktop")]
+pub mod companion_runtime;
 pub mod docker_sandbox_bridge;
 pub mod memory;
 pub mod permission_gateway;

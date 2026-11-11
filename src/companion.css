@@ -1,0 +1,95 @@
+:root {
+  --bg: transparent;
+  --fg: #fff;
+  color-scheme: dark;
+  font-family: "Segoe UI", sans-serif;
+}
+
+html, body, #companion {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+#companion { position: relative; }
+
+#morph-awakening-layer {
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px #000);
+}
+
+#morph-awakening-layer.playing { pointer-events: none; }
+
+#open-chat {
+  position: absolute;
+  inset: 0 0 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: opacity .55s cubic-bezier(.22, 1, .36, 1);
+}
+
+#morph-awakening-layer.playing + #open-chat { opacity: 0; }
+#open-chat:focus-visible { outline: 2px solid #fff; outline-offset: -4px; border-radius: 12px; }
+
+#mono-canvas, #mono-fallback { grid-area: 1 / 1; pointer-events: none; }
+#mono-canvas { width: 100%; height: 100%; visibility: hidden; filter: drop-shadow(0 2px 4px #0008); }
+#open-chat.rendered #mono-canvas { visibility: visible; }
+#open-chat.rendered #mono-fallback { visibility: hidden; }
+
+#mono-fallback {
+  width: 114px;
+  color: #fff;
+  filter: drop-shadow(0 1px 3px #000);
+}
+
+#mono-fallback .aido-letter { transform: var(--aido-mono); }
+#mono-fallback .aido-tail-origin { display: none; }
+#mono-fallback .aido-outline-morph { d: var(--aido-outline-mono); }
+
+#move-mono {
+  position: absolute;
+  z-index: 3;
+  bottom: 4px;
+  left: calc(50% - 30px);
+  width: 60px;
+  height: 18px;
+  border-radius: 9px;
+  background: #151515d9;
+  border: 1px solid #ffffff59;
+  box-sizing: border-box;
+  cursor: move;
+  touch-action: none;
+}
+
+#move-mono::after {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 4px;
+  border-radius: 2px;
+  margin: 6px auto;
+  background: #ddd;
+}
+
+#companion-error {
+  position: absolute;
+  z-index: 4;
+  inset: auto 6px 24px;
+  margin: 0;
+  padding: 6px 8px;
+  color: #fff;
+  background: #161616;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #open-chat, #morph-awakening-layer { transition: none; }
+}

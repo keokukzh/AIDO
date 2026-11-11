@@ -1,4 +1,5 @@
 import { Mono3DViewer, type MonoState } from "./mono3d";
+import awakeningMarkup from "./mono-awakening.svg?raw";
 
 /**
  * AIDO — Dein persönlicher Desktop-Begleiter
@@ -1562,6 +1563,7 @@ async function initApp(): Promise<void> {
 
   // Allow clicking the awakening SVG to transition immediately if desired
   const morphLayer = document.getElementById("morph-awakening-layer");
+  if (morphLayer) morphLayer.innerHTML = awakeningMarkup;
   morphLayer?.addEventListener("click", () => {
     finishMorphImmediately();
   });

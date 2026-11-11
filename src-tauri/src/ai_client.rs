@@ -1,6 +1,54 @@
 use crate::permission_gateway::{GatewayError, PermissionGateway};
 use serde::{Deserialize, Serialize};
+use std::io::Read;
+use std::time::Duration;
 use thiserror::Error;
+
+pub(crate) const LLAMA_URL: &str = "http://127.0.0.1:18434";
+pub(crate) const QWEN_MODEL_ID: &str = "Qwen3.8-27B-UD-Q4_K_M";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChatRole {
+    User,
+    Assistant,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChatMessage {
+    pub role: ChatRole,
+    pub content: String,
+}
+
+pub(crate) fn loopback_agent() -> ureq::Agent {
+    ureq::AgentBuilder::new()
+        .redirects(0)
+        .try_proxy_from_env(false)
+        .build()
+}
+
+pub(crate) fn read_model_json(
+    response: ureq::Response,
+) -> Result<serde_json::Value, AiClientError> {
+    const MAX_BYTES: u64 = 256 * 1024;
+    if response.status() != 200 {
+        return Err(AiClientError::Transport(format!(
+            "HTTP {}",
+            response.status()
+        )));
+    }
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .take(MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| AiClientError::Transport(error.to_string()))?;
+    if bytes.len() as u64 > MAX_BYTES {
+        return Err(AiClientError::Transport("Antwort ist zu gross.".into()));
+    }
+    serde_json::from_slice(&bytes).map_err(|error| AiClientError::Transport(error.to_string()))
+}
 
 #[derive(Debug, Error)]
 pub enum AiClientError {
@@ -40,9 +88,9 @@ impl LocalAiClient {
     pub fn new(gateway: PermissionGateway) -> Self {
         Self {
             gateway,
-            llama_base_url: "http://127.0.0.1:18434".into(),
+            llama_base_url: LLAMA_URL.into(),
             whisper_base_url: "http://127.0.0.1:18080".into(),
-            model_id: "Qwen3.8-27B-UD-Q4_K_M".into(),
+            model_id: QWEN_MODEL_ID.into(),
         }
     }
 
@@ -66,6 +114,47 @@ impl LocalAiClient {
 
     pub fn whisper_base_url(&self) -> &str {
         &self.whisper_base_url
+    }
+
+    pub fn companion_chat(
+        &self,
+        messages: &[ChatMessage],
+        api_key: Option<&str>,
+    ) -> Result<String, AiClientError> {
+        let url = format!(
+            "{}/v1/chat/completions",
+            self.llama_base_url.trim_end_matches('/')
+        );
+        self.gateway.check_endpoint_allowed(&url)?;
+        let mut conversation = vec![serde_json::json!({
+            "role": "system",
+            "content": "Du bist AIDO, ein lokaler Textassistent. Antworte klar in der Sprache des Nutzers. Du kannst in diesem Chat keine Programme steuern oder Systemaktionen ausführen."
+        })];
+        conversation.extend(messages.iter().map(|message| serde_json::json!(message)));
+        let mut request = loopback_agent()
+            .post(&url)
+            .timeout(Duration::from_secs(120));
+        if let Some(key) = api_key {
+            request = request.set("Authorization", &format!("Bearer {key}"));
+        }
+        let response = request
+            .send_json(serde_json::json!({
+                "model": self.model_id,
+                "messages": conversation,
+                "max_tokens": 768,
+                "stream": false,
+                "chat_template_kwargs": { "enable_thinking": false }
+            }))
+            .map_err(|error| AiClientError::Transport(error.to_string()))?;
+        let response = read_model_json(response)?;
+        response["choices"][0]["message"]["content"]
+            .as_str()
+            .map(str::trim)
+            .filter(|content| !content.is_empty())
+            .map(str::to_owned)
+            .ok_or_else(|| {
+                AiClientError::Transport("Qwen hat keinen Antworttext geliefert.".into())
+            })
     }
 
     /// Generates a beginner-friendly explanation and clickable options using the local Qwen3.8-27B model.

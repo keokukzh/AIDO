@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AIDO-MONO</title>
+    <link rel="stylesheet" href="/src/mono-awakening.css">
+    <link rel="stylesheet" href="/src/companion.css">
+  </head>
+  <body>
+    <main id="companion">
+      <div id="morph-awakening-layer" aria-hidden="true"></div>
+      <button id="open-chat" type="button" aria-label="AIDO-Chat öffnen" title="AIDO-Chat öffnen">
+        <span id="mono-fallback" aria-hidden="true"></span>
+        <canvas id="mono-canvas" aria-hidden="true"></canvas>
+      </button>
+      <div id="move-mono" title="MONO verschieben" aria-label="MONO verschieben"></div>
+      <p id="companion-error" role="alert" hidden></p>
+    </main>
+    <script type="module" src="/src/companion.ts"></script>
+  </body>
+</html>

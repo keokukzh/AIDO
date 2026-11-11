@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AIDO · Lokaler Chat</title>
+    <link rel="stylesheet" href="/src/chat.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>AIDO</h1>
+        <p>Lokaler Chat</p>
+      </header>
+      <section id="conversation" role="log" aria-label="Unterhaltung">
+        <p id="empty-chat">Wie kann ich dir helfen?</p>
+      </section>
+      <footer>
+        <p id="chat-status" role="status"></p>
+        <div id="chat-error" hidden>
+          <p id="error-message" role="alert"></p>
+          <button id="retry" type="button">Erneut versuchen</button>
+        </div>
+        <form id="composer">
+          <textarea id="prompt" rows="2" maxlength="4000" aria-label="Nachricht" placeholder="Nachricht an AIDO" autofocus></textarea>
+          <button id="send" type="submit">Senden</button>
+        </form>
+      </footer>
+    </main>
+    <script type="module" src="/src/chat.ts"></script>
+  </body>
+</html>

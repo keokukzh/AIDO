@@ -1,8 +1,17 @@
 # Projektstatus — AIDO (Agentic Intelligent Developing Operator)
 
-**Stand: 9. November 2026.** Dieser Status trennt Repository-Artefakte von verifizierten Messungen am Referenz-PC.
+**Stand: 11. November 2026.**
 
-## Repository & Vollständiger Meilenstein-Status (Phasen 0–8 abgeschlossen)
+## Nativer Desktop-Companion und lokaler Textchat
+
+- **Build und Start:** `npm run tauri -- build --no-bundle -- --locked` baut `src-tauri\target\release\AIDO.exe`. Die EXE startete auf dem Windows-11-Referenz-PC ohne Vite. MONO renderte animiert, öffnete per Klick den separaten Chat und blieb sichtbar, nachdem das Chatfenster geschlossen wurde.
+- **Qwen-Chat:** Ein absichtlich fehlender GGUF-Pfad führte zu einer Fehlermeldung mit «Erneut versuchen». Nachdem der Modellpfad wieder erreichbar war, startete AIDO den lokalen Server auf `127.0.0.1:18434` und zeigte eine echte Qwen-Antwort. Dieser Durchlauf lief auf der CPU. Der Desktop-Start übernimmt jetzt den vorhandenen CUDA-Bibliothekspfad. Die Runtime erkannte mit diesem Pfad die RTX 5090 bei der separaten Geräteprüfung.
+- **Regression:** Der Frontend-Build, die Browser-Aufwachanimation und der separate CLI-Start wurden geprüft. 87 von 88 Rust-Tests bestanden. `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` scheitert weiterhin, weil `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` am Referenzpfad fehlt.
+- **Offene Abnahme:** GPU-Chat mit dem finalen Build, die Rechenfrage und ihre Rückfrage sowie die Bedienung im Windows-Infobereich und die Prozessbereinigung beim Beenden bleiben offen. Mikrofon, Screenshot-Kontext, Android-Steuerung, Systemaktionen und Windows-Autostart gehören zu späteren Desktop-Integrationen.
+
+## Historischer Stand vom 9. November 2026
+
+### Repository und Meilensteine der Phasen 0–8
 
 - `keokukzh/AIDO` (**Agentic Intelligent Developing Operator**) ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
 - Der vollständige Produkt-Masterplan v1.0 ist unter [MASTERPLAN.md](MASTERPLAN.md) hinterlegt.

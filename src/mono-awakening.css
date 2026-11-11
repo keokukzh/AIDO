@@ -1,0 +1,112 @@
+/* Layer 1: Awakening Brand Transformation SVG */
+#morph-awakening-layer {
+  --aido-duration: 5.2s;
+  --aido-word-scale-x: .215;
+  --aido-word-scale-y: .29;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--fg);
+  background-color: var(--bg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#morph-awakening-layer.playing {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.aido-transform {
+  display: block;
+  width: min(100%, 680px);
+  height: auto;
+  fill: currentColor;
+}
+
+.aido-word {
+  --aido-word-y: -14.5px;
+  --aido-word-origin: translate(var(--aido-word-x), var(--aido-word-y));
+}
+
+.aido-word-a {
+  --aido-word-x: -346.7px;
+  --aido-mark: translate(-174px, -50px) rotate(0deg) scale(1);
+  --aido-mono: translate(-54.5px, 15px) rotate(0deg) scale(1, .54);
+}
+
+.aido-word-i {
+  --aido-word-x: -189.8px;
+  --aido-mark: translate(-61px, -50px) rotate(0deg) scale(1);
+  --aido-mono: translate(-6.6px, -19px) rotate(0deg) scale(.55, .27);
+}
+
+.aido-word-d {
+  --aido-word-x: 19.5px;
+  --aido-mark: translate(-24px, -50px) rotate(0deg) scale(1);
+  --aido-mono: translate(-43px, 30px) rotate(-90deg) scale(.78, .86);
+}
+
+.aido-word-o {
+  --aido-word-x: 173.5px;
+  --aido-mark: translate(74px, -50px) rotate(0deg) scale(1);
+  --aido-mono: translate(-31px, -105px) rotate(0deg) scale(.62);
+}
+
+.aido-letter {
+  --aido-start: var(--aido-word-origin) rotate(0deg)
+    scale(calc(var(--aido-word-scale-x) * 1.08), var(--aido-word-scale-y));
+  transform: var(--aido-start);
+  transform-origin: 0 0;
+}
+
+#morph-awakening-layer.playing .aido-letter {
+  animation: aido-letter var(--aido-duration) cubic-bezier(.55, 0, .25, 1) infinite both;
+}
+
+#morph-awakening-layer.playing .aido-letter-o {
+  animation-name: aido-letter, aido-head-arc;
+}
+
+.aido-tail-origin {
+  transform: var(--aido-word-origin) scale(var(--aido-word-scale-x), var(--aido-word-scale-y));
+}
+
+.aido-tail {
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+#morph-awakening-layer.playing .aido-tail {
+  animation: aido-tail var(--aido-duration) ease-in-out infinite both;
+}
+
+#morph-awakening-layer.playing .aido-outline-morph {
+  animation: aido-outline var(--aido-duration) cubic-bezier(.55, 0, .25, 1) infinite both;
+}
+
+@keyframes aido-letter {
+  0%, 20%, 96%, 100% { transform: var(--aido-start); }
+  32%, 45% { transform: var(--aido-mark); }
+  61%, 76% { transform: var(--aido-mono); }
+}
+
+@keyframes aido-head-arc {
+  0%, 45%, 61%, 100% { translate: 0 0; }
+  52% { translate: 0 -34px; }
+}
+
+@keyframes aido-tail {
+  0%, 13%, 97%, 100% { transform: translateX(0) scale(1); }
+  25%, 90% { transform: translateX(-24px) scale(0); }
+}
+
+@keyframes aido-outline {
+  0%, 45%, 96%, 100% { d: var(--aido-outline-start); }
+  61%, 76% { d: var(--aido-outline-mono); }
+}

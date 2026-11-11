@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "AIDO Core — Local AI Desktop Assistant Backend, Permission Gateway, Windows Bridge & SQLite/FTS5 Memory"
 authors = ["keokukzh"]
 edition = "2021"
+default-run = "AIDO"
 
 [lib]
 name = "aido_core"
@@ -13,6 +14,14 @@ path = "src/lib.rs"
 name = "aido-cli"
 path = "src/main.rs"
 
+[[bin]]
+name = "AIDO"
+path = "src/desktop/main.rs"
+required-features = ["desktop"]
+
+[features]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-single-instance"]
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -21,3 +30,8 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
 ureq = { version = "2.10", features = ["json"] }
 thiserror = "2.0"
+tauri = { version = "2", features = ["tray-icon"], optional = true }
+tauri-plugin-single-instance = { version = "2", optional = true }
+
+[build-dependencies]
+tauri-build = { version = "2", optional = true , features = [] }

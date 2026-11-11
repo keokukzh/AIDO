@@ -85,6 +85,20 @@ AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architekto
    - **CLI-Integration:** `aido-cli phone status`, `aido-cli phone observe [serial]`, `aido-cli phone run "<ziel>" [--auto] [--yes-sensitive]`, sowie Schritt 13/13 in `aido-cli demo`.
    - *Inspiration:* [droidrun/mobilerun](https://github.com/droidrun/mobilerun), [zai-org/Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM), [mobile-next/mobile-mcp](https://github.com/mobile-next/mobile-mcp), AdbPhoneAgent. *Hinweis: iOS wird aktuell nicht unterstützt (erfordert macOS & WebDriverAgent).*
 
+## AIDO-MONO unter Windows starten
+
+Voraussetzungen für den Build sind Node.js, Rust mit dem Windows-MSVC-Toolchain und die Microsoft C++ Build Tools. Die App verwendet Microsoft Edge WebView2.
+
+```powershell
+npm ci
+$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+npm run tauri -- build --no-bundle -- --locked
+```
+
+Öffne `src-tauri\target\release\AIDO.exe` per Doppelklick. Ziehe MONO am Griff und klicke die Figur an, um den lokalen Chat zu öffnen. Im Windows-Infobereich kannst du MONO ausblenden, wieder anzeigen und AIDO beenden.
+
+Der erste Chat startet bei Bedarf den vorhandenen `llama-server.exe` mit dem lokalen Qwen-Modell auf `127.0.0.1:18434`. Mit `AIDO_MODEL_PATH` kann der GGUF-Pfad für den gestarteten Prozess gesetzt werden. Bei einem vorhandenen authentifizierten Qwen-Dienst liest AIDO dessen Schlüssel aus `AIDO_LOCAL_API_KEY`. Die native App unterstützt in diesem Meilenstein Textchat. Die Browser-Vorschau mit `npm start` und die Rust-CLI bleiben separat verfügbar. [Aktuelle Abnahme](docs/PROJECT_STATUS.md)
+
 ## Schnellstart (Kern-Prototyp & Tests)
 
 ```powershell
