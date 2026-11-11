@@ -1555,7 +1555,9 @@ async function initApp(): Promise<void> {
       }
     });
 
-    await monoViewer.load();
+    void monoViewer.load().catch((err) => {
+      console.error("[initApp] Error loading 3D character:", err);
+    });
   }
 
   // Allow clicking the awakening SVG to transition immediately if desired
@@ -1832,6 +1834,10 @@ async function initApp(): Promise<void> {
   playBrandMorphAwakening();
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    void initApp();
+  });
+} else {
   void initApp();
-});
+}

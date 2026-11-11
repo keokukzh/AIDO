@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --open --port 1420",
+    "start": "vite --open --port 1420",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
