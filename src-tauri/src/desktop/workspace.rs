@@ -4,10 +4,12 @@ use aido_core::{
         check_model_profile, suggest_wsl_model_profile, suggested_windows_profile, CompanionRuntime,
     },
     desktop_setup::{canonical_directory, ModelBackend, ModelProfile, SetupSettings, SetupStore},
-    memory::{MemoryEntry, MemoryLayer, MemoryEngine},
-    permission_gateway::{ActionKind, PermissionGateway},
+    memory::{MemoryEngine, MemoryEntry, MemoryLayer},
+    permission_gateway::{ActionKind, ApprovalToken, PermissionGateway},
     proactive_engine::{ProactiveCategory, ProactiveEngine, UserActivityState},
     project_intelligence::{ProjectEntry, ProjectIntelligenceEngine},
+    sensitive_actions::{SensitiveActionQueue, UserProposal},
+    ui_automation::{self, UiAutomationEngine},
     windows_bridge::WindowsBridge,
 };
 use serde::Serialize;
@@ -32,6 +34,7 @@ pub struct Workspace {
     pub apps: AppIntelligenceEngine,
     pub memory: MemoryEngine,
     pub proactive: ProactiveEngine,
+    sensitive: SensitiveActionQueue,
     cache: PathBuf,
     proposal: Mutex<Option<PendingLaunch>>,
     rea_checked: Mutex<Option<String>>,
@@ -93,6 +96,7 @@ impl Workspace {
             apps: AppIntelligenceEngine::new(&db).map_err(stringify)?,
             memory: MemoryEngine::new(&db).map_err(stringify)?,
             proactive: ProactiveEngine::new(),
+            sensitive: SensitiveActionQueue::new(),
             cache: root.join("cache/fast_cleanup_staging"),
             proposal: Mutex::new(None),
             rea_checked: Mutex::new(None),
@@ -136,7 +140,9 @@ impl Workspace {
 
     pub fn get_telemetry_snapshot_internal(&self) -> Value {
         let bridge = WindowsBridge::new(self.gateway.clone(), &self.cache).ok();
-        let health = bridge.as_ref().and_then(|b| b.run_system_health_check().ok());
+        let health = bridge
+            .as_ref()
+            .and_then(|b| b.run_system_health_check().ok());
 
         let (vram_used_mib, vram_total_mib) = if let Some(h) = health {
             (h.gpu.vram_used_mib, h.gpu.vram_total_mib)
@@ -147,8 +153,14 @@ impl Workspace {
         let runtime = aido_core::runtime_supervisor::RuntimeSupervisor::new();
         let report = runtime.probe_status(&self.gateway).ok();
 
-        let llama_state = report.as_ref().map(|r| format!("{:?}", r.llama_router.state)).unwrap_or_else(|| "StoppedStandby".into());
-        let whisper_state = report.as_ref().map(|r| format!("{:?}", r.whisper_asr.state)).unwrap_or_else(|| "StoppedStandby".into());
+        let llama_state = report
+            .as_ref()
+            .map(|r| format!("{:?}", r.llama_router.state))
+            .unwrap_or_else(|| "StoppedStandby".into());
+        let whisper_state = report
+            .as_ref()
+            .map(|r| format!("{:?}", r.whisper_asr.state))
+            .unwrap_or_else(|| "StoppedStandby".into());
 
         json!({
             "vram_used_mib": vram_used_mib,
@@ -762,12 +774,22 @@ pub async fn memory_overview(
 ) -> Result<Value, String> {
     let workspace = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let quota = workspace.memory.inspect_storage_quota(100 * 1024 * 1024).map_err(stringify)?;
-        let recent = workspace.memory.list_recent_memories(50).map_err(stringify)?;
-        
+        let quota = workspace
+            .memory
+            .inspect_storage_quota(100 * 1024 * 1024)
+            .map_err(stringify)?;
+        let recent = workspace
+            .memory
+            .list_recent_memories(50)
+            .map_err(stringify)?;
+
         let mut layer_counts = serde_json::Map::new();
         for layer in MemoryLayer::all() {
-            let count = workspace.memory.list_memories_by_layer(Some(layer.as_str()), true, 500).map_err(stringify)?.len();
+            let count = workspace
+                .memory
+                .list_memories_by_layer(Some(layer.as_str()), true, 500)
+                .map_err(stringify)?
+                .len();
             layer_counts.insert(layer.as_str().to_string(), json!(count));
         }
 
@@ -794,7 +816,10 @@ pub async fn memory_forget(
 ) -> Result<bool, String> {
     let workspace = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let forgotten = workspace.memory.forget_memory_entry(entry_id).map_err(stringify)?;
+        let forgotten = workspace
+            .memory
+            .forget_memory_entry(entry_id)
+            .map_err(stringify)?;
         if forgotten {
             let _ = workspace.audit("MemoryForget", true, &format!("entry:{}", entry_id));
         }
@@ -812,7 +837,10 @@ pub async fn memory_search(
 ) -> Result<Vec<MemoryEntry>, String> {
     let workspace = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        workspace.memory.search_memory(&query, 30).map_err(stringify)
+        workspace
+            .memory
+            .search_memory(&query, 30)
+            .map_err(stringify)
     })
     .await
     .map_err(stringify)?
@@ -827,7 +855,7 @@ pub async fn proactive_check(
     tauri::async_runtime::spawn_blocking(move || {
         let settings = workspace.store.active().ok().flatten().unwrap_or_default();
         let projects = workspace.projects_in_scope(&settings).unwrap_or_default();
-        
+
         let bridge = WindowsBridge::new(workspace.gateway.clone(), &workspace.cache);
         let health = bridge
             .as_ref()
@@ -913,7 +941,10 @@ pub fn blender_inspect(
     let _ = workspace.audit(
         "BlenderSceneInspect",
         true,
-        &format!("Szenen-Inspektion mit {} Objekten ausgeführt", summary.object_count),
+        &format!(
+            "Szenen-Inspektion mit {} Objekten ausgeführt",
+            summary.object_count
+        ),
     );
     Ok(summary)
 }
@@ -923,7 +954,8 @@ pub fn docker_status(
     workspace: State<'_, Arc<Workspace>>,
 ) -> Result<aido_core::docker_controller::DockerEnvironmentStatus, String> {
     let ctrl = aido_core::docker_controller::DockerController::new();
-    ctrl.check_status(&workspace.gateway).map_err(|e| e.to_string())
+    ctrl.check_status(&workspace.gateway)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -931,7 +963,9 @@ pub fn docker_containers(
     workspace: State<'_, Arc<Workspace>>,
 ) -> Result<Vec<aido_core::docker_controller::DockerContainerSummary>, String> {
     let ctrl = aido_core::docker_controller::DockerController::new();
-    let list = ctrl.list_containers(&workspace.gateway).map_err(|e| e.to_string())?;
+    let list = ctrl
+        .list_containers(&workspace.gateway)
+        .map_err(|e| e.to_string())?;
     let _ = workspace.audit(
         "DockerListContainers",
         true,
@@ -951,9 +985,8 @@ pub fn system_security_status(
 #[tauri::command]
 pub fn get_active_proposals(
     workspace: State<'_, Arc<Workspace>>,
-) -> Result<Vec<aido_core::permission_gateway::ApprovalRequest>, String> {
-    let req = workspace.gateway.latest_pending_request(None);
-    Ok(req.into_iter().collect())
+) -> Result<Vec<UserProposal>, String> {
+    Ok(workspace.sensitive.list_proposals())
 }
 
 #[tauri::command]
@@ -963,11 +996,15 @@ pub fn approve_proposal(
     user_note: Option<String>,
 ) -> Result<Value, String> {
     let uuid = Uuid::parse_str(&request_id).map_err(|e| e.to_string())?;
-    let token = workspace.gateway.approve_request(uuid, user_note).map_err(|e| e.to_string())?;
+    let token = workspace
+        .gateway
+        .approve_request(uuid, user_note)
+        .map_err(|e| e.to_string())?;
     Ok(json!({
         "status": "approved",
         "token_id": token.token_id,
-        "action": format!("{:?}", token.action)
+        "action": format!("{:?}", token.action),
+        "token": token
     }))
 }
 
@@ -978,7 +1015,12 @@ pub fn reject_proposal(
     user_note: Option<String>,
 ) -> Result<Value, String> {
     let uuid = Uuid::parse_str(&request_id).map_err(|e| e.to_string())?;
-    let req = workspace.gateway.reject_request(uuid, user_note).map_err(|e| e.to_string())?;
+    workspace.sensitive.discard(uuid);
+    let req = workspace
+        .gateway
+        .reject_request(uuid, user_note)
+        .map_err(|e| e.to_string())?;
+    let _ = workspace.audit("ProposalRejected", false, &req.human_title);
     Ok(json!({
         "status": "rejected",
         "request_id": req.request_id
@@ -986,37 +1028,33 @@ pub fn reject_proposal(
 }
 
 #[tauri::command]
-pub async fn get_telemetry_snapshot(
-    workspace: State<'_, Arc<Workspace>>,
-) -> Result<Value, String> {
+pub async fn get_telemetry_snapshot(workspace: State<'_, Arc<Workspace>>) -> Result<Value, String> {
     let ws = Arc::clone(workspace.inner());
-    tauri::async_runtime::spawn_blocking(move || {
-        Ok(ws.get_telemetry_snapshot_internal())
-    })
-    .await
-    .map_err(stringify)?
+    tauri::async_runtime::spawn_blocking(move || Ok(ws.get_telemetry_snapshot_internal()))
+        .await
+        .map_err(stringify)?
 }
 
 #[tauri::command]
 pub async fn unload_model_vram(
     workspace: State<'_, Arc<Workspace>>,
-) -> Result<String, String> {
+    token: Option<ApprovalToken>,
+) -> Result<Value, String> {
     let ws = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let req = ws.gateway.request_approval(
-            ActionKind::UnloadIdleModelSlot,
-            "Modell aus VRAM entladen",
-            "Gibt den VRAM des lokalen KI-Modells sofort frei (Null-VRAM-Ruhemodus).",
-            vec!["127.0.0.1:18434".into()],
-            0,
-            16000,
-        ).map_err(stringify)?;
-
-        let token = ws.gateway.approve_request(req.request_id, Some("UI Unload".into())).map_err(stringify)?;
-        let runtime = aido_core::runtime_supervisor::RuntimeSupervisor::new();
-        let msg = runtime.force_unload_model(&ws.gateway, &token).map_err(stringify)?;
-        let _ = ws.audit("UnloadModelVram", true, &msg);
-        Ok(msg)
+        if token.is_none() {
+            let proposal = ws.sensitive.propose_unload(&ws.gateway)?;
+            return serde_json::to_value(proposal).map_err(stringify);
+        }
+        let gateway = &ws.gateway;
+        let memory = &ws.memory;
+        let message = ws
+            .sensitive
+            .execute_unload(gateway, memory, token.as_ref())?;
+        Ok(json!({
+            "phase": "executed",
+            "message": message
+        }))
     })
     .await
     .map_err(stringify)?
@@ -1030,7 +1068,9 @@ pub async fn scan_projects_catalog(
     tauri::async_runtime::spawn_blocking(move || {
         let settings = ws.active().unwrap_or_default();
         let roots = scan_roots(&settings.project_roots);
-        ws.projects.index_roots(&ws.gateway, &roots, 2).map_err(stringify)
+        ws.projects
+            .index_roots(&ws.gateway, &roots, 2)
+            .map_err(stringify)
     })
     .await
     .map_err(stringify)?
@@ -1039,25 +1079,40 @@ pub async fn scan_projects_catalog(
 #[tauri::command]
 pub async fn launch_project_orchestrated(
     workspace: State<'_, Arc<Workspace>>,
-    project_name: String,
+    project_name: Option<String>,
     mode: Option<String>,
-) -> Result<String, String> {
+    token: Option<ApprovalToken>,
+) -> Result<Value, String> {
     let ws = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let mode_str = mode.unwrap_or_else(|| "antigravity".into());
-        let req = ws.gateway.request_approval(
+        if token.is_none() {
+            let proposal = ws.sensitive.propose_launch(
+                &ws.gateway,
+                project_name.as_deref().unwrap_or(""),
+                mode.as_deref().unwrap_or("antigravity"),
+            )?;
+            return serde_json::to_value(proposal).map_err(stringify);
+        }
+        let sensitive = &ws.sensitive;
+        let gateway = &ws.gateway;
+        let memory = &ws.memory;
+        let projects = &ws.projects;
+        // Only the target stored in the preview is launched. A later projectName is ignored.
+        let message = sensitive.run_after_peek(
+            gateway,
+            memory,
+            token.as_ref(),
             ActionKind::LaunchProject,
-            format!("Projekt '{}' starten", project_name),
-            format!("Bereitet das Projekt vor und startet {}", mode_str),
-            vec![project_name.clone(), mode_str.clone()],
-            0,
-            0,
-        ).map_err(stringify)?;
-
-        let token = ws.gateway.approve_request(req.request_id, Some("Orchestrated Launch".into())).map_err(stringify)?;
-        let res = ws.projects.execute_project_launch(&ws.gateway, &token, &project_name, &mode_str);
-        let _ = ws.audit("LaunchProjectOrchestrated", res.is_ok(), &project_name);
-        res
+            "LaunchProjectOrchestrated",
+            |prepared, approved| {
+                let (name, mode) = prepared.approved_launch_target()?;
+                projects.execute_project_launch(gateway, approved, &name, &mode)
+            },
+        )?;
+        Ok(json!({
+            "phase": "executed",
+            "message": message
+        }))
     })
     .await
     .map_err(stringify)?
@@ -1065,31 +1120,41 @@ pub async fn launch_project_orchestrated(
 
 #[tauri::command]
 pub async fn capture_desktop_screen(
-    _workspace: State<'_, Arc<Workspace>>,
+    app: AppHandle,
+    workspace: State<'_, Arc<Workspace>>,
+    token: Option<ApprovalToken>,
 ) -> Result<Value, String> {
+    let resource_dir = app.path().resource_dir().ok();
+    let ws = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
-        let mut cmd = Command::new(r"tooling\agent-desktop\agent-desktop.exe");
-        cmd.args(["screenshot", "--screen", "0"]);
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x08000000);
+        if token.is_none() {
+            let proposal = ws.sensitive.propose_capture(&ws.gateway)?;
+            return serde_json::to_value(proposal).map_err(stringify);
         }
-        let output = cmd.output().map_err(stringify)?;
-        if !output.status.success() {
-            return Err("Screenshot-Aufruf fehlgeschlagen".into());
+        let mut engine = UiAutomationEngine::new();
+        if let Some(dir) = resource_dir {
+            engine = engine.with_resource_dir(dir);
         }
-        let base64 = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        Ok(json!({ "base64": base64 }))
+        let gateway = &ws.gateway;
+        let memory = &ws.memory;
+        let image =
+            ws.sensitive
+                .execute_capture(gateway, memory, &engine, token.as_ref(), |path| {
+                    ui_automation::run_screenshot(path).map_err(|error| error.to_string())
+                })?;
+        Ok(json!({
+            "phase": "executed",
+            "message": "Bildschirm aufgenommen.",
+            "base64": image
+        }))
     })
     .await
     .map_err(stringify)?
 }
 
+#[cfg(debug_assertions)]
 #[tauri::command]
-pub async fn seed_demo_state(
-    workspace: State<'_, Arc<Workspace>>,
-) -> Result<bool, String> {
+pub async fn seed_demo_state(workspace: State<'_, Arc<Workspace>>) -> Result<bool, String> {
     let ws = Arc::clone(workspace.inner());
     tauri::async_runtime::spawn_blocking(move || {
         let _ = ws.memory.store_memory(

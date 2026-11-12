@@ -76,6 +76,18 @@ pub enum ActionKind {
     UiObserve,
     /// State-modifying action on desktop UI via agent-desktop / UIA (click, type, press key, set-value)
     UiAct,
+    /// Privacy-sensitive capture of the visible desktop. Requires a one-time user
+    /// approval because the image can contain personal data.
+    CaptureDesktopScreen,
+}
+
+/// How far a gated action can reach. Shown to the user together with the German preview.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlastRadius {
+    pub summary_de: String,
+    pub leaves_device: bool,
+    pub privacy_sensitive: bool,
+    pub affects_other_programs: bool,
 }
 
 impl ActionKind {
@@ -97,7 +109,198 @@ impl ActionKind {
                 | ActionKind::PhoneAct
                 | ActionKind::PhoneSensitiveAct
                 | ActionKind::UiAct
+                | ActionKind::CaptureDesktopScreen
         )
+    }
+
+    /// German preview shown before the user grants a one-time token.
+    pub fn preview_de(&self) -> &'static str {
+        match self {
+            ActionKind::CaptureDesktopScreen => {
+                "AIDO nimmt den sichtbaren Bildschirm dieses PCs auf. Das Bild kann Fenster, Texte und personenbezogene Inhalte enthalten. Es bleibt auf diesem Gerät und wird nicht versendet."
+            }
+            ActionKind::UnloadIdleModelSlot => {
+                "AIDO entlädt das lokale KI-Modell aus dem Grafikspeicher dieses PCs. Es werden keine Dateien gelöscht und keine Daten gesendet."
+            }
+            ActionKind::LaunchProject => {
+                "AIDO startet das in der Vorschau genannte lokale Projekt mit dem genannten Programm. Es wird nichts hochgeladen."
+            }
+            _ => "AIDO möchte eine Aktion ausführen, die deine einmalige Freigabe braucht.",
+        }
+    }
+
+    /// Reach of the action, independent of the concrete target names.
+    pub fn blast_radius(&self) -> BlastRadius {
+        let radius = |summary_de: &str,
+                      leaves_device,
+                      privacy_sensitive,
+                      affects_other_programs| BlastRadius {
+            summary_de: summary_de.to_string(),
+            leaves_device,
+            privacy_sensitive,
+            affects_other_programs,
+        };
+        match self {
+            ActionKind::SystemHealthCheck => radius(
+                "Nur lesende Abfrage von Hardware und Auslastung auf diesem PC.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::FastCleanupPreview => {
+                radius("Nur eine Vorschau. Es wird nichts gelöscht.", false, false, false)
+            }
+            ActionKind::FastCleanupExecute => radius(
+                "Löscht nur die vorher gezeigten temporären Dateien auf diesem PC.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::DeepCleanupScan => radius(
+                "Nur lesende Suche nach alten Zwischenspeichern auf diesem PC.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::DeepCleanupExecute => radius(
+                "Löscht die vorher gezeigten alten Build-, Shader- und Absturzdateien auf diesem PC.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::UnloadIdleModelSlot => radius(
+                "Gibt nur den Grafikspeicher des lokalen KI-Modells auf diesem PC frei. Keine Dateien, keine anderen Programme, kein Netzwerk.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::DiscoverApps => {
+                radius("Liest nur, welche Programme lokal erkannt sind.", false, false, false)
+            }
+            ActionKind::VerifyAppCapability => radius(
+                "Prüft nur lokal, ob eine Fähigkeit benutzbar ist.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::ExecuteAppAction => radius(
+                "Startet oder steuert ein lokales Programm auf diesem PC.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::ScanProjects => radius(
+                "Liest nur freigegebene Projektordner auf diesem PC.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::LaunchProject => radius(
+                "Startet das angezeigte lokale Projekt mit einem lokalen Programm. Es wird nichts hochgeladen.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::InspectHardwareAndModels => radius(
+                "Liest nur Hardware und vorhandene Modelldateien.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::RunInstallerStep => radius(
+                "Führt einen Installationsschritt lokal auf diesem PC aus.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::RollbackInstaller => radius(
+                "Macht einen lokalen Installationsschritt rückgängig.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::ProbeLocalRuntimes => radius(
+                "Prüft nur lokale KI-Dienste auf 127.0.0.1.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::SynthesizeAndVerifyAdapter => radius(
+                "Prüft einen unbekannten Adapter nur lesend und isoliert.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::ExecuteCleanUninstall => radius(
+                "Entfernt lokale AIDO-Zwischenspeicher und die lokale Datenbank auf diesem PC.",
+                false,
+                false,
+                false,
+            ),
+            ActionKind::PairRemoteDevice => radius(
+                "Koppelt ein Gerät. Dabei können Verbindungsdaten diesen PC verlassen.",
+                true,
+                false,
+                false,
+            ),
+            ActionKind::RevokeRemoteDevice => {
+                radius("Widerruft eine Koppelung auf diesem PC.", false, false, false)
+            }
+            ActionKind::CaptureAidoBlickSnapshot => radius(
+                "Liest den Bildschirm für ein gekoppeltes Gerät. Der Inhalt kann personenbezogen sein und das Gerät erreichen.",
+                true,
+                true,
+                false,
+            ),
+            ActionKind::ElevateAdminBrokerTask => radius(
+                "Führt eine eng begrenzte Aufgabe mit erhöhten Rechten auf diesem PC aus.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::ManageDockerSandbox => radius(
+                "Steuert eine lokale Docker-Umgebung auf diesem PC.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::PhoneObserve => radius(
+                "Liest den Bildschirm oder die Oberfläche eines verbundenen Telefons.",
+                false,
+                true,
+                false,
+            ),
+            ActionKind::PhoneAct => radius(
+                "Bedient ein verbundenes Telefon, zum Beispiel durch Tippen, Wischen oder Text.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::PhoneSensitiveAct => radius(
+                "Führt eine heikle Telefonaktion aus, zum Beispiel Anruf, SMS oder Installation.",
+                true,
+                true,
+                true,
+            ),
+            ActionKind::UiObserve => radius(
+                "Liest Fenster und Bedienelemente auf diesem PC.",
+                false,
+                true,
+                false,
+            ),
+            ActionKind::UiAct => radius(
+                "Klickt oder tippt in ein anderes Programm auf diesem PC.",
+                false,
+                false,
+                true,
+            ),
+            ActionKind::CaptureDesktopScreen => radius(
+                "Nimmt den sichtbaren Bildschirm dieses PCs auf. Das Bild kann Fenster, Texte und personenbezogene Inhalte enthalten. Es bleibt lokal und wird nicht versendet.",
+                false,
+                true,
+                false,
+            ),
+        }
     }
 }
 
@@ -369,6 +572,31 @@ impl PermissionGateway {
         Ok(())
     }
 
+    /// Checks that a one-time token is present and matches the action without consuming it.
+    pub fn peek_approval_token(
+        &self,
+        token: &ApprovalToken,
+        expected_action: &ActionKind,
+    ) -> Result<(), GatewayError> {
+        if self.access_mode() == AccessMode::ReadOnly {
+            return Err(GatewayError::ReadOnlyBlocked(format!(
+                "{:?}",
+                expected_action
+            )));
+        }
+        let tokens = self.valid_tokens.lock().unwrap();
+        let stored = tokens
+            .get(&token.token_id)
+            .ok_or_else(|| GatewayError::ApprovalRequired(format!("{:?}", expected_action)))?;
+        if &stored.action != expected_action {
+            return Err(GatewayError::ApprovalRequired(format!(
+                "Token gilt für {:?}, nicht für {:?}",
+                stored.action, expected_action
+            )));
+        }
+        Ok(())
+    }
+
     /// Alias for consuming a one-time ApprovalToken right before task execution.
     pub fn consume_token_for_execution(
         &self,
@@ -386,8 +614,12 @@ mod tests {
     #[test]
     fn private_offline_blocks_external_urls() {
         let gw = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
-        assert!(gw.check_endpoint_allowed("http://127.0.0.1:18434/v1/chat/completions").is_ok());
-        assert!(gw.check_endpoint_allowed("http://localhost:18080/inference").is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://127.0.0.1:18434/v1/chat/completions")
+            .is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://localhost:18080/inference")
+            .is_ok());
         assert_eq!(
             gw.check_endpoint_allowed("https://api.openai.com/v1/chat/completions"),
             Err(GatewayError::OfflineViolation(
@@ -399,12 +631,22 @@ mod tests {
     #[test]
     fn local_connected_allows_lan_and_tunnel_but_blocks_external_cloud() {
         let gw = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::LocalConnected);
-        assert!(gw.check_endpoint_allowed("http://127.0.0.1:18434/v1/chat/completions").is_ok());
-        assert!(gw.check_endpoint_allowed("http://192.168.1.42:18435/remote").is_ok());
-        assert!(gw.check_endpoint_allowed("http://10.0.0.5:8080/api").is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://127.0.0.1:18434/v1/chat/completions")
+            .is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://192.168.1.42:18435/remote")
+            .is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://10.0.0.5:8080/api")
+            .is_ok());
         assert!(gw.check_endpoint_allowed("http://172.20.1.10:3000").is_ok());
-        assert!(gw.check_endpoint_allowed("https://tunnel.aido.local/cockpit").is_ok());
-        assert!(gw.check_endpoint_allowed("http://aido-remote.local").is_ok());
+        assert!(gw
+            .check_endpoint_allowed("https://tunnel.aido.local/cockpit")
+            .is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://aido-remote.local")
+            .is_ok());
         assert_eq!(
             gw.check_endpoint_allowed("https://api.openai.com/v1/chat/completions"),
             Err(GatewayError::OfflineViolation(
@@ -416,7 +658,9 @@ mod tests {
     #[test]
     fn readonly_mode_blocks_mutating_approval_and_execution() {
         let gw = PermissionGateway::new(AccessMode::ReadOnly, PrivacyMode::PrivateOffline);
-        assert!(gw.check_readonly_allowed(&ActionKind::SystemHealthCheck).is_ok());
+        assert!(gw
+            .check_readonly_allowed(&ActionKind::SystemHealthCheck)
+            .is_ok());
         let res = gw.request_approval(
             ActionKind::FastCleanupExecute,
             "Fast Cleanup",
@@ -442,7 +686,9 @@ mod tests {
             )
             .unwrap();
 
-        let token = gw.approve_request(req.request_id, Some("Freigegeben".into())).unwrap();
+        let token = gw
+            .approve_request(req.request_id, Some("Freigegeben".into()))
+            .unwrap();
 
         // First consumption succeeds
         assert!(gw
@@ -482,6 +728,56 @@ mod tests {
         assert!(ActionKind::RevokeRemoteDevice.is_mutating());
         assert!(ActionKind::PhoneAct.is_mutating());
         assert!(ActionKind::PhoneSensitiveAct.is_mutating());
+        assert!(ActionKind::UiAct.is_mutating());
+        assert!(ActionKind::CaptureDesktopScreen.is_mutating());
+        assert!(!ActionKind::UiObserve.is_mutating());
+    }
+
+    #[test]
+    fn peek_approval_token_does_not_consume_it() {
+        let gw = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let req = gw
+            .request_approval(
+                ActionKind::CaptureDesktopScreen,
+                "Bildschirm aufnehmen",
+                ActionKind::CaptureDesktopScreen.preview_de(),
+                vec!["Bildschirm 0".into()],
+                0,
+                0,
+            )
+            .unwrap();
+        let token = gw
+            .approve_request(req.request_id, Some("Nutzer".into()))
+            .unwrap();
+        assert!(gw
+            .peek_approval_token(&token, &ActionKind::CaptureDesktopScreen)
+            .is_ok());
+        assert!(gw
+            .peek_approval_token(&token, &ActionKind::CaptureDesktopScreen)
+            .is_ok());
+        assert!(gw
+            .consume_approval_token(&token, &ActionKind::CaptureDesktopScreen)
+            .is_ok());
+        assert!(matches!(
+            gw.peek_approval_token(&token, &ActionKind::CaptureDesktopScreen),
+            Err(GatewayError::ApprovalRequired(_))
+        ));
+    }
+
+    #[test]
+    fn capture_desktop_screen_blast_radius_stays_on_device_and_is_private() {
+        let radius = ActionKind::CaptureDesktopScreen.blast_radius();
+        assert!(radius.privacy_sensitive);
+        assert!(!radius.leaves_device);
+        assert!(radius.summary_de.contains("Bildschirm"));
+        assert!(ActionKind::CaptureDesktopScreen
+            .preview_de()
+            .contains("nicht versendet"));
+        let gw = PermissionGateway::new(AccessMode::ReadOnly, PrivacyMode::PrivateOffline);
+        assert!(matches!(
+            gw.check_readonly_allowed(&ActionKind::CaptureDesktopScreen),
+            Err(GatewayError::ApprovalRequired(_))
+        ));
     }
 
     #[test]
@@ -491,11 +787,15 @@ mod tests {
         assert_eq!(gw.blocked_external_requests(), 0);
 
         // Allowed loopback request
-        assert!(gw.check_endpoint_allowed("http://127.0.0.1:18434/models").is_ok());
+        assert!(gw
+            .check_endpoint_allowed("http://127.0.0.1:18434/models")
+            .is_ok());
         assert_eq!(gw.blocked_external_requests(), 0);
 
         // Blocked external request
-        assert!(gw.check_endpoint_allowed("https://api.openai.com/v1/chat").is_err());
+        assert!(gw
+            .check_endpoint_allowed("https://api.openai.com/v1/chat")
+            .is_err());
         assert_eq!(gw.blocked_external_requests(), 1);
 
         // In PrivateOffline mode, external bytes sent remains strictly 0

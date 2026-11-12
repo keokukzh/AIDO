@@ -10,13 +10,15 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, State, WebviewWindow, WindowEvent,
 };
+#[cfg(debug_assertions)]
+use workspace::seed_demo_state;
 use workspace::{
     approve_proposal, blender_inspect, capture_desktop_screen, decide_project, docker_containers,
     docker_status, get_active_proposals, get_telemetry_snapshot, inspect_rea,
     launch_project_orchestrated, memory_forget, memory_overview, memory_search,
     open_workspace_window, prepare_app, prepare_project, proactive_check, proactive_dismiss,
-    reject_proposal, save_setup, scan_projects_catalog, seed_demo_state, setup_model_check,
-    setup_pick, suggest_wsl_profile, system_security_status, tools_inventory, unload_model_vram,
+    reject_proposal, save_setup, scan_projects_catalog, setup_model_check, setup_pick,
+    suggest_wsl_profile, system_security_status, tools_inventory, unload_model_vram,
     workspace_projects, workspace_status, Workspace,
 };
 
@@ -54,11 +56,19 @@ async fn chat(
         .model_profile;
 
     // Check for "Vergiss ..." command
-    if let Some(last_msg) = messages.iter().rev().find(|m| m.role == aido_core::ai_client::ChatRole::User) {
+    if let Some(last_msg) = messages
+        .iter()
+        .rev()
+        .find(|m| m.role == aido_core::ai_client::ChatRole::User)
+    {
         let text = last_msg.content.trim();
         let lower = text.to_lowercase();
         if lower.starts_with("vergiss ") || lower == "vergiss das" {
-            let term = if lower == "vergiss das" { "" } else { text[8..].trim() };
+            let term = if lower == "vergiss das" {
+                ""
+            } else {
+                text[8..].trim()
+            };
             let ws = Arc::clone(workspace.inner());
             let found = if term.is_empty() {
                 ws.memory.list_recent_memories(1).unwrap_or_default()
@@ -67,7 +77,10 @@ async fn chat(
             };
             if let Some(target) = found.first() {
                 let _ = ws.memory.forget_memory_entry(target.id);
-                return Ok(format!("Ich habe den Eintrag '{}' aus meinem aktiven Gedächtnis gelöscht.", target.summary));
+                return Ok(format!(
+                    "Ich habe den Eintrag '{}' aus meinem aktiven Gedächtnis gelöscht.",
+                    target.summary
+                ));
             } else {
                 return Ok("Ich habe keinen passenden Eintrag im Gedächtnis gefunden, den ich vergessen könnte.".to_string());
             }
@@ -75,9 +88,16 @@ async fn chat(
     }
 
     // Memory Context Enrichment
-    if let Some(last_msg) = messages.iter_mut().rev().find(|m| m.role == aido_core::ai_client::ChatRole::User) {
+    if let Some(last_msg) = messages
+        .iter_mut()
+        .rev()
+        .find(|m| m.role == aido_core::ai_client::ChatRole::User)
+    {
         let ws = Arc::clone(workspace.inner());
-        let hits = ws.memory.search_memory(&last_msg.content, 3).unwrap_or_default();
+        let hits = ws
+            .memory
+            .search_memory(&last_msg.content, 3)
+            .unwrap_or_default();
         if !hits.is_empty() {
             let memory_context = hits
                 .iter()
@@ -98,9 +118,11 @@ async fn chat(
         .map(|m| m.content.clone());
 
     let runtime = Arc::clone(runtime.inner());
-    let response = tauri::async_runtime::spawn_blocking(move || runtime.chat_with_profile(&messages, &profile))
-        .await
-        .map_err(|_| "Die lokale Modellanfrage konnte nicht ausgeführt werden.".to_owned())??;
+    let response = tauri::async_runtime::spawn_blocking(move || {
+        runtime.chat_with_profile(&messages, &profile)
+    })
+    .await
+    .map_err(|_| "Die lokale Modellanfrage konnte nicht ausgeführt werden.".to_owned())??;
 
     // Automatic Learning of User Preferences & Facts
     if let Some(ref text) = user_input_to_learn {
@@ -160,14 +182,11 @@ fn main() {
                 &mut length,
             ) != 0
             {
-                let name = String::from_utf16_lossy(&name_buf[..(length as usize / 2).saturating_sub(1)]);
+                let name =
+                    String::from_utf16_lossy(&name_buf[..(length as usize / 2).saturating_sub(1)]);
                 if !name.eq_ignore_ascii_case("default") {
-                    let default_desktop = OpenDesktopW(
-                        windows_sys::core::w!("Default"),
-                        0,
-                        0,
-                        0x01FF,
-                    );
+                    let default_desktop =
+                        OpenDesktopW(windows_sys::core::w!("Default"), 0, 0, 0x01FF);
                     if !default_desktop.is_null() {
                         let _ = SetThreadDesktop(default_desktop);
                     }
@@ -182,7 +201,7 @@ fn main() {
         .join("AIDO");
     let workspace =
         Arc::new(Workspace::new(&root).expect("AIDOs Datenbank konnte nicht geöffnet werden."));
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             let active = app
                 .try_state::<Arc<Workspace>>()
@@ -195,41 +214,79 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(CompanionRuntime::default()))
-        .manage(workspace)
-        .invoke_handler(tauri::generate_handler![
-            open_chat,
-            chat,
-            workspace_status,
-            setup_model_check,
-            suggest_wsl_profile,
-            setup_pick,
-            save_setup,
-            open_workspace_window,
-            workspace_projects,
-            prepare_app,
-            prepare_project,
-            decide_project,
-            tools_inventory,
-            inspect_rea,
-            memory_overview,
-            memory_forget,
-            memory_search,
-            proactive_check,
-            proactive_dismiss,
-            blender_inspect,
-            docker_status,
-            docker_containers,
-            system_security_status,
-            get_active_proposals,
-            approve_proposal,
-            reject_proposal,
-            get_telemetry_snapshot,
-            unload_model_vram,
-            scan_projects_catalog,
-            launch_project_orchestrated,
-            capture_desktop_screen,
-            seed_demo_state,
-        ])
+        .manage(workspace);
+    // seed_demo_state is registered only in debug builds. Release builds omit it.
+    // Keep both command lists identical apart from that command.
+    #[cfg(debug_assertions)]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        open_chat,
+        chat,
+        workspace_status,
+        setup_model_check,
+        suggest_wsl_profile,
+        setup_pick,
+        save_setup,
+        open_workspace_window,
+        workspace_projects,
+        prepare_app,
+        prepare_project,
+        decide_project,
+        tools_inventory,
+        inspect_rea,
+        memory_overview,
+        memory_forget,
+        memory_search,
+        proactive_check,
+        proactive_dismiss,
+        blender_inspect,
+        docker_status,
+        docker_containers,
+        system_security_status,
+        get_active_proposals,
+        approve_proposal,
+        reject_proposal,
+        get_telemetry_snapshot,
+        unload_model_vram,
+        scan_projects_catalog,
+        launch_project_orchestrated,
+        capture_desktop_screen,
+        seed_demo_state,
+    ]);
+    #[cfg(not(debug_assertions))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        open_chat,
+        chat,
+        workspace_status,
+        setup_model_check,
+        suggest_wsl_profile,
+        setup_pick,
+        save_setup,
+        open_workspace_window,
+        workspace_projects,
+        prepare_app,
+        prepare_project,
+        decide_project,
+        tools_inventory,
+        inspect_rea,
+        memory_overview,
+        memory_forget,
+        memory_search,
+        proactive_check,
+        proactive_dismiss,
+        blender_inspect,
+        docker_status,
+        docker_containers,
+        system_security_status,
+        get_active_proposals,
+        approve_proposal,
+        reject_proposal,
+        get_telemetry_snapshot,
+        unload_model_vram,
+        scan_projects_catalog,
+        launch_project_orchestrated,
+        capture_desktop_screen,
+    ]);
+    builder
         .setup(|app| {
             let configured = app
                 .state::<Arc<Workspace>>()
@@ -244,7 +301,13 @@ fn main() {
 
             let show = MenuItem::with_id(app, "show-mono", "MONO anzeigen", true, None::<&str>)?;
             let hide = MenuItem::with_id(app, "hide-mono", "MONO ausblenden", true, None::<&str>)?;
-            let memory_item = MenuItem::with_id(app, "show-memory", "🧠 Gedächtnis & Wissen", true, None::<&str>)?;
+            let memory_item = MenuItem::with_id(
+                app,
+                "show-memory",
+                "🧠 Gedächtnis & Wissen",
+                true,
+                None::<&str>,
+            )?;
             let quit = MenuItem::with_id(app, "quit", "AIDO beenden", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &hide, &memory_item, &quit])?;
             let mut tray = TrayIconBuilder::new()
@@ -285,13 +348,11 @@ fn main() {
             tray.build(app)?;
 
             let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(2));
-                    if let Some(ws) = handle.try_state::<Arc<Workspace>>() {
-                        let snap = ws.get_telemetry_snapshot_internal();
-                        let _ = handle.emit("telemetry://update", &snap);
-                    }
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                if let Some(ws) = handle.try_state::<Arc<Workspace>>() {
+                    let snap = ws.get_telemetry_snapshot_internal();
+                    let _ = handle.emit("telemetry://update", &snap);
                 }
             });
             if configured {

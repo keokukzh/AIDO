@@ -11,8 +11,18 @@ use thiserror::Error;
 pub enum UiAutomationError {
     #[error("I/O- oder Ausführungsfehler des UI-Treibers: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Treiber 'agent-desktop.exe' wurde nicht gefunden. Bitte Installation oder Tooling prüfen.")]
+    #[error(
+        "Treiber 'agent-desktop.exe' wurde nicht gefunden. Bitte Installation oder Tooling prüfen."
+    )]
     DriverNotFound,
+    #[error(
+        "SHA-256 von agent-desktop.exe stimmt nicht ({path}). Die Datei wird nicht gestartet."
+    )]
+    HashMismatch { path: String },
+    #[error(
+        "agent-desktop.exe muss ein absoluter Pfad aus dem Ressourcenordner oder dem bekannten Installationspfad sein."
+    )]
+    UntrustedDriverPath,
     #[error("Treiber meldet Fehler: {0}")]
     DriverFailed(String),
     #[error("JSON-Parsing-Fehler des UI-Snapshots: {0}")]
@@ -63,7 +73,9 @@ pub enum UiAction {
 impl UiAction {
     pub fn description_de(&self) -> String {
         match self {
-            UiAction::Click { element_ref } => format!("Klick auf Element-Referenz '{}'", element_ref),
+            UiAction::Click { element_ref } => {
+                format!("Klick auf Element-Referenz '{}'", element_ref)
+            }
             UiAction::TypeText { element_ref, text } => {
                 format!("Texteingabe in '{}': \"{}\"", element_ref, text)
             }
@@ -86,78 +98,69 @@ pub struct UiActionResult {
     pub human_summary_de: String,
 }
 
+/// SHA-256 of the bundled `tooling/agent-desktop/agent-desktop.exe`.
+/// Keep this in sync with `scripts/stage-rea.mjs`.
+pub const AGENT_DESKTOP_SHA256: &str =
+    "d274667031322e50b9c2b1ab81c2ca46835d52cc932769a5c34bd4d481fd94c3";
+
+/// Optional absolute override. The file is started only when its SHA-256 matches the pin.
+pub const AGENT_DESKTOP_ENV: &str = "AIDO_AGENT_DESKTOP_PATH";
+
+const BUNDLED_AGENT_DESKTOP: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../tooling/agent-desktop/agent-desktop.exe"
+);
+
 #[derive(Debug, Clone, Default)]
 pub struct UiAutomationEngine {
     custom_driver_path: Option<PathBuf>,
+    resource_dir: Option<PathBuf>,
 }
 
 impl UiAutomationEngine {
     pub fn new() -> Self {
         Self {
             custom_driver_path: None,
+            resource_dir: None,
         }
     }
 
     pub fn with_driver_path(path: impl Into<PathBuf>) -> Self {
         Self {
             custom_driver_path: Some(path.into()),
+            resource_dir: None,
         }
     }
 
-    /// Resolves the absolute path to `agent-desktop.exe` in order of precedence:
-    /// 1. Custom override path
-    /// 2. Environment variable `AIDO_AGENT_DESKTOP_PATH`
-    /// 3. Alongside current executable in `resources/agent-desktop/agent-desktop.exe`
-    /// 4. Local workspace tooling in `tooling/agent-desktop/agent-desktop.exe`
-    /// 5. System PATH
+    pub fn with_resource_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.resource_dir = Some(dir.into());
+        self
+    }
+
+    /// Resolves `agent-desktop.exe` only from an absolute, hash-pinned location.
+    ///
+    /// Order, with no CWD or PATH fallback:
+    /// 1. `AIDO_AGENT_DESKTOP_PATH`, if set. A relative path or hash mismatch fails closed.
+    /// 2. An explicit driver path on this engine, with the same hash check.
+    /// 3. `resource_dir/agent-desktop/agent-desktop.exe` when that file exists.
+    /// 4. The absolute path of the binary bundled in this repository.
     pub fn resolve_driver(&self) -> Result<PathBuf, UiAutomationError> {
-        if let Some(ref path) = self.custom_driver_path {
-            if path.exists() {
-                return Ok(path.clone());
-            }
-        }
+        let env_override = std::env::var_os(AGENT_DESKTOP_ENV).map(PathBuf::from);
+        self.resolve_for_launch(self.resource_dir.as_deref(), env_override.as_deref())
+    }
 
-        if let Some(env_path) = std::env::var_os("AIDO_AGENT_DESKTOP_PATH") {
-            let p = PathBuf::from(env_path);
-            if p.exists() {
-                return Ok(p);
-            }
+    pub fn resolve_for_launch(
+        &self,
+        resource_dir: Option<&Path>,
+        env_override: Option<&Path>,
+    ) -> Result<PathBuf, UiAutomationError> {
+        if let Some(path) = env_override {
+            return verify_pinned_driver(path);
         }
-
-        if let Ok(exe_dir) = std::env::current_exe().map(|p| p.parent().map(|d| d.to_path_buf())) {
-            if let Some(dir) = exe_dir {
-                let candidate1 = dir.join("resources").join("agent-desktop").join("agent-desktop.exe");
-                if candidate1.exists() {
-                    return Ok(candidate1);
-                }
-                let candidate2 = dir.join("agent-desktop").join("agent-desktop.exe");
-                if candidate2.exists() {
-                    return Ok(candidate2);
-                }
-            }
+        if let Some(path) = &self.custom_driver_path {
+            return verify_pinned_driver(path);
         }
-
-        let dev_candidate = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../tooling/agent-desktop/agent-desktop.exe");
-        if dev_candidate.exists() {
-            if let Ok(canonical) = dev_candidate.canonicalize() {
-                let text = canonical.to_string_lossy();
-                let normalized = if let Some(local) = text.strip_prefix(r"\\?\") {
-                    PathBuf::from(local)
-                } else {
-                    canonical
-                };
-                return Ok(normalized);
-            }
-            return Ok(dev_candidate);
-        }
-
-        let local_tooling = PathBuf::from("tooling/agent-desktop/agent-desktop.exe");
-        if local_tooling.exists() {
-            return Ok(local_tooling);
-        }
-
-        Ok(PathBuf::from("agent-desktop.exe"))
+        verify_installed_driver(resource_dir.or(self.resource_dir.as_deref()))
     }
 
     /// Read-only discovery: Lists all currently visible application windows via agent-desktop.
@@ -189,10 +192,22 @@ impl UiAutomationEngine {
             .unwrap_or(serde_json::json!({ "data": { "windows": [] } }));
 
         let mut windows = Vec::new();
-        if let Some(arr) = parsed.get("data").and_then(|d| d.get("windows")).and_then(|w| w.as_array()) {
+        if let Some(arr) = parsed
+            .get("data")
+            .and_then(|d| d.get("windows"))
+            .and_then(|w| w.as_array())
+        {
             for item in arr {
-                let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("").to_string();
-                let app = item.get("app").and_then(|a| a.as_str()).unwrap_or("").to_string();
+                let title = item
+                    .get("title")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let app = item
+                    .get("app")
+                    .and_then(|a| a.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let bounds = item.get("bounds").map(|b| b.to_string());
                 windows.push(WindowInfo { title, app, bounds });
             }
@@ -237,12 +252,26 @@ impl UiAutomationEngine {
             .map(|s| s.to_string());
 
         let mut elements = Vec::new();
-        if let Some(nodes) = parsed.get("data").and_then(|d| d.get("nodes")).and_then(|n| n.as_array()) {
+        if let Some(nodes) = parsed
+            .get("data")
+            .and_then(|d| d.get("nodes"))
+            .and_then(|n| n.as_array())
+        {
             for node in nodes {
                 if let Some(r) = node.get("ref").and_then(|r| r.as_str()) {
-                    let role = node.get("role").and_then(|r| r.as_str()).unwrap_or("unknown").to_string();
-                    let name = node.get("name").and_then(|n| n.as_str()).map(|n| n.to_string());
-                    let value = node.get("value").and_then(|v| v.as_str()).map(|v| v.to_string());
+                    let role = node
+                        .get("role")
+                        .and_then(|r| r.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let name = node
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|n| n.to_string());
+                    let value = node
+                        .get("value")
+                        .and_then(|v| v.as_str())
+                        .map(|v| v.to_string());
                     let enabled = node.get("enabled").and_then(|e| e.as_bool());
                     let focused = node.get("focused").and_then(|f| f.as_bool());
 
@@ -355,8 +384,12 @@ impl UiAutomationEngine {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
 
-        let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap_or(serde_json::Value::Null);
-        let ok = parsed.get("ok").and_then(|o| o.as_bool()).unwrap_or(output.status.success());
+        let parsed: serde_json::Value =
+            serde_json::from_str(&stdout).unwrap_or(serde_json::Value::Null);
+        let ok = parsed
+            .get("ok")
+            .and_then(|o| o.as_bool())
+            .unwrap_or(output.status.success());
         let disposition = parsed
             .get("data")
             .and_then(|d| d.get("disposition"))
@@ -373,13 +406,7 @@ impl UiAutomationEngine {
         if let Some(mem) = memory {
             let mode_str = format!("{:?}", gateway.access_mode());
             let target_str = format!("app:{}", app);
-            let _ = mem.record_audit(
-                "UiAutomation",
-                &mode_str,
-                &target_str,
-                ok,
-                &summary,
-            );
+            let _ = mem.record_audit("UiAutomation", &mode_str, &target_str, ok, &summary);
         }
 
         if !ok {
@@ -396,5 +423,143 @@ impl UiAutomationEngine {
             disposition,
             human_summary_de: summary,
         })
+    }
+}
+
+/// Accepts only the bundled resource copy or the known repository binary.
+pub fn verify_installed_driver(resource_dir: Option<&Path>) -> Result<PathBuf, UiAutomationError> {
+    if let Some(dir) = resource_dir {
+        let candidate = dir.join("agent-desktop").join("agent-desktop.exe");
+        if candidate.exists() {
+            return verify_pinned_driver(&candidate);
+        }
+    }
+    let bundled = PathBuf::from(BUNDLED_AGENT_DESKTOP);
+    if bundled.is_file() {
+        return verify_pinned_driver(&bundled);
+    }
+    Err(UiAutomationError::DriverNotFound)
+}
+
+/// Rejects relative paths, missing files, and any SHA-256 other than the pin.
+pub fn verify_pinned_driver(path: &Path) -> Result<PathBuf, UiAutomationError> {
+    if !path.is_absolute() {
+        return Err(UiAutomationError::UntrustedDriverPath);
+    }
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| UiAutomationError::DriverNotFound)?;
+    let bytes = std::fs::read(&canonical)?;
+    let digest = crate::rea_bridge::sha256_digest(&bytes);
+    if !digest.eq_ignore_ascii_case(AGENT_DESKTOP_SHA256) {
+        return Err(UiAutomationError::HashMismatch {
+            path: canonical.display().to_string(),
+        });
+    }
+    Ok(strip_verbatim_prefix(canonical))
+}
+
+fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(local) = text.strip_prefix(r"\\?\") {
+        PathBuf::from(local)
+    } else {
+        path
+    }
+}
+
+/// Runs a desktop screenshot only after the driver path has been hash-checked again.
+pub fn run_screenshot(driver: &Path) -> Result<String, UiAutomationError> {
+    let driver = verify_pinned_driver(driver)?;
+    let mut cmd = Command::new(&driver);
+    cmd.args(["screenshot", "--screen", "0"]);
+    cmd.stdin(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = cmd.output()?;
+    if !output.status.success() {
+        return Err(UiAutomationError::DriverFailed(
+            "Screenshot-Aufruf fehlgeschlagen.".into(),
+        ));
+    }
+    let base64 = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if base64.is_empty() {
+        return Err(UiAutomationError::DriverFailed(
+            "Screenshot lieferte keine Bilddaten.".into(),
+        ));
+    }
+    Ok(base64)
+}
+
+#[cfg(test)]
+mod driver_pin_tests {
+    use super::*;
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let path =
+            std::env::temp_dir().join(format!("aido-driver-{name}-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn relative_and_path_fallbacks_are_rejected() {
+        let relative = Path::new("tooling/agent-desktop/agent-desktop.exe");
+        assert!(matches!(
+            verify_pinned_driver(relative),
+            Err(UiAutomationError::UntrustedDriverPath)
+        ));
+        assert!(matches!(
+            verify_pinned_driver(Path::new("agent-desktop.exe")),
+            Err(UiAutomationError::UntrustedDriverPath)
+        ));
+        let engine = UiAutomationEngine::new();
+        assert!(matches!(
+            engine.resolve_for_launch(
+                None,
+                Some(Path::new("tooling/agent-desktop/agent-desktop.exe"))
+            ),
+            Err(UiAutomationError::UntrustedDriverPath)
+        ));
+    }
+
+    #[test]
+    fn hash_mismatch_rejects_absolute_file_without_falling_through() {
+        let dir = temp_dir("mismatch");
+        let resource = dir.join("agent-desktop");
+        std::fs::create_dir_all(&resource).unwrap();
+        let tampered = resource.join("agent-desktop.exe");
+        std::fs::write(&tampered, b"this is not the pinned driver").unwrap();
+
+        let mismatch = verify_installed_driver(Some(&dir));
+        assert!(
+            matches!(&mismatch, Err(UiAutomationError::HashMismatch { .. })),
+            "a tampered resource must not fall through to another binary: {mismatch:?}"
+        );
+
+        let direct = verify_pinned_driver(&tampered);
+        assert!(matches!(
+            direct,
+            Err(UiAutomationError::HashMismatch { .. })
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bundled_driver_matches_the_pinned_sha256_and_is_absolute() {
+        let resolved = verify_installed_driver(None).expect("bundled driver");
+        assert!(resolved.is_absolute());
+        assert!(resolved.ends_with("agent-desktop.exe"));
+        let again = verify_pinned_driver(&resolved).expect("recheck");
+        assert_eq!(again, resolved);
+
+        let empty = temp_dir("empty-resource");
+        let from_empty = verify_installed_driver(Some(&empty)).expect("fallback to known path");
+        assert_eq!(from_empty, resolved);
+        let _ = std::fs::remove_dir_all(&empty);
     }
 }

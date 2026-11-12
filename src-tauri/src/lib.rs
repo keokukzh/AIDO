@@ -16,6 +16,7 @@ pub mod proactive_engine;
 pub mod project_intelligence;
 pub mod rea_bridge;
 pub mod runtime_supervisor;
+pub mod sensitive_actions;
 pub mod smart_installer;
 pub mod specialist_router;
 pub mod task_engine;

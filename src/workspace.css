@@ -33,4 +33,17 @@ ul { padding-left: 20px; margin: 8px 0; }
 li { margin-bottom: 7px; overflow-wrap: anywhere; }
 code { font-family: Consolas, monospace; overflow-wrap: anywhere; }
 #setup-status, #tools-status { white-space: pre-line; overflow-wrap: anywhere; }
+.gate-host { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.gate-host > button { align-self: flex-start; margin-bottom: 4px; }
+.gate-host .decision-card { background: #1e293b; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.gate-host .decision-card.risk-red_system { border-left: 3px solid #ef4444; }
+.gate-host .decision-card.risk-yellow_project { border-left: 3px solid #eab308; }
+.gate-host .decision-card.risk-green_read { border-left: 3px solid #22c55e; }
+.gate-host .card-title { margin: 0; font-size: 16px; }
+.gate-host .card-explanation, .gate-host .card-blast { margin: 0; font-size: 14px; line-height: 1.4; }
+.gate-host .card-blast { color: #fcd34d; }
+.gate-host .card-actions { display: flex; gap: 8px; }
+.gate-host .decision-btn { font: inherit; padding: 7px 12px; border-radius: 7px; cursor: pointer; }
+.gate-host .decision-btn.primary { background: #171717; color: #fff; border: 1px solid #171717; }
+.gate-host .decision-btn.secondary { background: #fff; color: #171717; border: 1px solid #aaa; }
 #setup-status:empty, #tools-status:empty { display: none; }
