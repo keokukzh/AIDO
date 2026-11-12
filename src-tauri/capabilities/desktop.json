@@ -2,21 +2,63 @@
   {
     "identifier": "mono-window",
     "windows": ["mono"],
-    "permissions": ["core:window:allow-start-dragging", "allow-open-chat", "allow-open-workspace-window"]
+    "permissions": [
+      "core:window:allow-start-dragging",
+      "allow-open-chat",
+      "allow-open-workspace-window",
+      "allow-proactive-check",
+      "allow-get-active-proposals",
+      "allow-get-telemetry-snapshot",
+      "allow-approve-proposal",
+      "allow-reject-proposal",
+      "allow-unload-model-vram",
+      "allow-launch-project-orchestrated",
+      "allow-capture-desktop-screen"
+    ]
   },
   {
     "identifier": "chat-window",
     "windows": ["chat"],
-    "permissions": ["allow-chat", "allow-workspace-projects", "allow-prepare-project", "allow-prepare-app", "allow-decide-project"]
+    "permissions": [
+      "allow-chat",
+      "allow-open-workspace-window",
+      "allow-workspace-projects",
+      "allow-prepare-app",
+      "allow-prepare-project",
+      "allow-decide-project",
+      "allow-docker-status",
+      "allow-docker-containers",
+      "allow-blender-inspect",
+      "allow-system-security-status"
+    ]
   },
   {
     "identifier": "setup-window",
     "windows": ["setup"],
-    "permissions": ["core:window:allow-close", "allow-workspace-status", "allow-setup-model-check", "allow-suggest-wsl-profile", "allow-setup-pick", "allow-save-setup"]
+    "permissions": [
+      "core:window:allow-close",
+      "allow-workspace-status",
+      "allow-setup-model-check",
+      "allow-suggest-wsl-profile",
+      "allow-setup-pick",
+      "allow-save-setup"
+    ]
   },
   {
     "identifier": "tools-window",
     "windows": ["tools"],
-    "permissions": ["allow-tools-inventory", "allow-inspect-rea"]
+    "permissions": [
+      "allow-tools-inventory",
+      "allow-inspect-rea",
+      "allow-launch-project-orchestrated",
+      "allow-approve-proposal",
+      "allow-reject-proposal"
+    ]
+  },
+  {
+    "identifier": "memory-window",
+    "description": "Gedächtnis-Fenster: nur lesende Memory-Befehle. memory_forget löscht ohne Einmal-Token und bleibt gesperrt.",
+    "windows": ["memory"],
+    "permissions": ["allow-memory-overview", "allow-memory-search"]
   }
 ]
