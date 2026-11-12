@@ -2,6 +2,8 @@ pub mod admin_broker;
 pub mod agent_remote;
 pub mod ai_client;
 pub mod app_intelligence;
+pub mod blender_connector;
+pub mod docker_controller;
 #[cfg(feature = "desktop")]
 pub mod companion_runtime;
 pub mod docker_sandbox_bridge;
@@ -19,6 +21,7 @@ pub mod specialist_router;
 pub mod task_engine;
 pub mod ui_automation;
 pub mod windows_bridge;
+pub mod windows_security;
 
 use ai_client::{AiResponseWithOptions, LocalAiClient};
 use app_intelligence::{AppIntelligenceEngine, AppRegistryEntry};

@@ -65,6 +65,21 @@ function appQuery(content: string): string | undefined {
   return content.match(/^(?:bitte\s+)?(?:starte|öffne)\s+(?:das\s+programm\s+)?([\p{L}][\p{L}\d ._-]{0,49}?)(?:\s+bitte)?[.!]?$/iu)?.[1]?.trim();
 }
 
+function dockerQuery(content: string): boolean {
+  const c = content.toLowerCase();
+  return c.includes("docker status") || c.includes("docker container") || c.includes("welche container") || c.trim() === "/docker" || c.includes("zeige docker");
+}
+
+function blenderInspectQuery(content: string): boolean {
+  const c = content.toLowerCase();
+  return c.includes("blender szene") || c.includes("analysiere blender") || c.includes("blender status") || c.trim() === "/blender";
+}
+
+function securityQuery(content: string): boolean {
+  const c = content.toLowerCase();
+  return c.includes("sicherheitsstatus") || c.includes("dpapi") || c.includes("ports status") || c.trim() === "/security";
+}
+
 function actionButton(label: string, action: () => Promise<void>): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
@@ -136,6 +151,69 @@ async function ask(message: ChatMessage): Promise<void> {
   retry.hidden = true;
   status.textContent = "Warte auf das lokale Modell…";
   try {
+    if (dockerQuery(message.content)) {
+      status.textContent = "Prüfe Docker Desktop & Container…";
+      try {
+        const dStatus = await invoke<any>("docker_status");
+        let reply = `🐳 **Docker Status**:\n${dStatus.human_message_de}`;
+        if (dStatus.daemon_running) {
+          const containers = await invoke<any[]>("docker_containers");
+          if (containers.length > 0) {
+            reply += `\n\n**Gefundene Container:**\n` + containers.map(c => `- ${c.names || c.id} (${c.image}) [${c.state}]`).join("\n");
+          }
+        } else {
+          reply += `\n\n**Verfügbare Masterplan-Sandboxes:**\n` + dStatus.audit.templates.map((t: any) => `- **${t.title_de}**\n  Pfad: \`${t.windows_unc_path}\``).join("\n");
+        }
+        const answer: ChatMessage = { role: "assistant", content: reply };
+        history.push(message, answer);
+        appendMessage(answer);
+      } catch (err) {
+        appendMessage({ role: "assistant", content: `Docker-Fehler: ${String(err)}` });
+      }
+      pending = undefined;
+      return;
+    }
+
+    if (blenderInspectQuery(message.content)) {
+      status.textContent = "Analysiere Blender-Szene in Hintergrund-Instanz…";
+      try {
+        const scene = await invoke<any>("blender_inspect", { blendFile: null });
+        const reply = `🎨 **Blender Szenen-Analyse** (v${scene.blender_version}):\n` +
+          `- **Aktive Render-Engine**: ${scene.active_engine}\n` +
+          `- **Aktive Kamera**: ${scene.active_camera || "Keine"}\n` +
+          `- **Objekte gesamt**: ${scene.object_count} (Meshes: ${scene.mesh_count}, Lichter: ${scene.light_count}, Kameras: ${scene.camera_count})\n` +
+          `- **Gefundene Objekte**: ${scene.objects.map((o: any) => o.name).join(", ")}`;
+        const answer: ChatMessage = { role: "assistant", content: reply };
+        history.push(message, answer);
+        appendMessage(answer);
+      } catch (err) {
+        appendMessage({ role: "assistant", content: `Blender-Fehler: ${String(err)}` });
+      }
+      pending = undefined;
+      return;
+    }
+
+    if (securityQuery(message.content)) {
+      status.textContent = "Prüfe Windows-Sicherheitskontext & geschützte Ports…";
+      try {
+        const rep = await invoke<any>("system_security_status");
+        const reply = `🛡️ **Windows Sicherheitsbericht**:\n` +
+          `- **Nutzer**: ${rep.security_context.user_name}\n` +
+          `- **Integritätsstufe**: ${rep.security_context.integrity_level}\n` +
+          `- **Sicherheitsisolation**: ${rep.security_context.elevation_safe_for_companion ? "Aktiv (kein Admin-Angriffsvektor)" : "Erhöhte Rechte"}\n` +
+          `- **Hermes-Agent (Port 18434)**: ${rep.hermes_protected_on_18434 ? "Aktiv & geschützt" : "Inaktiv"}\n` +
+          `- **Whisper ASR (Port 18080)**: ${rep.whisper_ready_on_18080 ? "Bereit" : "Standby (wird bei Spracheingabe gestartet)"}\n` +
+          `- **DPAPI-Tresor**: Windows Hardware-Verschlüsselung bereit`;
+        const answer: ChatMessage = { role: "assistant", content: reply };
+        history.push(message, answer);
+        appendMessage(answer);
+      } catch (err) {
+        appendMessage({ role: "assistant", content: `Sicherheitsbericht-Fehler: ${String(err)}` });
+      }
+      pending = undefined;
+      return;
+    }
+
     const project = projectQuery(message.content);
     if (project) {
       status.textContent = "Suche das Projekt im freigegebenen Katalog…";

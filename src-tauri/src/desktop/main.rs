@@ -11,10 +11,11 @@ use tauri::{
     AppHandle, Manager, PhysicalPosition, RunEvent, State, WebviewWindow, WindowEvent,
 };
 use workspace::{
-    decide_project, inspect_rea, memory_forget, memory_overview, memory_search,
-    open_workspace_window, prepare_app, prepare_project, proactive_check, proactive_dismiss,
-    save_setup, setup_model_check, setup_pick, suggest_wsl_profile, tools_inventory,
-    workspace_projects, workspace_status, Workspace,
+    blender_inspect, decide_project, docker_containers, docker_status, inspect_rea, memory_forget,
+    memory_overview, memory_search, open_workspace_window, prepare_app, prepare_project,
+    proactive_check, proactive_dismiss, save_setup, setup_model_check, setup_pick,
+    suggest_wsl_profile, system_security_status, tools_inventory, workspace_projects,
+    workspace_status, Workspace,
 };
 
 fn show_chat(app: &AppHandle) -> tauri::Result<()> {
@@ -213,6 +214,10 @@ fn main() {
             memory_search,
             proactive_check,
             proactive_dismiss,
+            blender_inspect,
+            docker_status,
+            docker_containers,
+            system_security_status,
         ])
         .setup(|app| {
             let configured = app

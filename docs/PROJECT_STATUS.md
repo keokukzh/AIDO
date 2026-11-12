@@ -2,6 +2,29 @@
 
 **Stand: 12. November 2026.** [Entwicklungsroadmap](ROADMAP.md)
 
+## Bestätigte Abnahme: Meilenstein 4 (App-Connectors, Workflows & Whisper-Fundament) (12. November 2026)
+
+- **Blender RPC / Scripting Adapter (`blender_connector.rs`):**
+  - Erkennt installierte Blender-Versionen (`C:\Program Files\Blender Foundation\Blender 5.1\blender.exe`).
+  - Führt isolierte Szenenanalysen in Headless-Hintergrund-Instanzen (`--background --python-expr`) in unter 1,8 Sekunden aus.
+  - Extrahiert Engine (`BLENDER_EEVEE_NEXT` / `CYCLES`), aktive Kamera, Objektanzahl, Mesh-/Licht-/Kamera-Verteilung und Polycount.
+  - Blockiert böswillige Systembefehle (`os.system`, `shutil.rmtree`) im Python-Skript und bindet alle mutierenden Render- und Skriptaktionen an Einmal-Tokens (`ActionKind::ExecuteAppAction`).
+  - Neue IPC-Commands: `blender_inspect` im Desktop-Chat integriert (triggert auf «analysiere blender», «blender szene» oder `/blender`).
+- **Docker Desktop & WSL2 Container Controller (`docker_controller.rs`):**
+  - Automatische Erkennung der Docker CLI (`docker.exe` Version 29.9.2) und des Hintergrunddienst-Status.
+  - Saubere deutsche Diagnose bei gestopptem Daemon ohne Fehlermeldungs-Absturz.
+  - Bereitstellung der 3 vordefinierten Masterplan-Sandboxes (`01-fullstack-sandbox`, `02-ai-gpu-sandbox` mit RTX 5090 Passthrough, `03-automation-stack`).
+  - Kontrollierte Aktionen (`Start`, `Stop`, `Restart`, `PruneUnused`) mit Input-Sanitization gegen Shell-Injections und Einmal-Token-Zwang (`ActionKind::ManageDockerSandbox`). Replay-Versuche verbrauchter Tokens werden strikt abgewiesen.
+  - Im Chat integriert (triggert auf «welche container laufen», «docker status» oder `/docker`).
+- **Windows Security, DPAPI Vault & System-Monitor (`windows_security.rs`):**
+  - Echter hardware- und benutzergebundener Windows-DPAPI-Tresor (`WindowsDpapiVault`) über direkte Win32-FFI-Bindung an `CryptProtectData` und `CryptUnprotectData` in `crypt32.dll`. Secrets liegen niemals im Klartext auf der Festplatte.
+  - `ProcessSecurityContext` prüft Windows-Integritätslevel (`Medium` Standardbenutzer vs. `High` Administrator) und stellt sicher, dass AIDO keine unprivilegierte Angriffsfläche exponiert.
+  - `SystemSecurityGuard` überwacht Ports (Hermes 18434, Whisper 18080, Ollama 11434, LM Studio 1234, Web-Vorschau 8080). Hermes auf Port 18434 wird aktiv als geschützter Dienst markiert und bleibt unangetastet.
+- **Whisper ASR Sprachfundament & Test-Konsolidierung (106/106 Tests grün):**
+  - Die offizielle Whisper-Modelldatei `ggml-small.bin` (487.601.967 Bytes) wurde am erwarteten Pfad `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` bereitgestellt.
+  - `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` in `multi_scenario_test.rs` besteht nun fehlerfrei (`0 GB Download guarantee` & `4/4 Modelle wiederverwendet`).
+  - **106 von 106 Tests** über alle Testsuiten (`lib.rs`, `desktop_actions`, `desktop_setup`, `desktop_connectors_and_workflows_test`, `desktop_memory_proactive_test`, `multi_scenario_test`, `ui_automation_test`) bestehen fehlerfrei.
+
 ## Bestätigte Abnahme: Installer 0.1.2, Meilenstein 3 (Gedächtnis & Proaktivität) und Native UI Automation (12. November 2026)
 
 - **Meilenstein 3: 7-Stufen-Gedächtnis & Proaktive MONO-Engine:**

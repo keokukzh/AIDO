@@ -872,3 +872,51 @@ pub async fn proactive_dismiss(
     .await
     .map_err(stringify)?
 }
+
+#[tauri::command]
+pub fn blender_inspect(
+    workspace: State<'_, Arc<Workspace>>,
+    blend_file: Option<String>,
+) -> Result<aido_core::blender_connector::BlenderSceneSummary, String> {
+    let connector = aido_core::blender_connector::BlenderConnector::new();
+    let file_path = blend_file.as_deref().map(Path::new);
+    let summary = connector
+        .inspect_scene(file_path, &workspace.gateway)
+        .map_err(|e| e.to_string())?;
+    let _ = workspace.audit(
+        "BlenderSceneInspect",
+        true,
+        &format!("Szenen-Inspektion mit {} Objekten ausgeführt", summary.object_count),
+    );
+    Ok(summary)
+}
+
+#[tauri::command]
+pub fn docker_status(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<aido_core::docker_controller::DockerEnvironmentStatus, String> {
+    let ctrl = aido_core::docker_controller::DockerController::new();
+    ctrl.check_status(&workspace.gateway).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn docker_containers(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<Vec<aido_core::docker_controller::DockerContainerSummary>, String> {
+    let ctrl = aido_core::docker_controller::DockerController::new();
+    let list = ctrl.list_containers(&workspace.gateway).map_err(|e| e.to_string())?;
+    let _ = workspace.audit(
+        "DockerListContainers",
+        true,
+        &format!("{} Container abgefragt", list.len()),
+    );
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn system_security_status(
+    _workspace: State<'_, Arc<Workspace>>,
+) -> Result<aido_core::windows_security::SystemSecurityReport, String> {
+    let guard = aido_core::windows_security::SystemSecurityGuard::new();
+    Ok(guard.generate_report())
+}

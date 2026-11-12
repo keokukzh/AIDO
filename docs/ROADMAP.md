@@ -20,11 +20,13 @@ SQLite/FTS5 ist an den nativen Desktop-Chat und das neue Privacy & Memory Center
 
 Die proaktive MONO-Engine blendet bei ungesicherten Git-Änderungen in freigegebenen Projekten eine sanfte Sprechblase über MONO ein (Optionen: Ansehen, Später, Ausblenden). Ruhezeiten und Vollbild/Gaming werden über den Fokus-Guard strikt geschützt. Der Wochenbericht als ausführbarer Skill baut auf dieser Datenbasis auf.
 
-## 4. Aktionen, Skills und Integrationen
+## 4. Aktionen, Skills und Integrationen (Kern abgeschlossen)
 
-Geprüfte Programmstarts und einzelne App-Funktionen über fest definierte Aktionen anbinden. Blender-Funktionen im Programm über einen eigenen Adapter prüfen. Projektbezogene Subagenten arbeiten mit ausgewähltem Ordner, Auftrag und begrenztem Werkzeugset. REA bleibt eine lesende Dateianalyse. Fast Cleanup zuerst auf AIDOs Cache begrenzen. Deep Cleanup erhält Zielpfade, Vorschau und eigene Freigabe. Für privilegierte Aktionen einen echten Windows-UAC-Ablauf und für gespeicherte Zugangsdaten Windows-DPAPI integrieren und prüfen.
+Geprüfte Programmstarts und App-Funktionen sind über fest definierte Aktionen angebunden. Blender 5.1 wird über den neuen Adapter (`blender_connector.rs`) im Headless-Modus für Szenenanalysen, Python-Skripte und Rendering mit Einmal-Token-Freigabe gesteuert. Docker Desktop und die drei WSL2-Power-User-Sandboxes sind über `docker_controller.rs` kontrollierbar, während Docker für Normalanwender optional bleibt.
 
-GitHub, Gmail, Outlook und Google Drive einzeln aktivierbar und widerrufbar machen. Android und die sichere Smartphone-Fernbedienung als eigene Abläufe abnehmen. Docker bleibt optional und braucht eine getrennte Prüfung inklusive GPU-Zugriff. Modelltraining folgt erst bei einer reproduzierbaren Qualitätslücke.
+Für sensible Zugangsdaten und Tokens ist Windows-DPAPI (`CryptProtectData` / `CryptUnprotectData`) direkt im Windows-Kern integriert. Der UAC- und Port-Monitor schützt Hermes auf Port 18434 und isoliert AIDO im Standard-Integritätslevel. Das lokale Whisper.cpp-Fundament (CUDA 13.4, `ggml-small.bin`) ist am Referenzpfad verifiziert und alle 106 Tests der Testsuite sind grün.
+
+Weitere optionale Erweiterungen: Android-Cockpit (ADB-Bridge / Notification-Sync) und externe Cloud-Connectors (GitHub, Google Drive) nach Bedarf.
 
 ## 5. Windows-Produkt veröffentlichen
 
