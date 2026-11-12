@@ -25,6 +25,7 @@ fn create_temp_env(test_name: &str) -> (PathBuf, PathBuf) {
 }
 
 #[test]
+#[ignore = "braucht die GPU- und Prozess-Sensorik des Referenz-PCs (nvidia-smi, RTX 5090)"]
 fn scenario_1_live_hardware_gpu_sensorik_and_vram_headroom() {
     println!("\n=======================================================");
     println!(">>> SCENARIO 1: Live Hardware, GPU Sensorik & VRAM Headroom");
@@ -744,6 +745,7 @@ fn scenario_7_agent_remote_qr_pin_lifecycle_parity_and_revocation() {
 }
 
 #[test]
+#[ignore = "braucht die lokalen Modelle unter D:\\AI_Models auf dem Referenz-PC"]
 fn scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety() {
     println!("\n=======================================================");
     println!(">>> SCENARIO 8: Smart Installer, Model Reuse & Clean Uninstaller Safety");

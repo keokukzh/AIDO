@@ -309,6 +309,7 @@ mod tests {
     use crate::permission_gateway::{AccessMode, PrivacyMode};
 
     #[test]
+    #[ignore = "braucht installiertes Blender auf dem Referenz-PC (Discovery)"]
     fn test_blender_discovery_and_info() {
         let connector = BlenderConnector::new();
         let binary = BlenderConnector::find_blender();
@@ -319,6 +320,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "braucht installiertes Blender auf dem Referenz-PC (Headless-Szenenanalyse)"]
     fn test_blender_scene_inspection_blank_scene() {
         let connector = BlenderConnector::new();
         let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
