@@ -352,6 +352,7 @@ mod tests {
     use crate::permission_gateway::{AccessMode, PrivacyMode};
 
     #[test]
+    #[ignore = "braucht die Docker-CLI auf dem Referenz-PC (Discovery und Status)"]
     fn test_docker_cli_discovery_and_status() {
         let controller = DockerController::new();
         let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
