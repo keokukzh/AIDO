@@ -8,14 +8,16 @@ use std::sync::Arc;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, PhysicalPosition, RunEvent, State, WebviewWindow, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, RunEvent, State, WebviewWindow, WindowEvent,
 };
 use workspace::{
-    blender_inspect, decide_project, docker_containers, docker_status, inspect_rea, memory_forget,
-    memory_overview, memory_search, open_workspace_window, prepare_app, prepare_project,
-    proactive_check, proactive_dismiss, save_setup, setup_model_check, setup_pick,
-    suggest_wsl_profile, system_security_status, tools_inventory, workspace_projects,
-    workspace_status, Workspace,
+    approve_proposal, blender_inspect, capture_desktop_screen, decide_project, docker_containers,
+    docker_status, get_active_proposals, get_telemetry_snapshot, inspect_rea,
+    launch_project_orchestrated, memory_forget, memory_overview, memory_search,
+    open_workspace_window, prepare_app, prepare_project, proactive_check, proactive_dismiss,
+    reject_proposal, save_setup, scan_projects_catalog, seed_demo_state, setup_model_check,
+    setup_pick, suggest_wsl_profile, system_security_status, tools_inventory, unload_model_vram,
+    workspace_projects, workspace_status, Workspace,
 };
 
 fn show_chat(app: &AppHandle) -> tauri::Result<()> {
@@ -218,6 +220,15 @@ fn main() {
             docker_status,
             docker_containers,
             system_security_status,
+            get_active_proposals,
+            approve_proposal,
+            reject_proposal,
+            get_telemetry_snapshot,
+            unload_model_vram,
+            scan_projects_catalog,
+            launch_project_orchestrated,
+            capture_desktop_screen,
+            seed_demo_state,
         ])
         .setup(|app| {
             let configured = app
@@ -272,6 +283,17 @@ fn main() {
                 tray = tray.icon(icon);
             }
             tray.build(app)?;
+
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    if let Some(ws) = handle.try_state::<Arc<Workspace>>() {
+                        let snap = ws.get_telemetry_snapshot_internal();
+                        let _ = handle.emit("telemetry://update", &snap);
+                    }
+                }
+            });
             if configured {
                 mono.show()?;
             } else {

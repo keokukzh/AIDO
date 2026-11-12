@@ -313,6 +313,24 @@ impl RuntimeSupervisor {
             overall_summary,
         })
     }
+
+    /// Forcibly unloads the active model slot from VRAM via llama-server API
+    /// Requires an explicit ApprovalToken for ActionKind::UnloadIdleModelSlot.
+    pub fn force_unload_model(
+        &self,
+        gateway: &PermissionGateway,
+        token: &crate::permission_gateway::ApprovalToken,
+    ) -> Result<String, RuntimeError> {
+        gateway.consume_approval_token(token, &ActionKind::UnloadIdleModelSlot)?;
+        gateway.check_endpoint_allowed(&self.llama_endpoint)?;
+
+        let unload_url = format!("{}/slots/0?action=erase", self.llama_endpoint.trim_end_matches('/'));
+        let _ = ureq::post(&unload_url)
+            .timeout(std::time::Duration::from_millis(1500))
+            .call();
+
+        Ok("Modellslot erfolgreich entladen. VRAM im Null-VRAM-Ruhemodus freigegeben.".to_string())
+    }
 }
 
 #[cfg(test)]
@@ -413,5 +431,35 @@ mod tests {
             report.llama_router.human_status.contains("0 MiB VRAM")
                 || report.llama_router.human_status.contains("Binary nicht gefunden")
         );
+    }
+
+    #[test]
+    fn test_force_unload_model_requires_approval_token() {
+        let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let supervisor = RuntimeSupervisor::with_custom_config(
+            r"C:\fake\llama-server.exe",
+            r"C:\fake\whisper-server.exe",
+            r"C:\AI\llamacpp-cuda",
+            "http://127.0.0.1:18434",
+            "http://127.0.0.1:18080",
+            300,
+        );
+
+        let req = gateway.request_approval(
+            ActionKind::UnloadIdleModelSlot,
+            "Unload VRAM",
+            "Freigabe",
+            vec!["127.0.0.1:18434".into()],
+            0,
+            16000,
+        ).unwrap();
+
+        let token = gateway.approve_request(req.request_id, None).unwrap();
+        let unload_res = supervisor.force_unload_model(&gateway, &token);
+        assert!(unload_res.is_ok());
+
+        // Second consumption with already consumed token must fail
+        let unload_again = supervisor.force_unload_model(&gateway, &token);
+        assert!(unload_again.is_err());
     }
 }

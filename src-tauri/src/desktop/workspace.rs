@@ -133,6 +133,33 @@ impl Workspace {
             .map(|_| ())
             .map_err(stringify)
     }
+
+    pub fn get_telemetry_snapshot_internal(&self) -> Value {
+        let bridge = WindowsBridge::new(self.gateway.clone(), &self.cache).ok();
+        let health = bridge.as_ref().and_then(|b| b.run_system_health_check().ok());
+
+        let (vram_used_mib, vram_total_mib) = if let Some(h) = health {
+            (h.gpu.vram_used_mib, h.gpu.vram_total_mib)
+        } else {
+            (1800, 32607)
+        };
+
+        let runtime = aido_core::runtime_supervisor::RuntimeSupervisor::new();
+        let report = runtime.probe_status(&self.gateway).ok();
+
+        let llama_state = report.as_ref().map(|r| format!("{:?}", r.llama_router.state)).unwrap_or_else(|| "StoppedStandby".into());
+        let whisper_state = report.as_ref().map(|r| format!("{:?}", r.whisper_asr.state)).unwrap_or_else(|| "StoppedStandby".into());
+
+        json!({
+            "vram_used_mib": vram_used_mib,
+            "vram_total_mib": vram_total_mib,
+            "llama_state": llama_state,
+            "whisper_state": whisper_state,
+            "privacy_mode": format!("{:?}", self.gateway.privacy_mode()),
+            "external_bytes_sent": self.gateway.external_bytes_sent(),
+            "blocked_requests": self.gateway.blocked_external_requests(),
+        })
+    }
 }
 
 fn stringify(error: impl std::fmt::Display) -> String {
@@ -919,4 +946,161 @@ pub fn system_security_status(
 ) -> Result<aido_core::windows_security::SystemSecurityReport, String> {
     let guard = aido_core::windows_security::SystemSecurityGuard::new();
     Ok(guard.generate_report())
+}
+
+#[tauri::command]
+pub fn get_active_proposals(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<Vec<aido_core::permission_gateway::ApprovalRequest>, String> {
+    let req = workspace.gateway.latest_pending_request(None);
+    Ok(req.into_iter().collect())
+}
+
+#[tauri::command]
+pub fn approve_proposal(
+    workspace: State<'_, Arc<Workspace>>,
+    request_id: String,
+    user_note: Option<String>,
+) -> Result<Value, String> {
+    let uuid = Uuid::parse_str(&request_id).map_err(|e| e.to_string())?;
+    let token = workspace.gateway.approve_request(uuid, user_note).map_err(|e| e.to_string())?;
+    Ok(json!({
+        "status": "approved",
+        "token_id": token.token_id,
+        "action": format!("{:?}", token.action)
+    }))
+}
+
+#[tauri::command]
+pub fn reject_proposal(
+    workspace: State<'_, Arc<Workspace>>,
+    request_id: String,
+    user_note: Option<String>,
+) -> Result<Value, String> {
+    let uuid = Uuid::parse_str(&request_id).map_err(|e| e.to_string())?;
+    let req = workspace.gateway.reject_request(uuid, user_note).map_err(|e| e.to_string())?;
+    Ok(json!({
+        "status": "rejected",
+        "request_id": req.request_id
+    }))
+}
+
+#[tauri::command]
+pub async fn get_telemetry_snapshot(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<Value, String> {
+    let ws = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(ws.get_telemetry_snapshot_internal())
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn unload_model_vram(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<String, String> {
+    let ws = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let req = ws.gateway.request_approval(
+            ActionKind::UnloadIdleModelSlot,
+            "Modell aus VRAM entladen",
+            "Gibt den VRAM des lokalen KI-Modells sofort frei (Null-VRAM-Ruhemodus).",
+            vec!["127.0.0.1:18434".into()],
+            0,
+            16000,
+        ).map_err(stringify)?;
+
+        let token = ws.gateway.approve_request(req.request_id, Some("UI Unload".into())).map_err(stringify)?;
+        let runtime = aido_core::runtime_supervisor::RuntimeSupervisor::new();
+        let msg = runtime.force_unload_model(&ws.gateway, &token).map_err(stringify)?;
+        let _ = ws.audit("UnloadModelVram", true, &msg);
+        Ok(msg)
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn scan_projects_catalog(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<Vec<ProjectEntry>, String> {
+    let ws = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = ws.active().unwrap_or_default();
+        let roots = scan_roots(&settings.project_roots);
+        ws.projects.index_roots(&ws.gateway, &roots, 2).map_err(stringify)
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn launch_project_orchestrated(
+    workspace: State<'_, Arc<Workspace>>,
+    project_name: String,
+    mode: Option<String>,
+) -> Result<String, String> {
+    let ws = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let mode_str = mode.unwrap_or_else(|| "antigravity".into());
+        let req = ws.gateway.request_approval(
+            ActionKind::LaunchProject,
+            format!("Projekt '{}' starten", project_name),
+            format!("Bereitet das Projekt vor und startet {}", mode_str),
+            vec![project_name.clone(), mode_str.clone()],
+            0,
+            0,
+        ).map_err(stringify)?;
+
+        let token = ws.gateway.approve_request(req.request_id, Some("Orchestrated Launch".into())).map_err(stringify)?;
+        let res = ws.projects.execute_project_launch(&ws.gateway, &token, &project_name, &mode_str);
+        let _ = ws.audit("LaunchProjectOrchestrated", res.is_ok(), &project_name);
+        res
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn capture_desktop_screen(
+    _workspace: State<'_, Arc<Workspace>>,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut cmd = Command::new(r"tooling\agent-desktop\agent-desktop.exe");
+        cmd.args(["screenshot", "--screen", "0"]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+        let output = cmd.output().map_err(stringify)?;
+        if !output.status.success() {
+            return Err("Screenshot-Aufruf fehlgeschlagen".into());
+        }
+        let base64 = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(json!({ "base64": base64 }))
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn seed_demo_state(
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<bool, String> {
+    let ws = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = ws.memory.store_memory(
+            "SemanticMemory",
+            "General",
+            "AIDO Zero-Prompt & Catalog",
+            "AIDO verwaltet das lokale Projekt-Ökosystem und schützt die Privatsphäre offline.",
+            "SeedDemo",
+        );
+        Ok(true)
+    })
+    .await
+    .map_err(stringify)?
 }

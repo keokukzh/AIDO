@@ -1,3 +1,4 @@
+use crate::permission_gateway::ActionKind;
 use crate::project_intelligence::ProjectEntry;
 use crate::windows_bridge::SystemHealthReport;
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,8 @@ pub struct ProactiveSuggestion {
     pub why_now: String,
     pub clickable_options: Vec<String>,
     pub priority: u8,
+    pub risk_level: String,
+    pub action_kind: Option<ActionKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,6 +153,8 @@ impl ProactiveEngine {
                             "Thema stummschalten".to_string(),
                         ],
                         priority: 9,
+                        risk_level: "YELLOW_PROJECT".to_string(),
+                        action_kind: Some(ActionKind::ScanProjects),
                     });
                 }
             }
@@ -180,6 +185,8 @@ impl ProactiveEngine {
                         "Später erinnern".to_string(),
                     ],
                     priority: 8,
+                    risk_level: "RED_SYSTEM".to_string(),
+                    action_kind: Some(ActionKind::FastCleanupExecute),
                 });
             }
         }
@@ -203,6 +210,8 @@ impl ProactiveEngine {
                         "Thema stummschalten".to_string(),
                     ],
                     priority: 7,
+                    risk_level: "GREEN_READ".to_string(),
+                    action_kind: None,
                 });
             }
         }
@@ -226,6 +235,8 @@ impl ProactiveEngine {
                         "Thema stummschalten".to_string(),
                     ],
                     priority: 6,
+                    risk_level: "YELLOW_PROJECT".to_string(),
+                    action_kind: Some(ActionKind::LaunchProject),
                 });
             }
         }

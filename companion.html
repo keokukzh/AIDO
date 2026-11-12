@@ -10,11 +10,65 @@
   <body>
     <main id="companion">
       <div id="morph-awakening-layer" aria-hidden="true"></div>
-      <button id="open-chat" type="button" aria-label="AIDO-Chat öffnen" title="AIDO-Chat öffnen">
+      
+      <!-- 3D Character Canvas / Interactive Target -->
+      <button id="open-chat" type="button" aria-label="AIDO-MONO bedienen" title="Klick: Aktionen | Halten: Sprechen | Mittelklick: Screenshot | Rechts: Menü">
         <span id="mono-fallback" aria-hidden="true"></span>
         <canvas id="mono-canvas" aria-hidden="true"></canvas>
       </button>
+
       <div id="move-mono" title="MONO verschieben" aria-label="MONO verschieben"></div>
+
+      <!-- Push-to-Talk Recording Indicator -->
+      <div id="ptt-indicator" class="ptt-indicator" hidden>
+        <div class="ptt-ring"></div>
+        <span class="ptt-label">🎙️ Aufnahme läuft…</span>
+      </div>
+
+      <!-- Middle-Click Screenshot Preview -->
+      <div id="screenshot-preview-container" class="screenshot-preview-container" hidden>
+        <img id="screenshot-thumb" alt="Desktop Screenshot" />
+        <div class="thumb-meta">
+          <span>📸 Screenshot angehängt</span>
+          <button type="button" id="screenshot-discard" class="thumb-discard" title="Verwerfen">×</button>
+        </div>
+      </div>
+
+      <!-- Zero-Prompt Decision Popover (Action Cards) -->
+      <section id="zero-prompt-popover" class="zero-prompt-popover" hidden>
+        <div class="popover-header">
+          <span class="popover-badge">💡 AIDO Vordenker-Karten</span>
+          <button type="button" id="popover-close" class="popover-close-btn" aria-label="Schließen">×</button>
+        </div>
+        <div id="action-cards-container" class="action-cards-container">
+          <!-- Dynamic Action Cards rendered here -->
+        </div>
+        <div class="popover-footer">
+          <button type="button" id="btn-open-full-chat" class="popover-link-btn">💬 Vollständigen Chat öffnen</button>
+        </div>
+      </section>
+
+      <!-- Privacy Offline & VRAM Telemetry HUD -->
+      <section id="telemetry-hud" class="telemetry-hud" hidden>
+        <div class="hud-header">
+          <h4>NVIDIA RTX 5090 &amp; Privacy Telemetrie</h4>
+          <button type="button" id="hud-btn-close" class="hud-close-btn">×</button>
+        </div>
+        <div class="hud-badges">
+          <div id="hud-privacy-badge" class="hud-badge privacy">🔒 <span>PRIVATE OFFLINE (0.0 KB Externe Daten)</span></div>
+          <div id="hud-model-state" class="state-badge sleeping">💤 <span>Sleeping (0.4 GB VRAM)</span></div>
+        </div>
+        <div class="hud-metrics">
+          <span class="metric-label">VRAM-Auslastung (60s Verlauf):</span>
+          <span id="hud-vram-value" class="metric-value">0.4 GB / 32.0 GB VRAM</span>
+        </div>
+        <canvas id="vram-sparkline" width="280" height="48" class="sparkline-canvas"></canvas>
+        <div class="hud-actions">
+          <button type="button" id="hud-btn-unload" class="hud-btn secondary">💤 Modell jetzt entladen</button>
+        </div>
+      </section>
+
+      <!-- Proactive Bubble -->
       <div id="proactive-bubble" class="proactive-bubble" hidden>
         <div class="bubble-header">
           <span class="bubble-tag">💡 AIDO denkt mit</span>
@@ -26,11 +80,16 @@
           <button type="button" id="bubble-later" class="bubble-btn">Später</button>
         </div>
       </div>
+
+      <!-- Minimalist Context Menu -->
       <div id="mono-menu" aria-label="AIDO-Menü" hidden>
-        <button type="button" data-target="memory">🧠 Gedächtnis &amp; Wissen</button>
-        <button type="button" data-target="tools">Werkzeuge &amp; Skills</button>
-        <button type="button" data-target="setup">Einrichtung</button>
+        <button type="button" data-action="projects">📁 Meine Projekte &amp; Start</button>
+        <button type="button" data-action="cleanup">🧹 System Cleanup (Fast/Deep)</button>
+        <button type="button" data-action="hud">📊 Privacy &amp; VRAM HUD</button>
+        <button type="button" data-action="memory">🧠 Gedächtnis &amp; Wissen</button>
+        <button type="button" data-action="sleep">💤 AIDO schlafen legen</button>
       </div>
+
       <p id="companion-error" role="alert" hidden></p>
     </main>
     <script type="module" src="/src/companion.ts"></script>

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use uuid::Uuid;
@@ -141,6 +142,8 @@ pub struct PermissionGateway {
     privacy_mode: Arc<Mutex<PrivacyMode>>,
     pending_requests: Arc<Mutex<HashMap<Uuid, ApprovalRequest>>>,
     valid_tokens: Arc<Mutex<HashMap<Uuid, ApprovalToken>>>,
+    external_bytes_sent: Arc<AtomicU64>,
+    blocked_external_requests: Arc<AtomicU64>,
 }
 
 impl Default for PermissionGateway {
@@ -156,7 +159,21 @@ impl PermissionGateway {
             privacy_mode: Arc::new(Mutex::new(privacy_mode)),
             pending_requests: Arc::new(Mutex::new(HashMap::new())),
             valid_tokens: Arc::new(Mutex::new(HashMap::new())),
+            external_bytes_sent: Arc::new(AtomicU64::new(0)),
+            blocked_external_requests: Arc::new(AtomicU64::new(0)),
         }
+    }
+
+    pub fn external_bytes_sent(&self) -> u64 {
+        self.external_bytes_sent.load(Ordering::SeqCst)
+    }
+
+    pub fn blocked_external_requests(&self) -> u64 {
+        self.blocked_external_requests.load(Ordering::SeqCst)
+    }
+
+    pub fn record_external_bytes(&self, bytes: u64) {
+        self.external_bytes_sent.fetch_add(bytes, Ordering::SeqCst);
     }
 
     pub fn access_mode(&self) -> AccessMode {
@@ -213,6 +230,7 @@ impl PermissionGateway {
         match mode {
             PrivacyMode::PrivateOffline => {
                 if !is_loopback {
+                    self.blocked_external_requests.fetch_add(1, Ordering::SeqCst);
                     return Err(GatewayError::OfflineViolation(url.to_string()));
                 }
             }
@@ -229,6 +247,7 @@ impl PermissionGateway {
                     });
 
                 if !is_loopback && !is_lan_or_tunnel {
+                    self.blocked_external_requests.fetch_add(1, Ordering::SeqCst);
                     return Err(GatewayError::OfflineViolation(url.to_string()));
                 }
             }
@@ -463,5 +482,23 @@ mod tests {
         assert!(ActionKind::RevokeRemoteDevice.is_mutating());
         assert!(ActionKind::PhoneAct.is_mutating());
         assert!(ActionKind::PhoneSensitiveAct.is_mutating());
+    }
+
+    #[test]
+    fn test_telemetry_counters_and_offline_guard() {
+        let gw = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        assert_eq!(gw.external_bytes_sent(), 0);
+        assert_eq!(gw.blocked_external_requests(), 0);
+
+        // Allowed loopback request
+        assert!(gw.check_endpoint_allowed("http://127.0.0.1:18434/models").is_ok());
+        assert_eq!(gw.blocked_external_requests(), 0);
+
+        // Blocked external request
+        assert!(gw.check_endpoint_allowed("https://api.openai.com/v1/chat").is_err());
+        assert_eq!(gw.blocked_external_requests(), 1);
+
+        // In PrivateOffline mode, external bytes sent remains strictly 0
+        assert_eq!(gw.external_bytes_sent(), 0);
     }
 }

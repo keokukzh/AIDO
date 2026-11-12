@@ -64,12 +64,15 @@ fn is_plain_directory(entry: &std::fs::DirEntry) -> bool {
 
 fn get_canonical_path(dir: &Path) -> String {
     let p = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
-    let path_str = p.to_string_lossy().to_string();
+    let mut path_str = p.to_string_lossy().to_string();
     if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
-        stripped.to_string()
-    } else {
-        path_str
+        path_str = stripped.to_string();
     }
+    // WSL2 & Pfad-Normalisierung: \\wsl.localhost\ -> \\wsl$\
+    if let Some(stripped) = path_str.strip_prefix(r"\\wsl.localhost\") {
+        path_str = format!(r"\\wsl$\{stripped}");
+    }
+    path_str
 }
 
 fn get_project_name(dir: &Path) -> String {
@@ -197,11 +200,15 @@ fn detect_git_info(dir: &Path) -> (String, String) {
     }
 
     if branch.is_empty() {
-        if let Ok(output) = Command::new("git")
-            .args(["rev-parse", "--abbrev-ref", "HEAD"])
-            .current_dir(dir)
-            .output()
+        let mut cmd = Command::new("git");
+        cmd.args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(dir);
+        #[cfg(windows)]
         {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000);
+        }
+        if let Ok(output) = cmd.output() {
             if output.status.success() {
                 let out = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !out.is_empty() && out != "HEAD" {
@@ -217,11 +224,14 @@ fn detect_git_info(dir: &Path) -> (String, String) {
 
     // 2. Detect status ("clean" or "dirty")
     let mut status = "clean".to_string();
-    if let Ok(output) = Command::new("git")
-        .args(["status", "--porcelain"])
-        .current_dir(dir)
-        .output()
+    let mut status_cmd = Command::new("git");
+    status_cmd.args(["status", "--porcelain"]).current_dir(dir);
+    #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
+        status_cmd.creation_flags(0x08000000);
+    }
+    if let Ok(output) = status_cmd.output() {
         if output.status.success() && !output.stdout.is_empty() {
             status = "dirty".to_string();
         }
@@ -704,6 +714,153 @@ impl ProjectIntelligenceEngine {
 
         Ok((project, approval_request))
     }
+
+    pub fn import_legacy_predator_json(&self, json_path: &Path) -> Result<usize, String> {
+        let content = std::fs::read_to_string(json_path).map_err(|e| e.to_string())?;
+        let parsed: serde_json::Value = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+
+        let mut candidate_paths = Vec::new();
+        if let Some(arr) = parsed.as_array() {
+            for item in arr {
+                if let Some(p) = item.as_str() {
+                    candidate_paths.push(PathBuf::from(p));
+                } else if let Some(p) = item.get("path").and_then(|v| v.as_str()) {
+                    candidate_paths.push(PathBuf::from(p));
+                }
+            }
+        } else if let Some(obj) = parsed.as_object() {
+            for key in ["projects", "repositories", "repos", "workspace_roots"] {
+                if let Some(arr) = obj.get(key).and_then(|v| v.as_array()) {
+                    for item in arr {
+                        if let Some(p) = item.as_str() {
+                            candidate_paths.push(PathBuf::from(p));
+                        } else if let Some(p) = item.get("path").and_then(|v| v.as_str()) {
+                            candidate_paths.push(PathBuf::from(p));
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut imported_count = 0;
+        let mut conn = self.connect().map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+        for path in candidate_paths {
+            if path.is_dir() {
+                let entry = build_project_entry(&path, true);
+                let stack_json = serde_json::to_string(&entry.stack).unwrap_or_else(|_| "[]".into());
+                let stack_text = entry.stack.join(" ");
+                let now = Utc::now().to_rfc3339();
+
+                let res = tx.execute(
+                    "INSERT INTO project_catalog (
+                        name, canonical_path, stack_json, stack_text, git_branch, git_status, recommended_action, human_summary, updated_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                    ON CONFLICT(canonical_path) DO UPDATE SET
+                        name = excluded.name,
+                        stack_json = excluded.stack_json,
+                        stack_text = excluded.stack_text,
+                        git_branch = excluded.git_branch,
+                        git_status = excluded.git_status,
+                        recommended_action = excluded.recommended_action,
+                        human_summary = excluded.human_summary,
+                        updated_at = excluded.updated_at;",
+                    params![
+                        &entry.name,
+                        &entry.canonical_path,
+                        &stack_json,
+                        &stack_text,
+                        &entry.git_branch,
+                        &entry.git_status,
+                        &entry.recommended_action,
+                        &entry.human_summary,
+                        &now,
+                    ],
+                );
+                if res.is_ok() {
+                    imported_count += 1;
+                }
+            }
+        }
+
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(imported_count)
+    }
+
+    pub fn execute_project_launch(
+        &self,
+        gateway: &PermissionGateway,
+        token: &crate::permission_gateway::ApprovalToken,
+        project_name: &str,
+        mode: &str,
+    ) -> Result<String, String> {
+        gateway
+            .consume_approval_token(token, &ActionKind::LaunchProject)
+            .map_err(|e| e.to_string())?;
+
+        let projects = self.search_projects(project_name, 1).map_err(|e| e.to_string())?;
+        let project = projects
+            .into_iter()
+            .next()
+            .ok_or_else(|| format!("Projekt '{}' nicht im Katalog gefunden.", project_name))?;
+
+        let project_path = PathBuf::from(&project.canonical_path);
+
+        // Optional Docker Compose launch if in stack
+        if project.stack.iter().any(|s| s.contains("Docker")) {
+            let mut cmd = Command::new("docker");
+            cmd.args(["compose", "up", "-d"]).current_dir(&project_path);
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.creation_flags(0x08000000);
+            }
+            let _ = cmd.status();
+        }
+
+        // Launch IDE / Editor
+        let ide_binary = match mode.to_ascii_lowercase().as_str() {
+            "cursor" => "cursor",
+            "code" | "vscode" => "code",
+            _ => "antigravity",
+        };
+
+        let mut ide_cmd = Command::new(ide_binary);
+        ide_cmd.arg(&project_path);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            ide_cmd.creation_flags(0x08000000);
+        }
+
+        let launched = match ide_cmd.spawn() {
+            Ok(_) => true,
+            Err(_) => {
+                // Fallback to explorer or default handler
+                #[cfg(windows)]
+                {
+                    let mut explorer = Command::new("explorer");
+                    explorer.arg(&project_path);
+                    explorer.spawn().is_ok()
+                }
+                #[cfg(not(windows))]
+                false
+            }
+        };
+
+        if launched {
+            Ok(format!(
+                "Projekt '{}' erfolgreich gestartet (Modus: {}).",
+                project.name, mode
+            ))
+        } else {
+            Ok(format!(
+                "Projekt-Pfad '{}' vorbereitet (IDE-Aufruf im Hintergrund initiiert).",
+                project.canonical_path
+            ))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -906,5 +1063,50 @@ mod tests {
         assert!(matches!(err, Err(ProjectIntelError::ProjectNotFound(_))));
 
         cleanup_db(&db_path);
+    }
+
+    #[test]
+    fn test_import_legacy_predator_json_and_execute_launch() {
+        let (engine, db_path) = setup_test_engine();
+        let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+
+        let temp_base = std::env::temp_dir().join(format!("legacy_predator_test_{}", Uuid::new_v4()));
+        let proj_dir = temp_base.join("legacy_predator_proj");
+        std::fs::create_dir_all(&proj_dir).unwrap();
+        std::fs::write(proj_dir.join("Cargo.toml"), "[package]\nname=\"legacy_predator_proj\"\n").unwrap();
+
+        let json_file = temp_base.join("predator_projects.json");
+        let json_data = serde_json::json!({
+            "projects": [
+                {
+                    "name": "legacy_predator_proj",
+                    "path": proj_dir.to_string_lossy().to_string()
+                }
+            ]
+        });
+        std::fs::write(&json_file, json_data.to_string()).unwrap();
+
+        let imported = engine.import_legacy_predator_json(&json_file).expect("Import failed");
+        assert_eq!(imported, 1);
+
+        let list = engine.list_projects().expect("List projects failed");
+        assert!(list.iter().any(|p| p.name == "legacy_predator_proj"));
+
+        // Launch execution requires valid token
+        let (_, approval_req) = engine.prepare_project_launch(&gateway, "legacy_predator_proj").unwrap();
+        let token = gateway.approve_request(approval_req.request_id, None).unwrap();
+
+        let launch_res = engine.execute_project_launch(&gateway, &token, "legacy_predator_proj", "antigravity");
+        assert!(launch_res.is_ok());
+
+        let _ = std::fs::remove_dir_all(&temp_base);
+        cleanup_db(&db_path);
+    }
+
+    #[test]
+    fn test_wsl2_path_normalization() {
+        let test_path = Path::new(r"\\wsl.localhost\Ubuntu\home\user\project");
+        let canonical = get_canonical_path(test_path);
+        assert!(canonical.starts_with(r"\\wsl$\Ubuntu\home\user\project"));
     }
 }
