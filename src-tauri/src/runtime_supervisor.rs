@@ -1,3 +1,4 @@
+use crate::ai_client::loopback_agent;
 use crate::permission_gateway::{ActionKind, GatewayError, PermissionGateway};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -118,8 +119,6 @@ impl RuntimeSupervisor {
         gateway: &PermissionGateway,
     ) -> Result<RuntimeStatusReport, RuntimeError> {
         gateway.check_readonly_allowed(&ActionKind::ProbeLocalRuntimes)?;
-        gateway.check_endpoint_allowed(&self.llama_endpoint)?;
-        gateway.check_endpoint_allowed(&self.whisper_endpoint)?;
 
         let cuda_dll_ready = self.cuda_dll_dir.join("cudart64_13.dll").exists();
         let llama_binary_exists = self.llama_binary.exists();
@@ -127,7 +126,11 @@ impl RuntimeSupervisor {
 
         // 1. Probe llama-server (/models)
         let llama_url = format!("{}/models", self.llama_endpoint.trim_end_matches('/'));
-        let llama_probe = ureq::get(&llama_url)
+        let whisper_url = format!("{}/", self.whisper_endpoint.trim_end_matches('/'));
+        gateway.check_endpoint_allowed(&llama_url)?;
+        gateway.check_endpoint_allowed(&whisper_url)?;
+        let llama_probe = loopback_agent()
+            .get(&llama_url)
             .timeout(std::time::Duration::from_millis(400))
             .call();
 
@@ -195,8 +198,8 @@ impl RuntimeSupervisor {
         };
 
         // 2. Probe whisper-server (/)
-        let whisper_url = format!("{}/", self.whisper_endpoint.trim_end_matches('/'));
-        let whisper_probe = ureq::get(&whisper_url)
+        let whisper_probe = loopback_agent()
+            .get(&whisper_url)
             .timeout(std::time::Duration::from_millis(400))
             .call();
 
@@ -322,10 +325,14 @@ impl RuntimeSupervisor {
         token: &crate::permission_gateway::ApprovalToken,
     ) -> Result<String, RuntimeError> {
         gateway.consume_approval_token(token, &ActionKind::UnloadIdleModelSlot)?;
-        gateway.check_endpoint_allowed(&self.llama_endpoint)?;
 
-        let unload_url = format!("{}/slots/0?action=erase", self.llama_endpoint.trim_end_matches('/'));
-        let _ = ureq::post(&unload_url)
+        let unload_url = format!(
+            "{}/slots/0?action=erase",
+            self.llama_endpoint.trim_end_matches('/')
+        );
+        gateway.check_endpoint_allowed(&unload_url)?;
+        let _ = loopback_agent()
+            .post(&unload_url)
             .timeout(std::time::Duration::from_millis(1500))
             .call();
 
@@ -372,7 +379,8 @@ mod tests {
 
     #[test]
     fn test_probe_status_enforces_private_offline_loopback() {
-        let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let gateway =
+            PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
         let supervisor = RuntimeSupervisor::with_custom_config(
             r"C:\fake\llama-server.exe",
             r"C:\fake\whisper-server.exe",
@@ -391,7 +399,8 @@ mod tests {
 
     #[test]
     fn test_probe_status_reports_verified_launch_args_and_standby_state() {
-        let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let gateway =
+            PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
         let supervisor = RuntimeSupervisor::with_custom_config(
             r"C:\fake\llama-server.exe",
             r"C:\fake\whisper-server.exe",
@@ -401,12 +410,20 @@ mod tests {
             300,
         );
 
-        let report = supervisor.probe_status(&gateway).expect("Probe status should succeed");
+        let report = supervisor
+            .probe_status(&gateway)
+            .expect("Probe status should succeed");
 
         // Verify Llama router launch args
-        assert!(report.llama_router.launch_args.contains(&"--sleep-idle-seconds".to_string()));
+        assert!(report
+            .llama_router
+            .launch_args
+            .contains(&"--sleep-idle-seconds".to_string()));
         assert!(report.llama_router.launch_args.contains(&"300".to_string()));
-        assert!(report.llama_router.launch_args.contains(&"--flash-attn".to_string()));
+        assert!(report
+            .llama_router
+            .launch_args
+            .contains(&"--flash-attn".to_string()));
         assert!(report.llama_router.launch_args.contains(&"on".to_string()));
         assert_eq!(report.llama_router.sleep_idle_seconds, Some(300));
 
@@ -429,13 +446,17 @@ mod tests {
         // Human status is German
         assert!(
             report.llama_router.human_status.contains("0 MiB VRAM")
-                || report.llama_router.human_status.contains("Binary nicht gefunden")
+                || report
+                    .llama_router
+                    .human_status
+                    .contains("Binary nicht gefunden")
         );
     }
 
     #[test]
     fn test_force_unload_model_requires_approval_token() {
-        let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let gateway =
+            PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
         let supervisor = RuntimeSupervisor::with_custom_config(
             r"C:\fake\llama-server.exe",
             r"C:\fake\whisper-server.exe",
@@ -445,14 +466,16 @@ mod tests {
             300,
         );
 
-        let req = gateway.request_approval(
-            ActionKind::UnloadIdleModelSlot,
-            "Unload VRAM",
-            "Freigabe",
-            vec!["127.0.0.1:18434".into()],
-            0,
-            16000,
-        ).unwrap();
+        let req = gateway
+            .request_approval(
+                ActionKind::UnloadIdleModelSlot,
+                "Unload VRAM",
+                "Freigabe",
+                vec!["127.0.0.1:18434".into()],
+                0,
+                16000,
+            )
+            .unwrap();
 
         let token = gateway.approve_request(req.request_id, None).unwrap();
         let unload_res = supervisor.force_unload_model(&gateway, &token);

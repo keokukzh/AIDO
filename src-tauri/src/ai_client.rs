@@ -21,6 +21,11 @@ pub struct ChatMessage {
     pub content: String,
 }
 
+/// HTTP agent for local model runtimes.
+///
+/// Redirects stay off and environment proxies are ignored, so a request that
+/// already passed [`crate::permission_gateway::PermissionGateway::check_endpoint_allowed`]
+/// cannot be retargeted by a 3xx response or `HTTP_PROXY`.
 pub(crate) fn loopback_agent() -> ureq::Agent {
     ureq::AgentBuilder::new()
         .redirects(0)
@@ -182,15 +187,16 @@ impl LocalAiClient {
             "max_tokens": 180
         });
 
-        let mut req = ureq::post(&url)
+        let mut req = loopback_agent()
+            .post(&url)
             .set("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(30));
+            .timeout(Duration::from_secs(30));
         if let Some(key) = api_key {
             req = req.set("Authorization", &format!("Bearer {}", key));
         }
 
         match req.send_json(payload) {
-            Ok(resp) => {
+            Ok(resp) if resp.status() == 200 => {
                 let val: serde_json::Value = resp
                     .into_json()
                     .map_err(|e| AiClientError::Transport(e.to_string()))?;
@@ -210,8 +216,9 @@ impl LocalAiClient {
                     local_only: true,
                 })
             }
-            Err(_) => {
+            _ => {
                 // Graceful local deterministic explanation if llama-server is currently sleeping/stopped
+                // or answers with a redirect / non-200 status. Redirects are not followed.
                 Ok(AiResponseWithOptions {
                     message: format!(
                         "{} Soll ich diese temporären AIDO-Cache-Dateien jetzt für dich bereinigen?",
@@ -274,20 +281,24 @@ impl LocalAiClient {
         image_base64_png: &str,
         api_key: Option<&str>,
     ) -> Result<AiResponseWithOptions, AiClientError> {
-        let url = format!("{}/v1/chat/completions", self.llama_base_url.trim_end_matches('/'));
+        let url = format!(
+            "{}/v1/chat/completions",
+            self.llama_base_url.trim_end_matches('/')
+        );
         self.gateway.check_endpoint_allowed(&url)?;
 
         let payload = self.build_vision_chat_payload(user_prompt, image_base64_png);
 
-        let mut req = ureq::post(&url)
+        let mut req = loopback_agent()
+            .post(&url)
             .set("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(5));
+            .timeout(Duration::from_secs(5));
         if let Some(key) = api_key {
             req = req.set("Authorization", &format!("Bearer {}", key));
         }
 
         match req.send_json(payload) {
-            Ok(resp) => {
+            Ok(resp) if resp.status() == 200 => {
                 let val: serde_json::Value = resp
                     .into_json()
                     .map_err(|e| AiClientError::Transport(e.to_string()))?;
@@ -307,8 +318,9 @@ impl LocalAiClient {
                     local_only: true,
                 })
             }
-            Err(_) => {
+            _ => {
                 // Graceful local deterministic fallback if llama-server is in standby/sleep
+                // or answers with a redirect / non-200 status. Redirects are not followed.
                 Ok(AiResponseWithOptions {
                     message: format!(
                         "Bildschirm-Analyse (Lokaler Standby-Modus): Eingabe '{}' erfasst. Der lokale Vision-Dienst auf {} ist derzeit im Ruhemodus oder nicht gestartet.",
@@ -333,7 +345,8 @@ impl LocalAiClient {
         spoken_hint: &str,
         duration_seconds: f32,
     ) -> Result<VoiceTranscriptionResult, AiClientError> {
-        self.gateway.check_endpoint_allowed(&self.whisper_base_url)?;
+        self.gateway
+            .check_endpoint_allowed(&self.whisper_base_url)?;
 
         let transcript = if spoken_hint.trim().is_empty() {
             "Sprachaufnahme verarbeitet (Keine Audiodaten übergeben).".to_string()
@@ -400,7 +413,9 @@ mod tests {
         // Second item: {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
         let image_item = &content_arr[1];
         assert_eq!(image_item["type"], "image_url");
-        let url_str = image_item["image_url"]["url"].as_str().expect("url must be string");
+        let url_str = image_item["image_url"]["url"]
+            .as_str()
+            .expect("url must be string");
         assert!(url_str.starts_with("data:image/png;base64,"));
         assert!(image_item.get("content").is_none());
     }
@@ -408,7 +423,8 @@ mod tests {
     #[test]
     fn transcribe_voice_note_enforces_private_offline_gateway() {
         // 1. External URL in PrivateOffline mode must be blocked
-        let gw_offline = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let gw_offline =
+            PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
         let external_client = LocalAiClient::with_endpoints(
             gw_offline,
             "http://127.0.0.1:18434",
@@ -422,7 +438,8 @@ mod tests {
         ));
 
         // 2. Loopback URL in PrivateOffline mode must succeed with German transcription result
-        let gw_local = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
+        let gw_local =
+            PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
         let local_client = LocalAiClient::new(gw_local);
         let result = local_client
             .transcribe_voice_note("AIDO, öffne mein Projekt", 1.8)
@@ -433,5 +450,72 @@ mod tests {
         assert!(result.local_only);
         assert!(result.engine.contains("whisper-server.exe"));
         assert!(result.latency_ms > 0);
+    }
+
+    #[test]
+    fn loopback_agent_does_not_follow_redirects() {
+        use std::io::{Read, Write};
+        use std::net::{TcpListener, TcpStream};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use std::thread;
+
+        fn read_headers(sock: &mut TcpStream) -> Vec<u8> {
+            let mut buf = Vec::new();
+            let mut byte = [0u8; 1];
+            while buf.len() < 8192 {
+                match sock.read(&mut byte) {
+                    Ok(1) => buf.push(byte[0]),
+                    _ => break,
+                }
+                if buf.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            buf
+        }
+
+        let redirector = TcpListener::bind("127.0.0.1:0").expect("redirect listener");
+        let redirect_addr = redirector.local_addr().expect("redirect address");
+        let trap = TcpListener::bind("127.0.0.1:0").expect("trap listener");
+        let trap_addr = trap.local_addr().expect("trap address");
+        let followed = Arc::new(AtomicBool::new(false));
+        let followed_flag = Arc::clone(&followed);
+
+        let redirect_thread = thread::spawn(move || {
+            let (mut sock, _) = redirector.accept().expect("redirect accept");
+            sock.set_read_timeout(Some(Duration::from_secs(2))).ok();
+            sock.set_write_timeout(Some(Duration::from_secs(2))).ok();
+            let _ = read_headers(&mut sock);
+            let body = format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://{trap_addr}/stolen\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            let _ = sock.write_all(body.as_bytes());
+        });
+        let trap_thread = thread::spawn(move || {
+            let (mut sock, _) = trap.accept().expect("trap accept");
+            sock.set_read_timeout(Some(Duration::from_secs(2))).ok();
+            sock.set_write_timeout(Some(Duration::from_secs(2))).ok();
+            let req = read_headers(&mut sock);
+            if String::from_utf8_lossy(&req).contains("/stolen") {
+                followed_flag.store(true, Ordering::SeqCst);
+            }
+            let _ = sock.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nFOLLOWED",
+            );
+        });
+
+        let response = loopback_agent()
+            .get(&format!("http://{redirect_addr}/"))
+            .timeout(Duration::from_secs(2))
+            .call()
+            .expect("302 must be returned instead of followed");
+        assert_eq!(response.status(), 302);
+        assert!(!followed.load(Ordering::SeqCst));
+
+        redirect_thread.join().expect("redirect thread");
+        let _ = TcpStream::connect(trap_addr);
+        trap_thread.join().expect("trap thread");
+        assert!(!followed.load(Ordering::SeqCst));
     }
 }
