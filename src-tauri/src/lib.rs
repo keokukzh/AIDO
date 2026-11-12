@@ -17,6 +17,7 @@ pub mod runtime_supervisor;
 pub mod smart_installer;
 pub mod specialist_router;
 pub mod task_engine;
+pub mod ui_automation;
 pub mod windows_bridge;
 
 use ai_client::{AiResponseWithOptions, LocalAiClient};

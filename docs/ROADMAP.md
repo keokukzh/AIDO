@@ -6,6 +6,8 @@ AIDO soll sich per Windows-Installer einrichten lassen, als MONO auf dem Desktop
 
 Auf dem Referenz-PC wurde AIDO 0.1.2 erfolgreich installiert. Unterbrochenes Setup, Upgrade, Projektauswahl, SQLite-Persistenz und Werkzeugstatus wurden verifiziert. REA 6.7.0 und die lesende PE-Ressourcenanalyse auf `C:\Windows\System32\notepad.exe` sind bestätigt. Für «Öffne mein Projekt AIDO» öffnet Antigravity exakt `C:\Users\keoku\Desktop\AIDO`. Ablehnen, Ändern, Einmal-Tokens, Replay-Schutz und Audit-Logging wurden abgenommen. Blender-Start dient als bestätigter Regressionstest.
 
+Native Windows UI Automation auf Basis von Microsoft UIA und `vercel-labs/agent-desktop` v1.2.0 wurde vollständig in `aido-core` integriert (`ui_automation.rs`) und im 72,34-MiB-Installer mitgeliefert. Interaktive Bedienelemente werden über semantische Snapshots (`@ref`) zielgenau bedient und im `audit_log` protokolliert.
+
 Qwen in WSL2 wurde durch `--load-mode none` von Kernel-mmap-Hängern befreit und antwortet mit `391` und `392` in 45,12 s bei voller VRAM-Freigabe nach Shutdown. Hermes blieb auf Port 18434 ungestört aktiv. Der Desktop-Start wurde durch Win32-Thread-Desktop-Kopplung an `WinSta0\Default` gehärtet.
 
 ## 2. Sprache, Screenshot und MONO-Bedienung

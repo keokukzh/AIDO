@@ -53,3 +53,10 @@ if (verification.status !== 0 || verification.stdout.trim() !== "6.7.0") {
   throw new Error("Bundled REA 6.7.0 could not be verified.");
 }
 process.stdout.write("Bundled REA 6.7.0 verified.\n");
+
+const agentDesktopBin = fileURLToPath(new URL("../tooling/agent-desktop/agent-desktop.exe", import.meta.url));
+const agentDesktopVerification = spawnSync(agentDesktopBin, ["status"], { encoding: "utf8", windowsHide: true });
+if (agentDesktopVerification.status !== 0) {
+  throw new Error("Bundled agent-desktop could not be verified.");
+}
+process.stdout.write("Bundled agent-desktop verified.\n");

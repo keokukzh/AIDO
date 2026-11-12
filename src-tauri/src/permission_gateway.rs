@@ -71,6 +71,10 @@ pub enum ActionKind {
     PhoneAct,
     /// Sensitive state-modifying action on an Android phone via ADB (send SMS, start call, install APK, Wi-Fi pairing/connect)
     PhoneSensitiveAct,
+    /// Read-only observation of desktop windows and UI accessibility trees via agent-desktop / UIA
+    UiObserve,
+    /// State-modifying action on desktop UI via agent-desktop / UIA (click, type, press key, set-value)
+    UiAct,
 }
 
 impl ActionKind {
@@ -91,6 +95,7 @@ impl ActionKind {
                 | ActionKind::ManageDockerSandbox
                 | ActionKind::PhoneAct
                 | ActionKind::PhoneSensitiveAct
+                | ActionKind::UiAct
         )
     }
 }

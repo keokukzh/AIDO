@@ -74,7 +74,8 @@
     "resources": {
       "../tooling/rea/node_modules/": "rea/node_modules/",
       "../tooling/rea/node.exe": "rea/node.exe",
-      "../tooling/rea/NODE-LICENSE": "rea/NODE-LICENSE"
+      "../tooling/rea/NODE-LICENSE": "rea/NODE-LICENSE",
+      "../tooling/agent-desktop/agent-desktop.exe": "agent-desktop/agent-desktop.exe"
     },
     "windows": { "nsis": { "installMode": "currentUser", "compression": "zlib" } }
   }
