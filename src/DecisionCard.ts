@@ -6,6 +6,26 @@ export interface ProposalOption {
   is_default: boolean;
 }
 
+export interface BlastRadius {
+  summary_de: string;
+  leaves_device: boolean;
+  privacy_sensitive: boolean;
+  affects_other_programs: boolean;
+}
+
+export interface IssuedApproval {
+  status: string;
+  token_id: string;
+  action: string;
+  token: {
+    token_id: string;
+    request_id: string;
+    action: string;
+    issued_at: string;
+    user_note?: string | null;
+  };
+}
+
 export interface ProactiveProposalRecord {
   id: string;
   title: string;
@@ -15,12 +35,19 @@ export interface ProactiveProposalRecord {
   options: ProposalOption[];
   created_at: string;
   state: "PENDING" | "APPROVED" | "REJECTED" | "EXECUTED";
+  phase?: string;
+  preview_de?: string;
+  blast_summary_de?: string;
+  blast_radius?: BlastRadius;
+  execute_command?: string;
+  execute_args?: Record<string, unknown>;
 }
 
 export class DecisionCardRenderer {
   public static renderCard(
     proposal: ProactiveProposalRecord,
-    onActionCompleted: () => void
+    onActionCompleted: () => void,
+    onExecuted?: (result: unknown) => void
   ): HTMLElement {
     const card = document.createElement("article");
     card.className = `decision-card risk-${proposal.risk_level.toLowerCase()}`;
@@ -45,6 +72,15 @@ export class DecisionCardRenderer {
     explanation.className = "card-explanation";
     explanation.textContent = proposal.human_explanation;
 
+    const blastText = proposal.blast_summary_de ?? proposal.blast_radius?.summary_de;
+    const blast = document.createElement("p");
+    blast.className = "card-blast";
+    if (blastText) {
+      blast.textContent = blastText;
+    } else {
+      blast.hidden = true;
+    }
+
     const actionsContainer = document.createElement("div");
     actionsContainer.className = "card-actions";
 
@@ -56,11 +92,30 @@ export class DecisionCardRenderer {
 
       btn.addEventListener("click", async () => {
         actionsContainer.querySelectorAll("button").forEach((b) => (b.disabled = true));
+        let approved = false;
         try {
           if (opt.id === "dismiss" || opt.id === "cancel") {
             await invoke("reject_proposal", { requestId: proposal.id });
           } else {
-            await invoke("approve_proposal", { requestId: proposal.id, userNote: opt.id });
+            const approval = await invoke<IssuedApproval>("approve_proposal", {
+              requestId: proposal.id,
+              userNote: opt.id,
+            });
+            approved = true;
+            if (proposal.execute_command) {
+              if (!approval.token?.token_id) {
+                throw new Error("Die Freigabe hat kein Token geliefert.");
+              }
+              const args =
+                proposal.execute_args && typeof proposal.execute_args === "object"
+                  ? proposal.execute_args
+                  : {};
+              const result = await invoke(proposal.execute_command, {
+                ...args,
+                token: approval.token,
+              });
+              onExecuted?.(result);
+            }
           }
           card.classList.add("fade-out");
           setTimeout(() => {
@@ -69,14 +124,16 @@ export class DecisionCardRenderer {
           }, 300);
         } catch (err) {
           explanation.textContent = `Fehler: ${String(err)}`;
-          actionsContainer.querySelectorAll("button").forEach((b) => (b.disabled = false));
+          if (!approved) {
+            actionsContainer.querySelectorAll("button").forEach((b) => (b.disabled = false));
+          }
         }
       });
 
       actionsContainer.appendChild(btn);
     });
 
-    card.append(badge, title, explanation, actionsContainer);
+    card.append(badge, title, explanation, blast, actionsContainer);
     return card;
   }
 }

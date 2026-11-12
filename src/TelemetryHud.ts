@@ -22,6 +22,7 @@ export class TelemetryHud {
   private vramValueEl: HTMLElement;
   private unloadBtn: HTMLButtonElement;
   private closeBtn: HTMLButtonElement;
+  private onUnloadRequested: () => void = () => {};
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -40,13 +41,8 @@ export class TelemetryHud {
 
   private bindEvents(): void {
     if (this.unloadBtn) {
-      this.unloadBtn.addEventListener("click", async () => {
-        try {
-          const snap = await invoke<TelemetrySnapshot>("unload_model_vram");
-          this.updateUi(snap);
-        } catch {
-          // ignore
-        }
+      this.unloadBtn.addEventListener("click", () => {
+        this.onUnloadRequested();
       });
     }
 
@@ -70,6 +66,10 @@ export class TelemetryHud {
     void listen<TelemetrySnapshot>("telemetry://update", (event) => {
       this.updateUi(event.payload);
     });
+  }
+
+  public setUnloadHandler(handler: () => void): void {
+    this.onUnloadRequested = handler;
   }
 
   public show(): void {

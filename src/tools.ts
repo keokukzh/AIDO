@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { DecisionCardRenderer, ProactiveProposalRecord } from "./DecisionCard";
 
 interface Inventory {
   rea: { ready: boolean; message: string; checked: string | null };
@@ -80,14 +81,61 @@ async function load(): Promise<void> {
         list(app.capabilities.map((capability) => `${capability.title} · Registerstatus: ${capability.status}`), "Keine Fähigkeiten erfasst."));
       apps.append(details);
     }
+    const projects = panel(
+      "Projektordner · letzte 30 Tage",
+      element("p", "Ein Start öffnet nur das genannte lokale Projekt und braucht eine einmalige Freigabe."),
+      list(inventory.recent_projects.map((project) => `${project.name} · ${project.path}`), "Keine kürzlich geänderten freigegebenen Ordner erfasst.")
+    );
+    const gateHost = document.createElement("div");
+    gateHost.className = "gate-host";
+    for (const project of inventory.recent_projects) {
+      if (!project.name.trim()) continue;
+      const start = element("button", `«${project.name}» nach Freigabe starten`);
+      start.type = "button";
+      start.className = "secondary";
+      start.addEventListener("click", () => {
+        void requestProjectLaunch(project.name, gateHost, status);
+      });
+      projects.append(start);
+    }
+    projects.append(gateHost);
     content.replaceChildren(rea, apps,
       panel("Gespeicherte Skills", element("p", "Diese Abläufe sind im lokalen Gedächtnis gespeichert. Der Desktop führt sie derzeit nicht automatisch aus."),
         list(inventory.skills.map((skill) => `${skill.title} · v${skill.version} · ${skill.status === "active" ? "aktiv im Register" : skill.status}`), "Keine Skills gespeichert.")),
-      panel("Projektordner · letzte 30 Tage",
-        list(inventory.recent_projects.map((project) => `${project.name} · ${project.path}`), "Keine kürzlich geänderten freigegebenen Ordner erfasst.")));
+      projects);
     status.textContent = "";
   } catch (error) { status.textContent = String(error); }
   finally { refresh.disabled = false; }
+}
+
+async function requestProjectLaunch(
+  projectName: string,
+  host: HTMLElement,
+  statusLine: HTMLElement
+): Promise<void> {
+  host.replaceChildren();
+  statusLine.textContent = "Vorschau für den Projektstart wird erstellt…";
+  try {
+    const proposal = await invoke<ProactiveProposalRecord>("launch_project_orchestrated", {
+      projectName,
+      mode: "antigravity",
+    });
+    if (proposal.phase !== "proposal" || !proposal.id) {
+      throw new Error("Die Vorschau ist unvollständig.");
+    }
+    const card = DecisionCardRenderer.renderCard(
+      proposal,
+      () => host.replaceChildren(),
+      (result) => {
+        const executed = (result ?? {}) as { message?: string };
+        statusLine.textContent = executed.message ?? "Projektstart wurde ausgelöst.";
+      }
+    );
+    host.replaceChildren(card);
+    statusLine.textContent = "Bitte prüfe die Vorschau und entscheide dann.";
+  } catch (error) {
+    statusLine.textContent = String(error);
+  }
 }
 
 refresh.addEventListener("click", () => void load());

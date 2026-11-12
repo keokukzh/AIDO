@@ -55,8 +55,8 @@ if (verification.status !== 0 || verification.stdout.trim() !== "6.7.0") {
 process.stdout.write("Bundled REA 6.7.0 verified.\n");
 
 const agentDesktopBin = fileURLToPath(new URL("../tooling/agent-desktop/agent-desktop.exe", import.meta.url));
-const agentDesktopVerification = spawnSync(agentDesktopBin, ["status"], { encoding: "utf8", windowsHide: true });
-if (agentDesktopVerification.status !== 0) {
-  throw new Error("Bundled agent-desktop could not be verified.");
+const agentDesktopExpected = "d274667031322e50b9c2b1ab81c2ca46835d52cc932769a5c34bd4d481fd94c3";
+if (await checksum(agentDesktopBin) !== agentDesktopExpected) {
+  throw new Error("Bundled agent-desktop SHA-256 mismatch.");
 }
-process.stdout.write("Bundled agent-desktop verified.\n");
+process.stdout.write("Bundled agent-desktop SHA-256 verified.\n");

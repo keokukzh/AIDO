@@ -2,6 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { DecisionCardRenderer, ProactiveProposalRecord } from "./DecisionCard";
 import { TelemetryHud } from "./TelemetryHud";
 
+interface GateExecution {
+  phase?: string;
+  message?: string;
+  base64?: string;
+}
+
 export class CharacterGestures {
   private characterButton: HTMLButtonElement;
   private popover: HTMLElement;
@@ -35,6 +41,9 @@ export class CharacterGestures {
     this.screenshotDiscard = screenshotContainer.querySelector<HTMLButtonElement>("#screenshot-discard")!;
     this.contextMenu = contextMenu;
     this.hud = hud;
+    this.hud.setUnloadHandler(() => {
+      void this.requestGate("unload_model_vram", {});
+    });
 
     this.bindGestures();
   }
@@ -129,7 +138,7 @@ export class CharacterGestures {
           void invoke("open_workspace_window", { target: "memory" });
           break;
         case "sleep":
-          void invoke("unload_model_vram").then(() => this.hud.show());
+          void this.requestGate("unload_model_vram", {});
           break;
         default:
           break;
@@ -147,25 +156,73 @@ export class CharacterGestures {
   }
 
   public async loadActiveProposals(): Promise<void> {
-    this.cardsContainer.innerHTML = '<div class="loading-proposals">Prüfe System- & Projektstatus…</div>';
+    this.cardsContainer.replaceChildren(note("loading-proposals", "Prüfe System- und Projektstatus…"));
     try {
       const proposals = await invoke<ProactiveProposalRecord[]>("get_active_proposals");
-      this.cardsContainer.innerHTML = "";
+      this.cardsContainer.replaceChildren();
       if (proposals.length === 0) {
-        this.cardsContainer.innerHTML =
-          '<div class="no-proposals">🟢 Alles aktuell und sauber. Keine offenen Aktionen erforderlich.</div>';
+        this.cardsContainer.append(
+          note("no-proposals", "Alles aktuell und sauber. Keine offenen Aktionen erforderlich.")
+        );
         return;
       }
 
-      proposals.forEach((p) => {
-        const cardEl = DecisionCardRenderer.renderCard(p, () => {
-          void this.loadActiveProposals();
-        });
+      for (const proposal of proposals) {
+        const cardEl = DecisionCardRenderer.renderCard(
+          proposal,
+          () => {
+            void this.loadActiveProposals();
+          },
+          (result) => this.applyExecution(proposal, result)
+        );
         this.cardsContainer.appendChild(cardEl);
-      });
+      }
     } catch (err) {
-      this.cardsContainer.innerHTML = `<div class="error-proposals">Fehler: ${String(err)}</div>`;
+      this.cardsContainer.replaceChildren(note("error-proposals", `Fehler: ${String(err)}`));
     }
+  }
+
+  private async requestGate(command: string, args: Record<string, unknown>): Promise<void> {
+    this.contextMenu.hidden = true;
+    this.popover.hidden = false;
+    this.cardsContainer.replaceChildren(note("loading-proposals", "Vorschau wird erstellt…"));
+    try {
+      const proposal = await invoke<ProactiveProposalRecord>(command, args);
+      if (proposal.phase !== "proposal" || !proposal.id) {
+        throw new Error("Die Vorschau ist unvollständig.");
+      }
+      const card = DecisionCardRenderer.renderCard(
+        proposal,
+        () => {
+          void this.loadActiveProposals();
+        },
+        (result) => this.applyExecution(proposal, result)
+      );
+      this.cardsContainer.replaceChildren(card);
+    } catch (err) {
+      this.cardsContainer.replaceChildren(note("error-proposals", `Fehler: ${String(err)}`));
+    }
+  }
+
+  private applyExecution(proposal: ProactiveProposalRecord, result: unknown): void {
+    const executed = (result ?? {}) as GateExecution;
+    if (proposal.execute_command === "capture_desktop_screen" && executed.base64) {
+      this.showScreenshot(executed.base64);
+    }
+    if (proposal.execute_command === "unload_model_vram") {
+      this.hud.show();
+    }
+  }
+
+  private showScreenshot(raw: string): void {
+    const fullSrc = raw.startsWith("data:") ? raw : `data:image/png;base64,${raw}`;
+    this.attachedScreenshotBase64 = fullSrc;
+    this.screenshotThumb.src = fullSrc;
+    this.screenshotContainer.hidden = false;
+    window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "success" }));
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "idle" }));
+    }, 1500);
   }
 
   private startPushToTalk(): void {
@@ -184,23 +241,14 @@ export class CharacterGestures {
   }
 
   private async captureScreen(): Promise<void> {
-    try {
-      window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "thinking" }));
-      const resp = await invoke<{ base64?: string } | string>("capture_desktop_screen");
-      const raw = typeof resp === "string" ? resp : (resp?.base64 || "");
-      const fullSrc = raw.startsWith("data:") ? raw : `data:image/png;base64,${raw}`;
-      this.attachedScreenshotBase64 = fullSrc;
-      this.screenshotThumb.src = fullSrc;
-      this.screenshotContainer.hidden = false;
-      window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "success" }));
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "idle" }));
-      }, 1500);
-    } catch {
-      window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "error" }));
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "idle" }));
-      }, 1500);
-    }
+    window.dispatchEvent(new CustomEvent("aido-mono-state", { detail: "thinking" }));
+    await this.requestGate("capture_desktop_screen", {});
   }
+}
+
+function note(className: string, text: string): HTMLElement {
+  const node = document.createElement("div");
+  node.className = className;
+  node.textContent = text;
+  return node;
 }
