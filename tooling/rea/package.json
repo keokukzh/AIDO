@@ -1,0 +1,5 @@
+{
+  "name": "aido-rea-runtime",
+  "private": true,
+  "dependencies": { "rea-agents": "6.7.0" }
+}

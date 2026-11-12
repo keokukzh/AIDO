@@ -90,6 +90,31 @@ html, body, #companion {
   pointer-events: none;
 }
 
+#mono-menu {
+  position: absolute;
+  z-index: 5;
+  inset: auto 9px 29px;
+  padding: 5px;
+  border: 1px solid #ffffff59;
+  border-radius: 9px;
+  background: #151515;
+}
+
+#mono-menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  text-align: left;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+}
+
+#mono-menu button:hover, #mono-menu button:focus-visible { background: #3a3a3a; }
+
 @media (prefers-reduced-motion: reduce) {
   #open-chat, #morph-awakening-layer { transition: none; }
 }

@@ -20,7 +20,7 @@ path = "src/desktop/main.rs"
 required-features = ["desktop"]
 
 [features]
-desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-single-instance"]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-single-instance", "dep:tauri-plugin-dialog", "dep:windows-sys"]
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -32,6 +32,10 @@ ureq = { version = "2.10", features = ["json"] }
 thiserror = "2.0"
 tauri = { version = "2", features = ["tray-icon"], optional = true }
 tauri-plugin-single-instance = { version = "2", optional = true }
+tauri-plugin-dialog = { version = "2", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"], optional = true }
 
 [build-dependencies]
 tauri-build = { version = "2", optional = true , features = [] }

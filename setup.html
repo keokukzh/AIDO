@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AIDO einrichten</title>
+    <link rel="stylesheet" href="/src/workspace.css">
+  </head>
+  <body>
+    <main>
+      <header><h1>AIDO einrichten</h1><p id="step-progress"></p></header>
+      <section id="setup-content"></section>
+      <p id="setup-status" role="status"></p>
+      <footer id="setup-actions" hidden>
+        <button id="back" type="button" class="secondary">Zurück</button>
+        <button id="next" type="button">Weiter</button>
+      </footer>
+    </main>
+    <script type="module" src="/src/setup.ts"></script>
+  </body>
+</html>

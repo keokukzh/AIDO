@@ -8,6 +8,7 @@
     "dev": "vite --open --port 1420",
     "start": "vite --open --port 1420",
     "build": "tsc && vite build",
+    "build:desktop": "node scripts/stage-rea.mjs && npm run build",
     "preview": "vite preview",
     "tauri": "tauri"
   },

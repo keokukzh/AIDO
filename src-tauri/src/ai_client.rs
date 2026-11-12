@@ -128,7 +128,7 @@ impl LocalAiClient {
         self.gateway.check_endpoint_allowed(&url)?;
         let mut conversation = vec![serde_json::json!({
             "role": "system",
-            "content": "Du bist AIDO, ein lokaler Textassistent. Antworte klar in der Sprache des Nutzers. Du kannst in diesem Chat keine Programme steuern oder Systemaktionen ausführen."
+            "content": "Du bist AIDO, ein lokaler Windows-Assistent. Antworte klar in der Sprache des Nutzers. Die Desktop-App bietet geprüfte Programm- und Projektaktionen mit Freigabe. Behaupte nur dann, eine Aktion ausgeführt zu haben, wenn dir dafür ein bestätigtes Ergebnis vorliegt."
         })];
         conversation.extend(messages.iter().map(|message| serde_json::json!(message)));
         let mut request = loopback_agent()

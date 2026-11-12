@@ -1,17 +1,39 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AIDO",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "identifier": "ch.aido.desktop",
   "build": {
     "beforeDevCommand": "npm run dev -- --open=false",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build:desktop",
     "frontendDist": "../dist",
     "features": ["desktop"]
   },
   "app": {
     "windows": [
+      {
+        "label": "setup",
+        "title": "AIDO einrichten",
+        "url": "setup.html",
+        "width": 640,
+        "height": 660,
+        "minWidth": 360,
+        "minHeight": 420,
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "tools",
+        "title": "AIDO · Werkzeuge & Skills",
+        "url": "tools.html",
+        "width": 720,
+        "height": 660,
+        "minWidth": 360,
+        "minHeight": 420,
+        "center": true,
+        "visible": false
+      },
       {
         "label": "mono",
         "title": "AIDO-MONO",
@@ -46,7 +68,14 @@
     }
   },
   "bundle": {
-    "active": false,
-    "icon": ["icons/icon.ico"]
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "resources": {
+      "../tooling/rea/node_modules/": "rea/node_modules/",
+      "../tooling/rea/node.exe": "rea/node.exe",
+      "../tooling/rea/NODE-LICENSE": "rea/NODE-LICENSE"
+    },
+    "windows": { "nsis": { "installMode": "currentUser", "compression": "zlib" } }
   }
 }

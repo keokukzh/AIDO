@@ -50,6 +50,18 @@ fn is_ignored_dir(name: &str) -> bool {
     IGNORED_DIRS.iter().any(|&ignored| lower == ignored)
 }
 
+fn is_plain_directory(entry: &std::fs::DirEntry) -> bool {
+    let Ok(kind) = entry.file_type() else { return false };
+    if !kind.is_dir() || kind.is_symlink() { return false; }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        return entry.metadata().is_ok_and(|metadata| metadata.file_attributes() & 0x400 == 0);
+    }
+    #[cfg(not(windows))]
+    true
+}
+
 fn get_canonical_path(dir: &Path) -> String {
     let p = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
     let path_str = p.to_string_lossy().to_string();
@@ -93,8 +105,8 @@ fn detect_stack(dir: &Path) -> Vec<String> {
     // Also check immediate subdirectories (e.g. src-tauri, frontend, backend, client, ui)
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
-            if let Ok(ft) = entry.file_type() {
-                if ft.is_dir() {
+            if is_plain_directory(&entry) {
+                {
                     let name = entry.file_name();
                     let name_str = name.to_string_lossy();
                     if !is_ignored_dir(&name_str) {
@@ -231,11 +243,15 @@ fn is_project_candidate(dir: &Path) -> bool {
         || dir.join("src-tauri").join("Cargo.toml").is_file()
 }
 
-fn build_project_entry(dir: &Path) -> ProjectEntry {
+fn build_project_entry(dir: &Path, inspect_git: bool) -> ProjectEntry {
     let name = get_project_name(dir);
     let canonical_path = get_canonical_path(dir);
     let stack = detect_stack(dir);
-    let (git_branch, git_status) = detect_git_info(dir);
+    let (git_branch, git_status) = if inspect_git {
+        detect_git_info(dir)
+    } else {
+        ("—".into(), "Nur Projektmetadaten erfasst".into())
+    };
 
     let recommended_action = if stack.contains(&"Rust".to_string()) && !stack.contains(&"Node.js/TypeScript".to_string()) {
         "cargo test".to_string()
@@ -338,6 +354,24 @@ impl ProjectIntelligenceEngine {
         roots: &[PathBuf],
         max_depth: usize,
     ) -> Result<Vec<ProjectEntry>, ProjectIntelError> {
+        self.index_project_roots(gateway, roots, max_depth, true)
+    }
+
+    pub fn index_desktop_roots(
+        &self,
+        gateway: &PermissionGateway,
+        roots: &[PathBuf],
+    ) -> Result<Vec<ProjectEntry>, ProjectIntelError> {
+        self.index_project_roots(gateway, roots, 1, false)
+    }
+
+    fn index_project_roots(
+        &self,
+        gateway: &PermissionGateway,
+        roots: &[PathBuf],
+        max_depth: usize,
+        inspect_git: bool,
+    ) -> Result<Vec<ProjectEntry>, ProjectIntelError> {
         gateway.check_readonly_allowed(&ActionKind::ScanProjects)?;
 
         let mut discovered = Vec::new();
@@ -347,7 +381,7 @@ impl ProjectIntelligenceEngine {
             if !root.exists() {
                 continue;
             }
-            self.scan_recursive(root, 0, max_depth, &mut discovered, &mut seen_paths)?;
+            Self::scan_recursive(root, 0, max_depth, inspect_git, &mut discovered, &mut seen_paths)?;
         }
 
         let mut conn = self.connect()?;
@@ -391,10 +425,10 @@ impl ProjectIntelligenceEngine {
     }
 
     fn scan_recursive(
-        &self,
         dir: &Path,
         current_depth: usize,
         max_depth: usize,
+        inspect_git: bool,
         discovered: &mut Vec<ProjectEntry>,
         seen_paths: &mut HashSet<String>,
     ) -> Result<(), ProjectIntelError> {
@@ -403,7 +437,7 @@ impl ProjectIntelligenceEngine {
         }
 
         if is_project_candidate(dir) {
-            let entry = build_project_entry(dir);
+            let entry = build_project_entry(dir, inspect_git);
             if seen_paths.insert(entry.canonical_path.clone()) {
                 discovered.push(entry);
             }
@@ -414,14 +448,15 @@ impl ProjectIntelligenceEngine {
             if let Ok(entries) = std::fs::read_dir(dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_dir() {
+                    if is_plain_directory(&entry) {
                         let file_name = entry.file_name();
                         let name_str = file_name.to_string_lossy();
                         if !is_ignored_dir(&name_str) {
-                            self.scan_recursive(
+                            Self::scan_recursive(
                                 &path,
                                 current_depth + 1,
                                 max_depth,
+                                inspect_git,
                                 discovered,
                                 seen_paths,
                             )?;

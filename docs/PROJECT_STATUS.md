@@ -1,8 +1,17 @@
 # Projektstatus — AIDO (Agentic Intelligent Developing Operator)
 
-**Stand: 11. November 2026.**
+**Stand: 12. November 2026.** [Entwicklungsroadmap](ROADMAP.md)
 
-## Nativer Desktop-Companion und lokaler Textchat
+## Windows-Installer und erste Desktop-Aktionen
+
+- **Build und Einrichtung:** `npm run tauri -- build -- --locked` erzeugt den Installer `src-tauri\target\release\bundle\nsis\AIDO_0.1.2_x64-setup.exe`. Auf dem Referenz-PC wurden 0.1.0 installiert, das Setup abgeschlossen und 0.1.1 unter Erhalt der Einstellungen installiert. Das Setup speichert Entwürfe und fragt Betriebsmodus, Zugriffsstufe, Projektordner, Modellprofil und Werkzeuge ab. Der Stand 0.1.2 wurde gebaut und steht für die nächste Installationsabnahme bereit.
+- **Blender:** Im installierten Build 0.1.1 zeigte «Starte Blender» eine Freigabe. Ablehnen liess Blender geschlossen. Zustimmen startete die erkannte Blender-5.1-Installation und öffnete das Programmfenster.
+- **Projekte und Skills:** Der Werkzeugkatalog zeigte den Projektordner `C:\Users\keoku\Desktop\AIDO` und acht gespeicherte Skills. Die Suche berücksichtigt nun auch übliche Projektordner unter ausgewählten Laufwerkswurzeln. Die native Abnahme der Antigravity-Aktion mit diesem exakten Ordner steht aus.
+- **REA:** Der Installer enthält REA 6.7.0 und eine eigene Node.js-Laufzeit. Die mitgelieferte Version und eine lesende PE-Ressourcenanalyse von Notepad wurden per Kommandozeile geprüft. Im installierten AIDO 0.1.1 scheiterte der Aufruf am Windows-Pfadformat. 0.1.2 korrigiert dieses Format. Der erneute Test im nativen Werkzeugkatalog ist offen.
+- **Modellprofile:** Der lokale Qwen-Chat lief mit der Windows-Laufzeit. Ubuntu in WSL2 erkannte die RTX 5090 und konnte auf das GGUF zugreifen. Bei zwei Chatversuchen blieb der Modelldienst bis zum Starttimeout bei «Loading model». Zusammenhängende Chatantworten und VRAM-Freigabe nach Leerlauf müssen für WSL2 noch gemessen werden.
+- **Regression:** Frontend- und NSIS-Build erfolgreich. `cargo test --locked` ergab 87 bestandene und zwei fehlgeschlagene Tests. Der Whisper-Test erwartet `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin`. Beim GPU-Test waren während des Laufs 14 542 MiB VRAM frei, unter der geforderten Reserve. Die Tests für das Fortsetzen eines Setup-Entwurfs und den Chatverlauf bestanden.
+
+## Nativer Desktop-Companion und lokaler Textchat vom 11. November 2026
 
 - **Build und Start:** `npm run tauri -- build --no-bundle -- --locked` baut `src-tauri\target\release\AIDO.exe`. Die EXE startete auf dem Windows-11-Referenz-PC ohne Vite. MONO renderte animiert, öffnete per Klick den separaten Chat und blieb sichtbar, nachdem das Chatfenster geschlossen wurde.
 - **Qwen-Chat:** Ein absichtlich fehlender GGUF-Pfad führte zu einer Fehlermeldung mit «Erneut versuchen». Nachdem der Modellpfad wieder erreichbar war, startete AIDO den lokalen Server auf `127.0.0.1:18434` und zeigte eine echte Qwen-Antwort. Dieser Durchlauf lief auf der CPU. Der Desktop-Start übernimmt jetzt den vorhandenen CUDA-Bibliothekspfad. Die Runtime erkannte mit diesem Pfad die RTX 5090 bei der separaten Geräteprüfung.

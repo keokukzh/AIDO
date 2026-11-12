@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod workspace;
+
 use aido_core::ai_client::ChatMessage;
 use aido_core::companion_runtime::CompanionRuntime;
 use std::sync::Arc;
@@ -7,6 +9,11 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, PhysicalPosition, RunEvent, State, WebviewWindow, WindowEvent,
+};
+use workspace::{
+    decide_project, inspect_rea, open_workspace_window, prepare_app, prepare_project, save_setup,
+    setup_model_check, setup_pick, suggest_wsl_profile, tools_inventory, workspace_projects,
+    workspace_status, Workspace,
 };
 
 fn show_chat(app: &AppHandle) -> tauri::Result<()> {
@@ -30,13 +37,19 @@ fn open_chat(window: WebviewWindow) -> Result<(), String> {
 async fn chat(
     window: WebviewWindow,
     runtime: State<'_, Arc<CompanionRuntime>>,
+    workspace: State<'_, Arc<Workspace>>,
     messages: Vec<ChatMessage>,
 ) -> Result<String, String> {
     if window.label() != "chat" {
         return Err("Dieses Fenster hat keinen Zugriff auf das Modell.".into());
     }
+    let profile = workspace
+        .store
+        .active()?
+        .ok_or("Schliesse zuerst AIDOs Einrichtung ab.")?
+        .model_profile;
     let runtime = Arc::clone(runtime.inner());
-    tauri::async_runtime::spawn_blocking(move || runtime.chat(&messages))
+    tauri::async_runtime::spawn_blocking(move || runtime.chat_with_profile(&messages, &profile))
         .await
         .map_err(|_| "Die lokale Modellanfrage konnte nicht ausgeführt werden.".to_owned())?
 }
@@ -57,15 +70,49 @@ fn position_mono(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 fn main() {
+    let root = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .expect("LOCALAPPDATA fehlt.")
+        .join("AIDO");
+    let workspace =
+        Arc::new(Workspace::new(&root).expect("AIDOs Datenbank konnte nicht geöffnet werden."));
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(mono) = app.get_webview_window("mono") {
+            let active = app
+                .try_state::<Arc<Workspace>>()
+                .is_some_and(|state| state.store.active().ok().flatten().is_some());
+            if !active {
+                let _ = workspace::show(app, "setup");
+            } else if let Some(mono) = app.get_webview_window("mono") {
                 let _ = mono.show();
             }
         }))
+        .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(CompanionRuntime::default()))
-        .invoke_handler(tauri::generate_handler![open_chat, chat])
+        .manage(workspace)
+        .invoke_handler(tauri::generate_handler![
+            open_chat,
+            chat,
+            workspace_status,
+            setup_model_check,
+            suggest_wsl_profile,
+            setup_pick,
+            save_setup,
+            open_workspace_window,
+            workspace_projects,
+            prepare_app,
+            prepare_project,
+            decide_project,
+            tools_inventory,
+            inspect_rea,
+        ])
         .setup(|app| {
+            let configured = app
+                .state::<Arc<Workspace>>()
+                .store
+                .active()
+                .map_err(std::io::Error::other)?
+                .is_some();
             let mono = app
                 .get_webview_window("mono")
                 .ok_or(tauri::Error::WindowNotFound)?;
@@ -85,7 +132,18 @@ fn main() {
                     } else if let Some(mono) = app.get_webview_window("mono") {
                         match event.id().as_ref() {
                             "show-mono" => {
-                                let _ = mono.show();
+                                let active = app
+                                    .state::<Arc<Workspace>>()
+                                    .store
+                                    .active()
+                                    .ok()
+                                    .flatten()
+                                    .is_some();
+                                if active {
+                                    let _ = mono.show();
+                                } else {
+                                    let _ = workspace::show(app, "setup");
+                                }
                             }
                             "hide-mono" => {
                                 let _ = mono.hide();
@@ -98,7 +156,11 @@ fn main() {
                 tray = tray.icon(icon);
             }
             tray.build(app)?;
-            mono.show()?;
+            if configured {
+                mono.show()?;
+            } else {
+                workspace::show(app.handle(), "setup").map_err(std::io::Error::other)?;
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

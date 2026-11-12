@@ -2,11 +2,21 @@
   {
     "identifier": "mono-window",
     "windows": ["mono"],
-    "permissions": ["core:window:allow-start-dragging", "allow-open-chat"]
+    "permissions": ["core:window:allow-start-dragging", "allow-open-chat", "allow-open-workspace-window"]
   },
   {
     "identifier": "chat-window",
     "windows": ["chat"],
-    "permissions": ["allow-chat"]
+    "permissions": ["allow-chat", "allow-workspace-projects", "allow-prepare-project", "allow-prepare-app", "allow-decide-project"]
+  },
+  {
+    "identifier": "setup-window",
+    "windows": ["setup"],
+    "permissions": ["core:window:allow-close", "allow-workspace-status", "allow-setup-model-check", "allow-suggest-wsl-profile", "allow-setup-pick", "allow-save-setup"]
+  },
+  {
+    "identifier": "tools-window",
+    "windows": ["tools"],
+    "permissions": ["allow-tools-inventory", "allow-inspect-rea"]
   }
 ]

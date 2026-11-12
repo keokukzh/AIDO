@@ -31,3 +31,5 @@ button:disabled { opacity: .55; cursor: wait; }
 #chat-status, #error-message { margin: 0 0 8px; color: #414141; }
 #chat-error { border-left: 2px solid #555; margin-bottom: 12px; padding-left: 10px; }
 #retry { color: #171717; background: #fff; padding: 4px 9px; }
+.action-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.action-controls button { color: #171717; background: #fff; overflow-wrap: anywhere; text-align: left; }

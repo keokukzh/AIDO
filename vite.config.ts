@@ -4,7 +4,7 @@ export default defineConfig({
   clearScreen: false,
   build: {
     rollupOptions: {
-      input: { preview: "index.html", companion: "companion.html", chat: "chat.html" }
+      input: { preview: "index.html", companion: "companion.html", chat: "chat.html", setup: "setup.html", tools: "tools.html" }
     }
   },
   server: {

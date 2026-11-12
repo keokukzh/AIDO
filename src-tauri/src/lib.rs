@@ -5,6 +5,7 @@ pub mod app_intelligence;
 #[cfg(feature = "desktop")]
 pub mod companion_runtime;
 pub mod docker_sandbox_bridge;
+pub mod desktop_setup;
 pub mod memory;
 pub mod permission_gateway;
 pub mod phone_agent;
