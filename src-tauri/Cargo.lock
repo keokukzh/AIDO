@@ -43,6 +43,7 @@ dependencies = [
  "tauri-plugin-single-instance",
  "thiserror 2.0.21",
  "ureq",
+ "url",
  "uuid",
  "windows-sys 0.61.2",
 ]
