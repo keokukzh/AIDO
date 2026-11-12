@@ -4,6 +4,7 @@ use aido_core::permission_gateway::{AccessMode, ActionKind, PermissionGateway, P
 use aido_core::windows_security::{SystemSecurityGuard, WindowsDpapiVault};
 
 #[test]
+#[ignore = "braucht installiertes Blender auf dem Referenz-PC (Headless-Inspektion)"]
 fn test_blender_connector_headless_inspection() {
     let connector = BlenderConnector::new();
     let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);
@@ -27,6 +28,7 @@ fn test_blender_connector_headless_inspection() {
 }
 
 #[test]
+#[ignore = "braucht die Docker-CLI auf dem Referenz-PC (Status und Gateway)"]
 fn test_docker_controller_environment_and_gateway_guard() {
     let ctrl = DockerController::new();
     let gateway = PermissionGateway::new(AccessMode::StandardAccess, PrivacyMode::PrivateOffline);

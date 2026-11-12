@@ -7,6 +7,7 @@ use std::process::Command;
 use uuid::Uuid;
 
 #[test]
+#[ignore = "braucht agent-desktop.exe in einer Windows-Desktop-Sitzung"]
 fn test_ui_automation_driver_resolution_and_security_gateway() {
     let temp_root = std::env::temp_dir().join(format!("aido-ui-test-{}", Uuid::new_v4()));
     let db_path = temp_root.join("data/aido_memory.db");
@@ -88,6 +89,7 @@ fn test_ui_automation_driver_resolution_and_security_gateway() {
 }
 
 #[test]
+#[ignore = "braucht Notepad und die Windows-UI-Automation des Referenz-PCs"]
 fn test_ui_automation_notepad_lifecycle_and_audit_log() {
     let temp_root = std::env::temp_dir().join(format!("aido-ui-notepad-{}", Uuid::new_v4()));
     let db_path = temp_root.join("data/aido_memory.db");

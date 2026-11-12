@@ -2,6 +2,78 @@
 
 **Stand: 12. November 2026.** [Entwicklungsroadmap](ROADMAP.md)
 
+## Aktueller Stand: Version, Tests und CI (12. November 2026)
+
+Das Repository [keokukzh/AIDO](https://github.com/keokukzh/AIDO) ist **öffentlich**. `package.json`, `src-tauri/Cargo.toml` und `src-tauri/tauri.conf.json` stehen einheitlich auf **0.1.2**, passend zum zuletzt gebauten Installer `AIDO_0.1.2`. Es gibt dazu kein neues Git-Tag und kein Release.
+
+`src-tauri/Cargo.toml` setzt `rust-version = "1.90"`. Das ist die MSRV von Tauri 2.12.5 (`rust-version` im Workspace des Tags `tauri-v2.12.5`). Die direkten Kern-Abhängigkeiten verlangen weniger: `thiserror` 2.0.21 verlangt 1.77, `windows-sys` 0.61.2 verlangt 1.71. Die CI installiert genau die in `rust-version` genannte Toolchain und bricht ab, wenn `rustc --version` nicht dazu passt.
+
+### Testinventar
+
+Im Quelltext stehen **112** Funktionen mit `#[test]`.
+
+Der CI-Befehl `cargo test --locked --no-default-features` wurde lokal mit Rust **1.90.0** unter Linux ausgeführt, ohne Feature `desktop`:
+
+| Gruppe | Anzahl | Ergebnis auf Rust 1.90.0 |
+| --- | --- | --- |
+| CI-fähige Logiktests | 101 | bestanden |
+| Hardware- und Umgebungstests (`#[ignore]`) | 9 | übersprungen, aber mitkompiliert |
+| Fehlgeschlagen | 0 | — |
+
+Zwei weitere `#[test]`-Funktionen sind in diesem Lauf nicht Teil der Suite. `tests/desktop_actions.rs` und `tests/desktop_wsl.rs` beginnen mit `#![cfg(all(feature = "desktop", windows))]`. Der WSL-Test ist zusätzlich mit `#[ignore]` markiert.
+
+Die früheren Angaben 106/106, 79/79, 87/88 und 40 stammen aus überlappenden oder veralteten Zählungen. Massgeblich ist diese Tabelle.
+
+### CI
+
+`.github/workflows/ci.yml` läuft bei Pull Requests und bei Pushes auf `main`. Rechte sind auf `permissions: contents: read` beschränkt. Die Actions sind auf Commit-SHAs gepinnt. Der Cargo-Cache kommt von `Swatinem/rust-cache`.
+
+- **Linux:** `npm ci`, `npm run build`, `cargo clippy --locked --all-targets --no-default-features`, `cargo test --locked --no-default-features`.
+- **Windows:** `npm ci`, `npm run build` (damit `frontendDist` für Tauri existiert), danach `cargo check --locked --features desktop`.
+- `cargo fmt --check` ist nicht enthalten. `cargo fmt --check` mit Rustfmt 1.90 meldet Abweichungen in vielen Produktivdateien. Ein Format-Lauf würde diese Dateien umschreiben, während parallel Änderungen an denselben Dateien laufen.
+
+Clippy endet mit Status 0. Zwei bestehende Warnungen werden nicht zu Fehlern gemacht:
+
+- `src/windows_security.rs`: `dead_code` für `struct DataBlob` (die Struktur wird nur in den `#[cfg(windows)]`-Zweigen benutzt, der Linux-Lauf sieht sie deshalb als ungenutzt).
+- `src/ui_automation.rs`: `clippy::collapsible_if`.
+
+Lokal war der Frontend-Build (`npm ci && npm run build`) erfolgreich, und der Rust-Lauf entsprach dem Linux-Job (101 bestanden, 9 ignoriert, 0 fehlgeschlagen). Der erste GitHub-Actions-Lauf ([Run 43152307567](https://github.com/keokukzh/AIDO/actions/runs/43152307567)) wurde nicht gestartet: GitHub meldete, das Konto sei wegen eines Abrechnungsproblems gesperrt. Es lief kein Step. Der Workflow selbst wurde angenommen (beide Jobs sind angelegt). Ein grüner Hosted-Lauf braucht ein entsperrtes Actions-Kontingent.
+
+### Hardware-Tests auf dem Referenz-PC
+
+`cargo test` führt `#[ignore]`-Tests nicht aus. Reine Logiktests bleiben im normalen Lauf, darunter `test_blender_script_security_block`, `test_docker_target_sanitization` und `test_docker_prepare_and_execute_approved_token`.
+
+Auf dem Referenz-PC (Blender, Docker-CLI, RTX 5090, Modelle unter `D:\AI_Models`, Windows-Desktop):
+
+```powershell
+cd src-tauri
+
+# nur die ignorierten Umgebungs-Tests
+cargo test --locked --no-default-features -- --ignored
+
+# Logiktests und Hardware-Tests zusammen
+cargo test --locked --no-default-features -- --include-ignored
+
+# Windows-Desktop-Tests (REA und Aktionen) und, wegen --include-ignored, den WSL-Chat
+cargo test --locked --features desktop -- --include-ignored
+```
+
+Diese neun Tests sind `#[ignore]` und laufen in der Linux-CI nicht:
+
+| Test | Grund |
+| --- | --- |
+| `blender_connector::tests::test_blender_discovery_and_info` | installiertes Blender (Discovery) |
+| `blender_connector::tests::test_blender_scene_inspection_blank_scene` | installiertes Blender (Headless-Szenenanalyse) |
+| `tests::test_blender_connector_headless_inspection` | installiertes Blender (Headless-Inspektion) |
+| `docker_controller::tests::test_docker_cli_discovery_and_status` | Docker-CLI (Discovery und Status) |
+| `tests::test_docker_controller_environment_and_gateway_guard` | Docker-CLI (Status und Gateway) |
+| `scenario_1_live_hardware_gpu_sensorik_and_vram_headroom` | GPU- und Prozess-Sensorik (`nvidia-smi`, RTX 5090) |
+| `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` | lokale Modelle unter `D:\AI_Models` |
+| `test_ui_automation_driver_resolution_and_security_gateway` | `agent-desktop.exe` in einer Windows-Desktop-Sitzung |
+| `test_ui_automation_notepad_lifecycle_and_audit_log` | Notepad und Windows-UI-Automation |
+
+Zusätzlich, nur mit Feature `desktop` auf Windows: `wsl_companion_answers_with_session_context` (CUDA-fähiges Ubuntu und lokales Qwen-GGUF).
+
 ## Bestätigte Abnahme: Meilenstein 4 (App-Connectors, Workflows & Whisper-Fundament) (12. November 2026)
 
 - **Blender RPC / Scripting Adapter (`blender_connector.rs`):**
@@ -20,10 +92,10 @@
   - Echter hardware- und benutzergebundener Windows-DPAPI-Tresor (`WindowsDpapiVault`) über direkte Win32-FFI-Bindung an `CryptProtectData` und `CryptUnprotectData` in `crypt32.dll`. Secrets liegen niemals im Klartext auf der Festplatte.
   - `ProcessSecurityContext` prüft Windows-Integritätslevel (`Medium` Standardbenutzer vs. `High` Administrator) und stellt sicher, dass AIDO keine unprivilegierte Angriffsfläche exponiert.
   - `SystemSecurityGuard` überwacht Ports (Hermes 18434, Whisper 18080, Ollama 11434, LM Studio 1234, Web-Vorschau 8080). Hermes auf Port 18434 wird aktiv als geschützter Dienst markiert und bleibt unangetastet.
-- **Whisper ASR Sprachfundament & Test-Konsolidierung (106/106 Tests grün):**
+- **Whisper ASR Sprachfundament:**
   - Die offizielle Whisper-Modelldatei `ggml-small.bin` (487.601.967 Bytes) wurde am erwarteten Pfad `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` bereitgestellt.
-  - `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` in `multi_scenario_test.rs` besteht nun fehlerfrei (`0 GB Download guarantee` & `4/4 Modelle wiederverwendet`).
-  - **106 von 106 Tests** über alle Testsuiten (`lib.rs`, `desktop_actions`, `desktop_setup`, `desktop_connectors_and_workflows_test`, `desktop_memory_proactive_test`, `multi_scenario_test`, `ui_automation_test`) bestehen fehlerfrei.
+  - `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` prüft auf dem Referenz-PC die Wiederverwendung der vier lokalen Modelle (`0 GB` Download, `4/4`). In der CI ist der Test mit `#[ignore]` markiert, weil der Pfad `D:\AI_Models` dort fehlt. Lokal auf dem Referenz-PC bleibt er über `cargo test -- --ignored` ausführbar.
+  - Die Angabe «106 von 106 Tests» ist überholt. Massgeblich ist der Abschnitt «Aktueller Stand»: 112 `#[test]`, davon 101 CI-fähige Logiktests und 9 Hardware-Tests.
 
 ## Bestätigte Abnahme: Installer 0.1.2, Meilenstein 3 (Gedächtnis & Proaktivität) und Native UI Automation (12. November 2026)
 
@@ -52,24 +124,24 @@
   - Frontend-Build (`npm run build`): Erfolgreich in 175 ms.
   - Browser-Vorschau: Läuft separat via `vite preview` (Status 200).
   - CLI: `aido-cli health` meldet den System- und VRAM-Zustand (1.804 MiB belegt von 32.607 MiB, 30.384 MiB frei).
-  - Rust-Tests: 79/79 Unit-Tests in `src/lib.rs`, `desktop_actions`, `desktop_setup` und `companion_chat` bestanden. `scenario_1` bestätigt volle VRAM-Reserve (>30 GB frei). `scenario_8` scheitert planmässig, da `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` am Referenzpfad noch nicht abgelegt ist.
+  - Rust-Tests: Die Angabe «79/79» ist überholt (siehe «Aktueller Stand»). `scenario_1` bleibt ein Hardware-Test für die GPU-Sensorik des Referenz-PCs. `scenario_8` war zu diesem Zeitpunkt ohne `ggml-small.bin` rot; die Modelldatei liegt inzwischen auf dem Referenz-PC, der Test ist in der CI ignoriert.
 
 ## Nativer Desktop-Companion und lokaler Textchat vom 11. November 2026
 
 - **Build und Start:** `npm run tauri -- build --no-bundle -- --locked` baut `src-tauri\target\release\AIDO.exe`. Die EXE startete auf dem Windows-11-Referenz-PC ohne Vite. MONO renderte animiert, öffnete per Klick den separaten Chat und blieb sichtbar, nachdem das Chatfenster geschlossen wurde.
 - **Qwen-Chat:** Ein absichtlich fehlender GGUF-Pfad führte zu einer Fehlermeldung mit «Erneut versuchen». Nachdem der Modellpfad wieder erreichbar war, startete AIDO den lokalen Server auf `127.0.0.1:18434` und zeigte eine echte Qwen-Antwort. Dieser Durchlauf lief auf der CPU. Der Desktop-Start übernimmt jetzt den vorhandenen CUDA-Bibliothekspfad. Die Runtime erkannte mit diesem Pfad die RTX 5090 bei der separaten Geräteprüfung.
 - **Paralleler Betrieb mit Hermes:** Mit aktivem, authentifiziertem Hermes-Dienst auf Port 18434 startete AIDO einen eigenen Qwen-Dienst auf einem freien Loopback-Port. AIDO verwendete die RTX 5090 und beantwortete die Rechenfrage und die anschliessende Rückfrage mit `391` und `392`. Hermes lief auf seinem bisherigen Port weiter.
-- **Regression:** Der Frontend-Build, die Browser-Aufwachanimation und der separate CLI-Start wurden geprüft. 87 von 88 Rust-Tests bestanden. `scenario_8_smart_installer_model_reuse_and_clean_uninstaller_safety` scheitert weiterhin, weil `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` am Referenzpfad fehlt.
+- **Regression:** Der Frontend-Build, die Browser-Aufwachanimation und der separate CLI-Start wurden geprüft. Die Angabe «87 von 88» ist überholt (siehe «Aktueller Stand»). `scenario_8` hing damals am fehlenden Whisper-Modell und ist heute ein ignorierter Hardware-Test.
 - **Offene Abnahme:** Die Bedienung im Windows-Infobereich und die Prozessbereinigung beim Beenden bleiben offen. Mikrofon, Screenshot-Kontext, Android-Steuerung, Systemaktionen und Windows-Autostart gehören zu späteren Desktop-Integrationen.
 
 ## Historischer Stand vom 9. November 2026
 
 ### Repository und Meilensteine der Phasen 0–8
 
-- `keokukzh/AIDO` (**Agentic Intelligent Developing Operator**) ist ein privates GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
+- `keokukzh/AIDO` (**Agentic Intelligent Developing Operator**) ist ein öffentliches GitHub-Repository und lokal in `C:\Users\keoku\Desktop\AIDO` eingerichtet.
 - Der vollständige Produkt-Masterplan v1.0 ist unter [MASTERPLAN.md](MASTERPLAN.md) hinterlegt.
 - Die lokale Modell- und Runtime-Validierung (Text, Vision, Speculative Decoding, Schlafmodus/Idle-Unload, Embeddings und deutsche Spracherkennung) ist vollständig abgeschlossen und mit SHA-256-Prüfsummen im [Modellinventar](MODEL_RUNTIME_INVENTORY.md) dokumentiert.
-- **Alle 8 Entwicklungsphasen (Phasen 0 bis 8)** sind implementiert und mit **40 automatisierten Rust-Tests** (`cargo test` + `cargo clippy -- -D warnings`, 0 Warnungen) sowie einem 9-stufigen End-to-End-Durchstich (`aido-cli demo`) verifiziert:
+- **Alle 8 Entwicklungsphasen (Phasen 0 bis 8)** sind implementiert. Die Angabe «40 automatisierte Rust-Tests» und «Clippy ohne Warnungen» ist überholt. Der aktuelle Stand steht oben: 112 `#[test]`, in der CI 101 bestandene Logiktests, Clippy mit zwei bestehenden Warnungen, die nicht als Fehler gelten. Der 9-stufige End-to-End-Durchstich (`aido-cli demo`) bleibt die damalige manuelle Prüfung:
   - `permission_gateway.rs`: Zugriffskontrolle (`ReadOnly`, `StandardAccess`, `FullAccess`), `PrivateOffline` Loopback-Schutz (`127.0.0.1`) und kryptografische Einmal-Freigabetokens (`ApprovalToken`).
   - `windows_bridge.rs`: Live-Hardware-Sensorik (`nvidia-smi` RTX 5090 VRAM, RAM, Top-Prozesse) und zweistufiges System-Cleanup (**Fast Cleanup** für Sitzungs-Caches & **Deep Cleanup** für verwaiste Build-/Shader-/Crash-Dump-Artefakte) nach Nutzerfreigabe.
   - `app_intelligence.rs`: **App Discovery, Capability Registry & Isolierte Adapter-Prüfbank (Phase 7)** mit SQLite-Persistenz (`app_registry`), Installer-Checkbox-Steuerung, Risiko-/Freigabeklassifizierung pro Fähigkeit (*Docker Desktop*, *Cursor / VS Code*, *LM Studio*, *Google Chrome*) sowie isolierter Sandbox-Synthese (`synthesize_and_verify_unknown_app_adapter`) für unbekannte Programme (*OBS Studio*, *Blender 3D*).

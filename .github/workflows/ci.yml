@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (Frontend und Rust-Kern)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: MSRV aus Cargo.toml lesen
+        id: msrv
+        shell: bash
+        run: |
+          version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' src-tauri/Cargo.toml)
+          if [ -z "$version" ]; then
+            echo "rust-version fehlt in src-tauri/Cargo.toml"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Rust-Toolchain (MSRV)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 2026-10-16
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          components: clippy
+
+      - name: MSRV-Compiler pruefen
+        shell: bash
+        run: |
+          expected="${{ steps.msrv.outputs.version }}"
+          actual=$(rustc --version)
+          echo "$actual"
+          case "$actual" in
+            *" ${expected}"*) ;;
+            *)
+              echo "rustc passt nicht zu rust-version ${expected}"
+              exit 1
+              ;;
+          esac
+
+      - name: Cargo-Cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      - name: Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Frontend bauen
+        run: npm run build
+
+      - name: Clippy (Warnungen bleiben Warnungen)
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets --no-default-features
+
+      - name: Rust-Tests ohne Feature desktop
+        working-directory: src-tauri
+        run: cargo test --locked --no-default-features
+
+  windows:
+    name: Windows (cargo check --features desktop)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: MSRV aus Cargo.toml lesen
+        id: msrv
+        shell: bash
+        run: |
+          version=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' src-tauri/Cargo.toml)
+          if [ -z "$version" ]; then
+            echo "rust-version fehlt in src-tauri/Cargo.toml"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Rust-Toolchain (MSRV)
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 2026-10-16
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+
+      - name: MSRV-Compiler pruefen
+        shell: bash
+        run: |
+          expected="${{ steps.msrv.outputs.version }}"
+          actual=$(rustc --version)
+          echo "$actual"
+          case "$actual" in
+            *" ${expected}"*) ;;
+            *)
+              echo "rustc passt nicht zu rust-version ${expected}"
+              exit 1
+              ;;
+          esac
+
+      - name: Cargo-Cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+
+      - name: Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: npm ci
+        run: npm ci
+
+      - name: Frontend bauen
+        run: npm run build
+
+      - name: Desktop-Feature pruefen
+        run: cargo check --locked --features desktop --manifest-path src-tauri/Cargo.toml
