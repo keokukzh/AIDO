@@ -37,7 +37,7 @@ Clippy endet mit Status 0. Zwei bestehende Warnungen werden nicht zu Fehlern gem
 - `src/windows_security.rs`: `dead_code` für `struct DataBlob` (die Struktur wird nur in den `#[cfg(windows)]`-Zweigen benutzt, der Linux-Lauf sieht sie deshalb als ungenutzt).
 - `src/ui_automation.rs`: `clippy::collapsible_if`.
 
-Lokal war der Frontend-Build (`npm ci && npm run build`) erfolgreich, und der Rust-Lauf entsprach dem Linux-Job (101 bestanden, 9 ignoriert, 0 fehlgeschlagen).
+Lokal war der Frontend-Build (`npm ci && npm run build`) erfolgreich, und der Rust-Lauf entsprach dem Linux-Job (101 bestanden, 9 ignoriert, 0 fehlgeschlagen). Der erste GitHub-Actions-Lauf ([Run 43152307567](https://github.com/keokukzh/AIDO/actions/runs/43152307567)) wurde nicht gestartet: GitHub meldete, das Konto sei wegen eines Abrechnungsproblems gesperrt. Es lief kein Step. Der Workflow selbst wurde angenommen (beide Jobs sind angelegt). Ein grüner Hosted-Lauf braucht ein entsperrtes Actions-Kontingent.
 
 ### Hardware-Tests auf dem Referenz-PC
 
