@@ -1,5 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { el } from "./dom";
+
+function setEmojiLabel(target: HTMLElement, emoji: string, label: string): void {
+  target.replaceChildren(document.createTextNode(`${emoji} `), el("span", { text: label }));
+}
 
 export interface TelemetrySnapshot {
   timestamp: string;
@@ -105,19 +110,19 @@ export class TelemetryHud {
     if (this.modelStateBadge) {
       if (stateStr.includes("Sleeping") || stateStr.includes("SLEEPING")) {
         this.modelStateBadge.className = "state-badge sleeping";
-        this.modelStateBadge.innerHTML = "💤 <span>Sleeping (Zero-VRAM Standby)</span>";
+        setEmojiLabel(this.modelStateBadge, "💤", "Sleeping (Zero-VRAM Standby)");
       } else if (stateStr.includes("Waking") || stateStr.includes("WAKING")) {
         this.modelStateBadge.className = "state-badge waking";
-        this.modelStateBadge.innerHTML = "⏳ <span>Waking (Layer Loading…)</span>";
+        setEmojiLabel(this.modelStateBadge, "⏳", "Waking (Layer Loading…)");
       } else {
         this.modelStateBadge.className = "state-badge active";
-        this.modelStateBadge.innerHTML = "⚡ <span>Qwen3.8-27B WarmActive</span>";
+        setEmojiLabel(this.modelStateBadge, "⚡", "Qwen3.8-27B WarmActive");
       }
     }
 
-    // Update Privacy Badge
+    // Update Privacy Badge — privacy kommt aus dem Telemetrie-Payload und darf kein Markup werden.
     if (this.privacyBadge) {
-      this.privacyBadge.innerHTML = `🔒 <span>${privacy} (0.0 KB Externe Daten)</span>`;
+      setEmojiLabel(this.privacyBadge, "🔒", `${privacy} (0.0 KB Externe Daten)`);
     }
 
     this.drawSparkline();

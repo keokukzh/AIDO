@@ -1,5 +1,6 @@
 import { Mono3DViewer, type MonoState } from "./mono3d";
 import awakeningMarkup from "./mono-awakening.svg?raw";
+import { svg } from "./dom";
 
 /**
  * AIDO — Dein persönlicher Desktop-Begleiter
@@ -1240,13 +1241,24 @@ function renderMemoryAndTasks(): void {
     for (const task of tasksState) {
       const row = document.createElement("div");
       row.className = "list-row";
-      row.innerHTML = `
-        <div class="list-row-main">
-          <span class="list-row-title">${task.title}</span>
-          <span class="list-row-sub">${task.schedule}</span>
-        </div>
-        <span class="mono-tag">${task.statusLabel}</span>
-      `;
+
+      const main = document.createElement("div");
+      main.className = "list-row-main";
+
+      const title = document.createElement("span");
+      title.className = "list-row-title";
+      title.textContent = task.title;
+
+      const schedule = document.createElement("span");
+      schedule.className = "list-row-sub";
+      schedule.textContent = task.schedule;
+
+      const status = document.createElement("span");
+      status.className = "mono-tag";
+      status.textContent = task.statusLabel;
+
+      main.append(title, schedule);
+      row.append(main, status);
       tasksList.appendChild(row);
     }
   }
@@ -1273,10 +1285,18 @@ function renderPhoneStage(): void {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "phone-node-btn";
-      btn.innerHTML = `
-        <span><strong>${node.label}</strong><br/><small style="opacity:0.75">${node.hint}</small></span>
-        <span>Tippen →</span>
-      `;
+
+      const labelWrap = document.createElement("span");
+      const strong = document.createElement("strong");
+      strong.textContent = node.label;
+      const hint = document.createElement("small");
+      hint.setAttribute("style", "opacity:0.75");
+      hint.textContent = node.hint;
+      labelWrap.append(strong, document.createElement("br"), hint);
+
+      const tap = document.createElement("span");
+      tap.textContent = "Tippen →";
+      btn.append(labelWrap, tap);
       btn.addEventListener("click", () => {
         handlePhoneNodeTap(node);
       });
@@ -1465,7 +1485,7 @@ function renderPhoneQrCode(): void {
 
   // Generate crisp 21x21 monochrome SVG QR matrix
   const size = 21;
-  const cells: string[] = [];
+  const cells: SVGRectElement[] = [];
 
   const isFinderPattern = (r: number, c: number): boolean => {
     const inTopLeft = r < 7 && c < 7;
@@ -1503,17 +1523,36 @@ function renderPhoneQrCode(): void {
       }
 
       if (dark) {
-        cells.push(`<rect x="${c}" y="${r}" width="1" height="1" fill="#000000" />`);
+        cells.push(
+          svg("rect", {
+            x: String(c),
+            y: String(r),
+            width: "1",
+            height: "1",
+            fill: "#000000",
+          })
+        );
       }
     }
   }
 
-  qrBox.innerHTML = `
-    <svg viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR-Code für Handy-Kopplung">
-      <rect width="${size}" height="${size}" fill="#ffffff" />
-      ${cells.join("")}
-    </svg>
-  `;
+  qrBox.replaceChildren(
+    svg(
+      "svg",
+      {
+        viewBox: `0 0 ${size} ${size}`,
+        "shape-rendering": "crispEdges",
+        role: "img",
+        "aria-label": "QR-Code für Handy-Kopplung",
+      },
+      svg("rect", {
+        width: String(size),
+        height: String(size),
+        fill: "#ffffff",
+      }),
+      ...cells
+    )
+  );
 }
 
 // ============================================================================

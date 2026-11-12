@@ -164,7 +164,10 @@ export class CharacterGestures {
         this.cardsContainer.appendChild(cardEl);
       });
     } catch (err) {
-      this.cardsContainer.innerHTML = `<div class="error-proposals">Fehler: ${String(err)}</div>`;
+      const error = document.createElement("div");
+      error.className = "error-proposals";
+      error.textContent = `Fehler: ${String(err)}`;
+      this.cardsContainer.replaceChildren(error);
     }
   }
 

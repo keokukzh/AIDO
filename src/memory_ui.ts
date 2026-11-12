@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { el } from "./dom";
 
 interface MemoryQuota {
   used_bytes: number;
@@ -38,37 +39,48 @@ function formatBytes(bytes: number): string {
 
 function renderEntries(entries: MemoryEntry[]): void {
   if (!entries || entries.length === 0) {
-    memoryListEl.innerHTML = `<div class="empty-notice">Keine passenden Erinnerungen im aktiven Langzeitgedächtnis gefunden.</div>`;
+    memoryListEl.replaceChildren(
+      el("div", {
+        className: "empty-notice",
+        text: "Keine passenden Erinnerungen im aktiven Langzeitgedächtnis gefunden.",
+      })
+    );
     return;
   }
 
-  memoryListEl.innerHTML = entries
-    .map(
-      (entry) => `
-    <div class="memory-card" data-id="${entry.entry_id}">
-      <div class="memory-content">
-        <div class="memory-meta">
-          <span class="memory-layer-tag">${entry.layer}</span>
-          <span>•</span>
-          <span>Schlüssel: ${entry.key || "-"}</span>
-          <span>•</span>
-          <span>${new Date(entry.created_at).toLocaleString("de-DE")}</span>
-        </div>
-        <div class="memory-text">${escapeHtml(entry.content)}</div>
-      </div>
-      <button type="button" class="forget-btn" data-action="forget" data-id="${entry.entry_id}" title="Aus dem Gedächtnis löschen">
-        🗑️ Vergessen
-      </button>
-    </div>
-  `
-    )
-    .join("");
-}
-
-function escapeHtml(text: string): string {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
+  memoryListEl.replaceChildren(
+    ...entries.map((entry) => {
+      const id = String(entry.entry_id);
+      return el(
+        "div",
+        { className: "memory-card", attrs: { "data-id": id } },
+        el(
+          "div",
+          { className: "memory-content" },
+          el(
+            "div",
+            { className: "memory-meta" },
+            el("span", { className: "memory-layer-tag", text: entry.layer }),
+            el("span", { text: "•" }),
+            el("span", { text: `Schlüssel: ${entry.key || "-"}` }),
+            el("span", { text: "•" }),
+            el("span", { text: new Date(entry.created_at).toLocaleString("de-DE") })
+          ),
+          el("div", { className: "memory-text", text: entry.content })
+        ),
+        el("button", {
+          className: "forget-btn",
+          text: "🗑️ Vergessen",
+          attrs: {
+            type: "button",
+            "data-action": "forget",
+            "data-id": id,
+            title: "Aus dem Gedächtnis löschen",
+          },
+        })
+      );
+    })
+  );
 }
 
 async function loadOverview(): Promise<void> {
@@ -84,9 +96,11 @@ async function loadOverview(): Promise<void> {
     quotaBarEl.style.width = `${Math.min(100, Math.max(1, data.quota.used_percent))}%`;
 
     // Layer Badges
-    layerBadgesEl.innerHTML = Object.entries(data.layer_counts)
-      .map(([layer, count]) => `<span class="layer-badge">${layer}: <b>${count}</b></span>`)
-      .join("");
+    layerBadgesEl.replaceChildren(
+      ...Object.entries(data.layer_counts).map(([layer, count]) =>
+        el("span", { className: "layer-badge" }, `${layer}: `, el("b", { text: String(count) }))
+      )
+    );
 
     renderEntries(data.recent_entries);
   } catch (err) {
