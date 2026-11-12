@@ -618,7 +618,7 @@ fn scenario_6_admin_broker_security_and_prompt_injection_elevation_defense() {
 
     // 3. Test DPAPI-style byte sealing without plaintext in storage
     let secret_key = "LOCAL_LLM_API_KEY";
-    let secret_val = "sk-aido-rtx5090-local-super-secret-key-2026";
+    let secret_val = "mock-aido-rtx5090-local-test-key-2026";
 
     let meta = broker.seal_secret(secret_key, secret_val);
     assert_eq!(meta.secret_key, secret_key);

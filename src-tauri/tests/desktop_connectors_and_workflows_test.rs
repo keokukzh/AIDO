@@ -59,7 +59,7 @@ fn test_docker_controller_environment_and_gateway_guard() {
 #[test]
 fn test_windows_dpapi_vault_and_system_security() {
     let vault = WindowsDpapiVault::new();
-    let secret_credential = b"ghp_AIDO_SEALED_PAT_CREDENTIAL_KEY_2026_RTX5090";
+    let secret_credential = b"mock_token_AIDO_SEALED_PAT_CREDENTIAL_KEY_2026_RTX5090";
 
     // Encrypt with DPAPI
     let ciphertext = vault.protect(secret_credential).expect("DPAPI protect must succeed");

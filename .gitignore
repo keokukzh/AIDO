@@ -7,11 +7,25 @@
 *.pfx
 *.p12
 *.secret
+*.cert
+*.crt
+*.csr
+*.id_rsa
+*.id_ed25519
+id_rsa
+id_ed25519
 secrets/
 credentials/
 *.db
 *.sqlite
 *.sqlite3
+*.dmp
+*.crash
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Persönliche AIDO-Daten und Modelle
 data/
@@ -19,6 +33,7 @@ memory/
 models/
 downloads/
 logs/
+cache/
 *.gguf
 *.safetensors
 *.pt
@@ -41,5 +56,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
 
 .superpowers/

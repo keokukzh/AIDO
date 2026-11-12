@@ -803,7 +803,7 @@ impl AidoCore {
         // 5. Seal credentials in DPAPI-style vault
         let _sealed = self
             .admin_broker
-            .seal_secret("LOCAL_LLM_API_KEY", "sk-aido-local-rtx5090");
+            .seal_secret("LOCAL_LLM_API_KEY", "mock-aido-local-rtx5090");
         let protected_secrets = self.admin_broker.list_secret_metadata();
 
         // 6. WSL2 & Docker Sandbox audit
@@ -1665,7 +1665,7 @@ mod tests {
             .admin_broker
             .unseal_secret("LOCAL_LLM_API_KEY")
             .expect("unseal_secret failed");
-        assert_eq!(unsealed, "sk-aido-local-rtx5090");
+        assert_eq!(unsealed, "mock-aido-local-rtx5090");
 
         // 5. WSL2 / RTX 5090 Docker Sandboxes
         assert_eq!(report.docker_audit.templates.len(), 3);

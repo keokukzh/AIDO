@@ -236,7 +236,7 @@ mod tests {
     fn seals_and_unseals_secrets_without_plaintext_exposure() {
         let broker = AdminBroker::new();
         let key = "LOCAL_RTX5090_LLM_API_KEY";
-        let plaintext_secret = "sk-aido-local-5090-ultra-secure-key";
+        let plaintext_secret = "mock-aido-local-5090-ultra-secure-key";
 
         let meta = broker.seal_secret(key, plaintext_secret);
         assert_eq!(meta.secret_key, key);
