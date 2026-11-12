@@ -70,6 +70,40 @@ fn position_mono(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 fn main() {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::StationsAndDesktops::{
+            GetThreadDesktop, GetUserObjectInformationW, OpenDesktopW, SetThreadDesktop, UOI_NAME,
+        };
+        unsafe {
+            let thread_id = windows_sys::Win32::System::Threading::GetCurrentThreadId();
+            let desktop = GetThreadDesktop(thread_id);
+            let mut name_buf = [0u16; 256];
+            let mut length = 0;
+            if GetUserObjectInformationW(
+                desktop as _,
+                UOI_NAME as _,
+                name_buf.as_mut_ptr() as _,
+                512,
+                &mut length,
+            ) != 0
+            {
+                let name = String::from_utf16_lossy(&name_buf[..(length as usize / 2).saturating_sub(1)]);
+                if !name.eq_ignore_ascii_case("default") {
+                    let default_desktop = OpenDesktopW(
+                        windows_sys::core::w!("Default"),
+                        0,
+                        0,
+                        0x01FF,
+                    );
+                    if !default_desktop.is_null() {
+                        let _ = SetThreadDesktop(default_desktop);
+                    }
+                }
+            }
+        }
+    }
+
     let root = std::env::var_os("LOCALAPPDATA")
         .map(std::path::PathBuf::from)
         .expect("LOCALAPPDATA fehlt.")

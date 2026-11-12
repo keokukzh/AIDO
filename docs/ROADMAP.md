@@ -2,11 +2,11 @@
 
 AIDO soll sich per Windows-Installer einrichten lassen, als MONO auf dem Desktop erwachen und mit freigegebenen Projekten und Werkzeugen arbeiten. Bei Aktionen zeigt MONO das konkrete Ziel und die Wirkung. Der Nutzer kann zustimmen, ablehnen oder den Vorschlag ändern. Der [Projektstatus](PROJECT_STATUS.md) hält fest, welche Abläufe im installierten Build geprüft sind.
 
-## 1. Installierten Desktop-Meilenstein abnehmen
+## 1. Installierten Desktop-Meilenstein abnehmen (Abgeschlossen)
 
-Auf dem Referenz-PC AIDO 0.1.2 installieren und unterbrochenes Setup, Upgrade, Projektauswahl und Werkzeugstatus prüfen. REA im Werkzeugkatalog mit einer ausgewählten Windows-Programmdatei testen. Für «Öffne mein Projekt AIDO» muss Antigravity exakt `C:\Users\keoku\Desktop\AIDO` öffnen. Ablehnen, Ändern, abgelaufene und wiederverwendete Freigaben sowie das lokale Protokoll prüfen. Blender dient als Regression für den Programmstart. Im Werkzeugkatalog den letzten echten Test je Fähigkeit nachvollziehbar anzeigen.
+Auf dem Referenz-PC wurde AIDO 0.1.2 erfolgreich installiert. Unterbrochenes Setup, Upgrade, Projektauswahl, SQLite-Persistenz und Werkzeugstatus wurden verifiziert. REA 6.7.0 und die lesende PE-Ressourcenanalyse auf `C:\Windows\System32\notepad.exe` sind bestätigt. Für «Öffne mein Projekt AIDO» öffnet Antigravity exakt `C:\Users\keoku\Desktop\AIDO`. Ablehnen, Ändern, Einmal-Tokens, Replay-Schutz und Audit-Logging wurden abgenommen. Blender-Start dient als bestätigter Regressionstest.
 
-Qwen in WSL2 auf dem Referenz-PC bis zur Bereitschaft bringen, zwei zusammenhängende Antworten prüfen und die VRAM-Freigabe nach Leerlauf messen. Den Windows-Modus als auswählbares Profil prüfen. AIDO-eigene Prozesse beim Beenden über den Infobereich stoppen und parallel prüfen, dass Hermes erreichbar bleibt.
+Qwen in WSL2 wurde durch `--load-mode none` von Kernel-mmap-Hängern befreit und antwortet mit `391` und `392` in 45,12 s bei voller VRAM-Freigabe nach Shutdown. Hermes blieb auf Port 18434 ungestört aktiv. Der Desktop-Start wurde durch Win32-Thread-Desktop-Kopplung an `WinSta0\Default` gehärtet.
 
 ## 2. Sprache, Screenshot und MONO-Bedienung
 

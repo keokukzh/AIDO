@@ -44,7 +44,7 @@ AIDO tritt dem Nutzer als **MONO** gegenüber — eine minimalistisch-architekto
 
 ## Projektstand
 
-AIDO läuft als nativer Windows-Companion mit animiertem MONO, lokalem Qwen-Chat und Einrichtungsassistent. Der installierte Build 0.1.1 wurde mit einem echten Blender-Start nach Freigabe geprüft. Der Werkzeugkatalog zeigt erkannte Projekte, Programme und lokale Skills.
+AIDO läuft als nativer Windows-Companion mit animiertem MONO, lokalem Qwen-Chat und Einrichtungsassistent. Der installierte Build 0.1.2 wurde mit der Antigravity-Projektöffnung, dem Blender-Start nach Freigabe, der lesenden REA-6.7.0-Ressourcenanalyse und der WSL2-/Windows-Qwen-Laufzeit abgenommen. Der Werkzeugkatalog zeigt erkannte Projekte, Programme und lokale Skills.
 
 Der Rust-Kern und die Browser-Vorschau enthalten Grundlagen für Gedächtnis, Proaktivität, Systempflege, App-Adapter und Android. Der aktuelle Funktionsstand, offene Abnahmen und die nächsten Desktop-Meilensteine stehen im [Projektstatus](docs/PROJECT_STATUS.md) und in der [Roadmap](docs/ROADMAP.md).
 

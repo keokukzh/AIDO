@@ -497,6 +497,7 @@ fn start_server(port: u16, profile: &ModelProfile) -> Result<OwnedServer, String
                 &profile.model,
             ])
             .args(args)
+            .args(["--load-mode", "none"])
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

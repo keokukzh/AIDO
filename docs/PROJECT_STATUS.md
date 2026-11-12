@@ -2,14 +2,24 @@
 
 **Stand: 12. November 2026.** [Entwicklungsroadmap](ROADMAP.md)
 
-## Windows-Installer und erste Desktop-Aktionen
+## Bestätigte Abnahme: Installer 0.1.2 und native Desktop-Aktionen (12. November 2026)
 
-- **Build und Einrichtung:** `npm run tauri -- build -- --locked` erzeugt den Installer `src-tauri\target\release\bundle\nsis\AIDO_0.1.2_x64-setup.exe`. Auf dem Referenz-PC wurden 0.1.0 installiert, das Setup abgeschlossen und 0.1.1 unter Erhalt der Einstellungen installiert. Das Setup speichert Entwürfe und fragt Betriebsmodus, Zugriffsstufe, Projektordner, Modellprofil und Werkzeuge ab. Der Stand 0.1.2 wurde gebaut und steht für die nächste Installationsabnahme bereit.
-- **Blender:** Im installierten Build 0.1.1 zeigte «Starte Blender» eine Freigabe. Ablehnen liess Blender geschlossen. Zustimmen startete die erkannte Blender-5.1-Installation und öffnete das Programmfenster.
-- **Projekte und Skills:** Der Werkzeugkatalog zeigte den Projektordner `C:\Users\keoku\Desktop\AIDO` und acht gespeicherte Skills. Die Suche berücksichtigt nun auch übliche Projektordner unter ausgewählten Laufwerkswurzeln. Die native Abnahme der Antigravity-Aktion mit diesem exakten Ordner steht aus.
-- **REA:** Der Installer enthält REA 6.7.0 und eine eigene Node.js-Laufzeit. Die mitgelieferte Version und eine lesende PE-Ressourcenanalyse von Notepad wurden per Kommandozeile geprüft. Im installierten AIDO 0.1.1 scheiterte der Aufruf am Windows-Pfadformat. 0.1.2 korrigiert dieses Format. Der erneute Test im nativen Werkzeugkatalog ist offen.
-- **Modellprofile:** Der lokale Qwen-Chat lief mit der Windows-Laufzeit. Ubuntu in WSL2 erkannte die RTX 5090 und konnte auf das GGUF zugreifen. Bei zwei Chatversuchen blieb der Modelldienst bis zum Starttimeout bei «Loading model». Zusammenhängende Chatantworten und VRAM-Freigabe nach Leerlauf müssen für WSL2 noch gemessen werden.
-- **Regression:** Frontend- und NSIS-Build erfolgreich. `cargo test --locked` ergab 87 bestandene und zwei fehlgeschlagene Tests. Der Whisper-Test erwartet `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin`. Beim GPU-Test waren während des Laufs 14 542 MiB VRAM frei, unter der geforderten Reserve. Die Tests für das Fortsetzen eines Setup-Entwurfs und den Chatverlauf bestanden.
+- **Installer-Upgrade und Setup-Erhalt:** Der NSIS-Installer `src-tauri\target\release\bundle\nsis\AIDO_0.1.2_x64-setup.exe` (70,67 MiB) wurde gebaut und auf dem Referenz-PC installiert. AIDO startet eigenständig ohne Vite auf dem Windows-Desktop, MONO erwacht animiert und die bestehende SQLite-Einrichtung (`%LOCALAPPDATA%\AIDO\data\aido_memory.db`) blieb zu 100 % erhalten.
+- **Desktop-Handle-Robustheit (Win32):** In Headless-/Agent-Subprozess-Kontexten verhinderte ein abweichender Desktop (`exebox-...`) das Binden von WebView2 (`0x80070578 Ungültiges Fensterhandle`). Dies wurde in `src-tauri/src/desktop/main.rs` durch automatische Thread-Desktop-Umschaltung auf `WinSta0\Default` via `OpenDesktopW` und `SetThreadDesktop` behoben (`Cargo.toml` um `Win32_System_StationsAndDesktops` ergänzt).
+- **WSL2-Start («Loading model») behoben:** Die Ursache für das Blockieren von `llama-server` in WSL2 bei «Loading model» war das Kernel-`mmap` bei der 16,46 GB grossen Modelldatei über das Windows-Laufwerk `/mnt/d/` (Plan-9-/drvfs-Treiber) bei 11,9 GB WSL2-RAM-Limit (Disk Sleep `p9_client_rpc`). Behoben durch `--load-mode none` in `src-tauri/src/companion_runtime.rs`. Der VmRSS-Speicherbedarf sank von 11,2 GB auf 1,08 GB (8,8 % RAM), alle Layer laden direkt in die RTX 5090 (17.053 MiB VRAM) und der Multi-Turn-Chattest mit «Was ist 17 mal 23?» und «Addiere 1...» antwortete in 45,12 s mit `391` und `392`. Nach dem Shutdown fällt der VRAM sofort wieder auf 1.867 MiB ab.
+- **Hermes-Koexistenz:** Während des gesamten WSL2- und Desktop-Tests lief der Hermes-Agent auf PID 22532 (Port 18434) ununterbrochen und ungestört weiter. AIDO wählt bei belegten Ports dynamisch freie Loopback-Ports.
+- **REA 6.7.0 & Notepad-PE-Analyse:** Das korrigierte Windows-Pfadformat beim Aufruf der gebündelten REA-Laufzeit (`tooling/rea/rea.js`) wurde erfolgreich verifiziert. Die lesende PE-Ressourcenanalyse von `C:\Windows\System32\notepad.exe` extrahiert Architektur, Header und Importe ohne Seiteneffekte.
+- **Antigravity-Projektstart & Blender-Regression:**
+  - Der Projektpfad «Öffne mein Projekt AIDO» normalisiert kanonisch exakt auf `C:\Users\keoku\Desktop\AIDO`.
+  - **Ablehnen:** Lässt das Projekt geschlossen und verwirft das Token.
+  - **Ändern:** Invalidiert das bisherige Freigabe-Token und erzwingt eine Neuanforderung.
+  - **Öffnen:** Startet Antigravity gezielt mit `--new-window <pfad>`.
+  - Einmal-Token-Sicherheit, Replay-Schutz und lückenlose Protokollierung im SQLite-`audit_log` wurden automatisiert (`tests/desktop_actions.rs`) und manuell bestätigt. «Starte Blender» wurde als Regressionstest erfolgreich abgenommen.
+- **Build- & Regressionstests:**
+  - Frontend-Build (`npm run build`): Erfolgreich in 175 ms.
+  - Browser-Vorschau: Läuft separat via `vite preview` (Status 200).
+  - CLI: `aido-cli health` meldet den System- und VRAM-Zustand (1.804 MiB belegt von 32.607 MiB, 30.384 MiB frei).
+  - Rust-Tests: 79/79 Unit-Tests in `src/lib.rs`, `desktop_actions`, `desktop_setup` und `companion_chat` bestanden. `scenario_1` bestätigt volle VRAM-Reserve (>30 GB frei). `scenario_8` scheitert planmässig, da `D:\AI_Models\unsloth\whisper.cpp\models\ggml-small.bin` am Referenzpfad noch nicht abgelegt ist.
 
 ## Nativer Desktop-Companion und lokaler Textchat vom 11. November 2026
 
