@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AIDO · Gedächtnis &amp; Wissen</title>
+    <link rel="stylesheet" href="/src/workspace.css">
+    <link rel="stylesheet" href="/src/memory.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>🧠 Gedächtnis &amp; Wissen</h1>
+          <p class="subtitle">Einsicht in AIDOs aktives Langzeitgedächtnis, Quoten und Löschkontrolle.</p>
+        </div>
+        <button id="refresh" type="button" class="secondary">Aktualisieren</button>
+      </header>
+
+      <div class="quota-card">
+        <div class="quota-header">
+          <span class="quota-title">Speicherbelegung (SSD / SQLite)</span>
+          <span id="quota-text" class="quota-value">Lädt...</span>
+        </div>
+        <div class="quota-bar-track">
+          <div id="quota-bar-fill" class="quota-bar-fill" style="width: 0%;"></div>
+        </div>
+        <div id="layer-badges" class="layer-badges"></div>
+      </div>
+
+      <div class="search-box">
+        <input type="search" id="memory-search" placeholder="Gedächtnis durchsuchen (z. B. Blender, Projekt, Name)..." />
+      </div>
+
+      <p id="memory-status" role="status"></p>
+
+      <div id="memory-list" class="memory-list"></div>
+    </main>
+    <script type="module" src="/src/memory_ui.ts"></script>
+  </body>
+</html>

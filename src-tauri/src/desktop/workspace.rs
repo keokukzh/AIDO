@@ -4,8 +4,9 @@ use aido_core::{
         check_model_profile, suggest_wsl_model_profile, suggested_windows_profile, CompanionRuntime,
     },
     desktop_setup::{canonical_directory, ModelBackend, ModelProfile, SetupSettings, SetupStore},
-    memory::MemoryEngine,
+    memory::{MemoryEntry, MemoryLayer, MemoryEngine},
     permission_gateway::{ActionKind, PermissionGateway},
+    proactive_engine::{ProactiveCategory, ProactiveEngine, UserActivityState},
     project_intelligence::{ProjectEntry, ProjectIntelligenceEngine},
     windows_bridge::WindowsBridge,
 };
@@ -26,10 +27,11 @@ const APPROVAL_LIFETIME: Duration = Duration::from_secs(300);
 
 pub struct Workspace {
     pub store: SetupStore,
-    gateway: PermissionGateway,
-    projects: ProjectIntelligenceEngine,
-    apps: AppIntelligenceEngine,
-    memory: MemoryEngine,
+    pub gateway: PermissionGateway,
+    pub projects: ProjectIntelligenceEngine,
+    pub apps: AppIntelligenceEngine,
+    pub memory: MemoryEngine,
+    pub proactive: ProactiveEngine,
     cache: PathBuf,
     proposal: Mutex<Option<PendingLaunch>>,
     rea_checked: Mutex<Option<String>>,
@@ -90,6 +92,7 @@ impl Workspace {
             projects: ProjectIntelligenceEngine::new(&db).map_err(stringify)?,
             apps: AppIntelligenceEngine::new(&db).map_err(stringify)?,
             memory: MemoryEngine::new(&db).map_err(stringify)?,
+            proactive: ProactiveEngine::new(),
             cache: root.join("cache/fast_cleanup_staging"),
             proposal: Mutex::new(None),
             rea_checked: Mutex::new(None),
@@ -349,6 +352,7 @@ pub fn open_workspace_window(window: WebviewWindow, target: String) -> Result<()
     let refresh = match target.as_str() {
         "setup" => "window.dispatchEvent(new Event('aido-refresh-setup'))",
         "tools" => "window.dispatchEvent(new Event('aido-refresh-tools'))",
+        "memory" => "window.dispatchEvent(new Event('aido-refresh-memory'))",
         _ => return Err("Unbekanntes AIDO-Fenster.".into()),
     };
     let target_window = window
@@ -719,6 +723,151 @@ pub async fn inspect_rea(
         workspace.audit("ReaReadOnlyInspection", true, &file_name)?;
         *workspace.rea_checked.lock().map_err(stringify)? = Some(chrono::Utc::now().to_rfc3339());
         Ok(Some(value))
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn memory_overview(
+    _window: WebviewWindow,
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<Value, String> {
+    let workspace = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let quota = workspace.memory.inspect_storage_quota(100 * 1024 * 1024).map_err(stringify)?;
+        let recent = workspace.memory.list_recent_memories(50).map_err(stringify)?;
+        
+        let mut layer_counts = serde_json::Map::new();
+        for layer in MemoryLayer::all() {
+            let count = workspace.memory.list_memories_by_layer(Some(layer.as_str()), true, 500).map_err(stringify)?.len();
+            layer_counts.insert(layer.as_str().to_string(), json!(count));
+        }
+
+        Ok(json!({
+            "quota": {
+                "used_bytes": quota.db_size_bytes,
+                "limit_bytes": quota.quota_limit_bytes,
+                "used_percent": quota.usage_percent,
+                "skills_count": quota.procedural_skills_count,
+            },
+            "layer_counts": layer_counts,
+            "recent_entries": recent,
+        }))
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn memory_forget(
+    _window: WebviewWindow,
+    workspace: State<'_, Arc<Workspace>>,
+    entry_id: i64,
+) -> Result<bool, String> {
+    let workspace = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let forgotten = workspace.memory.forget_memory_entry(entry_id).map_err(stringify)?;
+        if forgotten {
+            let _ = workspace.audit("MemoryForget", true, &format!("entry:{}", entry_id));
+        }
+        Ok(forgotten)
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn memory_search(
+    _window: WebviewWindow,
+    workspace: State<'_, Arc<Workspace>>,
+    query: String,
+) -> Result<Vec<MemoryEntry>, String> {
+    let workspace = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        workspace.memory.search_memory(&query, 30).map_err(stringify)
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn proactive_check(
+    _window: WebviewWindow,
+    workspace: State<'_, Arc<Workspace>>,
+) -> Result<Value, String> {
+    let workspace = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = workspace.store.active().ok().flatten().unwrap_or_default();
+        let projects = workspace.projects_in_scope(&settings).unwrap_or_default();
+        
+        let bridge = WindowsBridge::new(workspace.gateway.clone(), &workspace.cache);
+        let health = bridge
+            .as_ref()
+            .ok()
+            .and_then(|b| b.run_system_health_check().ok())
+            .unwrap_or(aido_core::windows_bridge::SystemHealthReport {
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                gpu: aido_core::windows_bridge::GpuStatus {
+                    gpu_name: "NVIDIA GeForce RTX 5090".to_string(),
+                    vram_used_mib: 1800,
+                    vram_free_mib: 30000,
+                    vram_total_mib: 32607,
+                },
+                system_ram_free_mb: 40000,
+                system_ram_total_mb: 64902,
+                top_processes: vec![],
+                aido_temp_cache_path: "".to_string(),
+                aido_temp_cache_files: 0,
+                aido_temp_cache_bytes: 0,
+                human_summary: "".to_string(),
+            });
+
+        let uncompacted = workspace
+            .memory
+            .list_memories_by_layer(Some(MemoryLayer::EpisodicMemory.as_str()), true, 50)
+            .map(|v| v.len())
+            .unwrap_or(0);
+
+        let report = workspace.proactive.evaluate_context(
+            UserActivityState::NormalIdle,
+            &health,
+            &projects,
+            uncompacted,
+            0,
+        );
+        Ok(json!({
+            "suppressed": report.suppressed_by_focus_guard,
+            "suppression_reason": report.suppression_reason,
+            "suggestions": report.suggestions,
+        }))
+    })
+    .await
+    .map_err(stringify)?
+}
+
+#[tauri::command]
+pub async fn proactive_dismiss(
+    _window: WebviewWindow,
+    workspace: State<'_, Arc<Workspace>>,
+    suggestion_id: String,
+    mute_category: Option<String>,
+) -> Result<bool, String> {
+    let workspace = Arc::clone(workspace.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(cat_str) = mute_category {
+            let cat = match cat_str.as_str() {
+                "DirtyGitWorkspace" => ProactiveCategory::DirtyGitWorkspace,
+                "ProjectContinuation" => ProactiveCategory::ProjectContinuation,
+                "SystemMaintenance" => ProactiveCategory::SystemMaintenance,
+                "MemoryConsolidation" => ProactiveCategory::MemoryConsolidation,
+                _ => ProactiveCategory::SystemMaintenance,
+            };
+            workspace.proactive.mute_category(cat);
+        } else {
+            workspace.proactive.record_dismissal(&suggestion_id);
+        }
+        Ok(true)
     })
     .await
     .map_err(stringify)?

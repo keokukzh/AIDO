@@ -231,7 +231,7 @@ impl MemoryEngine {
             "SELECT m.id, m.created_at, m.layer, m.category, m.summary, m.details, m.source, m.validity
              FROM memory_fts f
              JOIN memory_entries m ON m.id = f.rowid
-             WHERE memory_fts MATCH ?1
+             WHERE memory_fts MATCH ?1 AND m.validity = 'active'
              ORDER BY rank
              LIMIT ?2",
         )?;

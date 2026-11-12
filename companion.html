@@ -15,7 +15,19 @@
         <canvas id="mono-canvas" aria-hidden="true"></canvas>
       </button>
       <div id="move-mono" title="MONO verschieben" aria-label="MONO verschieben"></div>
+      <div id="proactive-bubble" class="proactive-bubble" hidden>
+        <div class="bubble-header">
+          <span class="bubble-tag">💡 AIDO denkt mit</span>
+          <button type="button" id="bubble-close" class="bubble-close" aria-label="Ausblenden">×</button>
+        </div>
+        <p id="bubble-text" class="bubble-text"></p>
+        <div class="bubble-actions">
+          <button type="button" id="bubble-view" class="bubble-btn primary">Ansehen</button>
+          <button type="button" id="bubble-later" class="bubble-btn">Später</button>
+        </div>
+      </div>
       <div id="mono-menu" aria-label="AIDO-Menü" hidden>
+        <button type="button" data-target="memory">🧠 Gedächtnis &amp; Wissen</button>
         <button type="button" data-target="tools">Werkzeuge &amp; Skills</button>
         <button type="button" data-target="setup">Einrichtung</button>
       </div>

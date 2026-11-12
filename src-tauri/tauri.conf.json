@@ -35,6 +35,17 @@
         "visible": false
       },
       {
+        "label": "memory",
+        "title": "AIDO · Gedächtnis & Wissen",
+        "url": "memory.html",
+        "width": 720,
+        "height": 660,
+        "minWidth": 360,
+        "minHeight": 420,
+        "center": true,
+        "visible": false
+      },
+      {
         "label": "mono",
         "title": "AIDO-MONO",
         "url": "companion.html",

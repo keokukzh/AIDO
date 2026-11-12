@@ -76,3 +76,58 @@ moveGrip.addEventListener("pointerdown", (event) => {
   errorNotice.hidden = true;
   void getCurrentWindow().startDragging().catch(() => showError("MONO konnte nicht verschoben werden."));
 });
+
+// Proactive Suggestions Engine Integration
+const bubble = document.querySelector<HTMLElement>("#proactive-bubble")!;
+const bubbleText = document.querySelector<HTMLElement>("#bubble-text")!;
+const bubbleClose = document.querySelector<HTMLButtonElement>("#bubble-close")!;
+const bubbleView = document.querySelector<HTMLButtonElement>("#bubble-view")!;
+const bubbleLater = document.querySelector<HTMLButtonElement>("#bubble-later")!;
+
+interface ProactiveSuggestion {
+  id: string;
+  category: string;
+  title: string;
+  human_message: string;
+}
+
+let activeSuggestion: ProactiveSuggestion | null = null;
+
+async function checkProactive(): Promise<void> {
+  try {
+    const report = await invoke<{ suppressed: boolean; suggestions: ProactiveSuggestion[] }>("proactive_check");
+    if (!report.suppressed && report.suggestions && report.suggestions.length > 0) {
+      activeSuggestion = report.suggestions[0];
+      bubbleText.textContent = activeSuggestion.human_message || activeSuggestion.title;
+      bubble.hidden = false;
+      viewer.setState("thinking");
+      window.setTimeout(() => viewer.setState("idle"), 3000);
+    } else {
+      bubble.hidden = true;
+    }
+  } catch {
+    // Proactive check is non-fatal
+  }
+}
+
+bubbleClose.addEventListener("click", () => {
+  bubble.hidden = true;
+  if (activeSuggestion) {
+    void invoke("proactive_dismiss", { suggestionId: activeSuggestion.id, muteCategory: null });
+  }
+});
+
+bubbleLater.addEventListener("click", () => {
+  bubble.hidden = true;
+  if (activeSuggestion) {
+    void invoke("proactive_dismiss", { suggestionId: activeSuggestion.id, muteCategory: null });
+  }
+});
+
+bubbleView.addEventListener("click", () => {
+  bubble.hidden = true;
+  void invoke("open_chat");
+});
+
+window.setTimeout(() => void checkProactive(), 4000);
+window.setInterval(() => void checkProactive(), 60_000);

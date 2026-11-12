@@ -14,9 +14,11 @@ Qwen in WSL2 wurde durch `--load-mode none` von Kernel-mmap-Hängern befreit und
 
 Grösse und Position speichern. Gedrückthalten nimmt Audio für lokales Whisper auf. Mittelklick hängt einen sichtbar markierten Screenshot an die nächste Nachricht an. Aufnehmen, Arbeiten, Freigabe und Fehler erhalten unterscheidbare Zustände. Abnahme mit tatsächlich gesprochener Eingabe, sichtbarem Anhang und nachvollziehbarer Vision-Antwort. Die Modellpfade und Messungen stehen in der [Laufzeitübersicht](MODEL_RUNTIME_INVENTORY.md).
 
-## 3. Gedächtnis, proaktive Hilfe und Aufgaben
+## 3. Gedächtnis, proaktive Hilfe und Aufgaben (Abgeschlossen)
 
-SQLite/FTS5 an den nativen Chat und Projektkatalog anbinden. Sitzungsverlauf, verdichtete Erinnerungen und Projektwissen mit Herkunft, Speicherlimit, Korrektur, Export und Löschung verwalten. Embeddings anhand konkreter Projektfragen gegen die Volltextsuche prüfen. Proaktive Vorschläge aus freigegebenen Projekten und lokalen Systemsignalen ableiten. Ruhezeiten, Vollbild, Stummschalten und Rückmeldungen beachten. Den Wochenbericht als ersten planbaren Skill mit sichtbarem Start, Pause, Abbruch und Ergebnis testen.
+SQLite/FTS5 ist an den nativen Desktop-Chat und das neue Privacy & Memory Center (`memory.html`) angebunden. Sitzungsverlauf, Vorlieben und Projektwissen werden aktiv einsehbar, suchbar und über die Schaltfläche «Vergessen» sofort löschbar verwaltet. Im Chat werden relevante Fakten automatisch in den Kontext eingespeist und neue Nutzerpräferenzen selbstständig gelernt.
+
+Die proaktive MONO-Engine blendet bei ungesicherten Git-Änderungen in freigegebenen Projekten eine sanfte Sprechblase über MONO ein (Optionen: Ansehen, Später, Ausblenden). Ruhezeiten und Vollbild/Gaming werden über den Fokus-Guard strikt geschützt. Der Wochenbericht als ausführbarer Skill baut auf dieser Datenbasis auf.
 
 ## 4. Aktionen, Skills und Integrationen
 

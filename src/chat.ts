@@ -19,6 +19,13 @@ const retry = document.querySelector<HTMLButtonElement>("#retry")!;
 const errorBox = document.querySelector<HTMLElement>("#chat-error")!;
 const errorMessage = document.querySelector<HTMLElement>("#error-message")!;
 const status = document.querySelector<HTMLElement>("#chat-status")!;
+const memoryBtn = document.querySelector<HTMLButtonElement>("#open-memory");
+
+if (memoryBtn) {
+  memoryBtn.addEventListener("click", () => {
+    void invoke("open_workspace_window", { target: "memory" });
+  });
+}
 
 let pending: { message: ChatMessage; element: HTMLElement } | undefined;
 let busy = false;
