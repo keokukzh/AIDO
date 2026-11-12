@@ -1,6 +1,6 @@
 {
   "name": "aido-desktop",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "AIDO — Dein persönlicher, lokaler Desktop-Begleiter für Windows 11",
   "private": true,
   "type": "module",
