@@ -1,3 +1,6 @@
+/* Author display rules (e.g. display:flex on overlays) override the UA [hidden] rule; keep hidden elements hidden. */
+[hidden] { display: none !important; }
+
 :root {
   --bg: transparent;
   --fg: #fff;
